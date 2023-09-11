@@ -167,9 +167,9 @@ class Train:
 
         # summarize network structure
         self.netArch = str(net) + '\n'
-        self.loger.debug(self.netArch)
         if dataSize:
             self.netArch += str(summary(net, dataSize, depth=depth))
+        self.loger.info(self.netArch)
 
         # the type of optimizer, etc. selected
         self.lossFnType = lossFn
@@ -212,8 +212,8 @@ class Train:
         self,
         trainData : Union[tuple, list, DataLoader],
         valData : Union[tuple, list, DataLoader],
-        testData : Optional[Union[tuple, list, DataLoader]],
-        logDir : Optional[str],
+        testData : Optional[Union[tuple, list, DataLoader]] = None,
+        logDir : Optional[str] = None,
     ) -> Dict[str, Dict[str, Tensor]]:
         '''Apex function to train and test network.
 
@@ -226,7 +226,7 @@ class Train:
             Dataset used for validation. If type is tuple or list, dataset should
             be (data, labels).
         testData : tuple, list, DataLoader, optional
-            Dataset used to evaluate the model (default = None).
+            Dataset used to evaluate the model. Default is None.
         logDir : str, optional
             Save directory location (under outFolder) and support hierarchical folder 
             structure. Default is None, which means use outFolder.
@@ -260,7 +260,7 @@ class Train:
         bestNetParam = deepcopy(self.net.state_dict())
 
         # create log writer
-        logDir = os.path.join(self.outFolder, logDir) if logDir else logDir
+        logDir = os.path.join(self.outFolder, logDir) if logDir else self.outFolder
         writer = SummaryWriter(logDir)
         loger = Logger(logDir, path=os.path.join(logDir, 'running.log'), mode='a')
         
@@ -503,3 +503,24 @@ class Train:
         
         return DataLoader(TensorDataset(*dataset), batch_size=batchSize,
                           shuffle=True, pin_memory=pinMem)
+
+    def __repr__(self) -> str:
+        '''Trainer details.
+        '''
+        s = '[Network architecture]:\n' + self.netArch
+        s += f'[Loss function]:\t{self.lossFnType}\n'
+        if self.lossFnArgs:
+            s += f'[LossFn Args]:\t{self.lrSchArgs}\n'
+        s += f'[Optimizer]:\t{self.optimizerType}\n'
+        s += f'[Learning rate]:\t{self.lr}\n'
+        if self.optimArgs:
+            s += f'[Optim Args]:\t{self.optimArgs}\n'
+        if self.lrSchType:
+            s += f'[Lr scheduler]:\t{self.lrSchType}\n'
+            if self.lrSchArgs:
+                s += f'[LrSch Args]:\t{self.lrSchArgs}\n'
+        s += f'[Seed]:\t{self.seed}\n'
+        s += f'[Grad Acc]:\t{self.gradAcc}\n'
+        s += f'[Stop Cri]:\t{str(self.stopMon)}\n'
+        s += f'[Value check]:\t{self.valCheck}\n'
+        s += f'[Classes name]:\t{self.classes}\n'

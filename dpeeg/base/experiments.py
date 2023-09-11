@@ -228,7 +228,7 @@ class KFoldCV:
         filer.write(f'[Start Time]: {Timer.ctime()}\n\n')
         if desc:
             filer.write(f'[ExP Description]: {desc}\n\n')
-        filer.write(str(self.trainer.netArch) + '\n\n')
+        filer.write(str(self.trainer) + '\n\n')
             
         # resport results
         testAccList = []
