@@ -47,6 +47,21 @@ cudnn.benchmark = False
 cudnn.deterministic = True
 
 DEEGDIR = os.path.join(os.path.expanduser('~'), 'deeg')
+STOPCRI = {
+    "cri_1": {
+        "type": "MaxEpoch",
+        "maxEpochs": 1000,
+        "varName": "epoch"
+    },
+    
+    "sym_2": "or",
+
+    "cri_3": {
+        "type": "NoDecrease",
+        "numEpochs": 100,
+        "varName": "valInacc"
+    }
+}
 
 
 # base train Model
@@ -56,9 +71,9 @@ class Train:
     def __init__(
         self,
         net : nn.Module,
-        stopCri : Union[Criteria, StrPath, dict],
         classes : Union[list, tuple],
         nGPU : int = 0,
+        stopCri : Optional[Union[Criteria, StrPath, dict]] = STOPCRI,
         seed : Optional[int] = None,
         lossFn : str = 'NLLLoss',
         lossFnArgs : dict = {},
@@ -82,12 +97,13 @@ class Train:
         ----------
         net : nn.Module
             Inherit nn.Module and should define the forward method.
-        stopCri : Criteria, StrPath, dict
-            Criteria for training to stop.
-        nGPU : int, optional
-            Select the gpu id to train. Default is 0.
         classes : list, tuple
             The name of given labels.
+        nGPU : int, optional
+            Select the gpu id to train. Default is 0.
+        stopCri : Criteria, StrPath, dict, optional
+            Criteria for training to stop. Default is max epochs = 1000, 
+            no decrease epochs = 100.
         seed : int, optional
             Select random seed for review. Default is None.
         lossFn : str, optional
@@ -295,13 +311,11 @@ class Train:
             if monitors[self.valCheck] <= bestVal:
                 bestVal = monitors[self.valCheck]
                 bestNetParam = deepcopy(self.net.state_dict())
-                bestRes = {
-                    'train' : {
-                        'preds': trainPreds, 'acts': trainActs, 'acc': trainAcc
-                    },
-                    'val' : {
-                        'preds': valPreds, 'acts': valActs, 'acc': valAcc
-                    }
+                bestRes['train'] = {
+                    'preds': trainPreds, 'acts': trainActs, 'acc': trainAcc, 'loss': trainLoss
+                }
+                bestRes['test'] = {
+                    'preds': valPreds, 'acts': valActs, 'acc': valAcc, 'loss': valLoss
                 }
             
             # check if to stop
@@ -315,30 +329,33 @@ class Train:
         loger.info(f'[Train Finish] - [{timer.ctime()}]')
         h, m, s = timer.stop()
         loger.info(f'Cost Time = {h}H:{m}M:{s:.2f}S')
-        
-        # load the best model and evaulate this model in testData
-        testLoss, bestTestAcc, testRes = -1, -1, {}
-        if testLoader:
-            self.net.load_state_dict(bestNetParam)
-            preds, acts, testLoss = self._predict(testLoader)
-            bestTestAcc = self.get_acc(preds, acts)
-            testRes = {'preds': preds, 'acts': acts, 'acc': bestTestAcc}
-            
-        # print the result of best model
+
+        # load the best result
+        trainLoss, valLoss = bestRes["train"]["loss"], bestRes["test"]["loss"]
         printLoss = f'Loss: train={trainLoss:.4f} | val={valLoss:.4f}'
-        printLoss = printLoss+f' | test={testLoss:.4f}' if testLoader else printLoss
-        loger.info(printLoss)
-        printAcc = f'Acc : train={bestRes["train"]["acc"]:.4f} | val={bestRes["val"]["acc"]:.4f}'
-        printAcc = printAcc+f' | test={bestTestAcc:.4f}' if testLoader else printAcc
-        loger.info(printAcc)
+        trainAcc, valAcc = bestRes["train"]["acc"], bestRes["val"]["acc"]
+        printAcc = f'Acc : train={trainAcc:.4f} | val={valAcc:.4f}'
 
         # save the experiment details
         self.expDetails['result'] = {'bestTrainAcc' : bestRes['train']['acc']}
         self.expDetails['result'] = {'bestValAcc' : bestRes['val']['acc']}
-        if testLoader:
-            self.expDetails['result'] = {'bestTestAcc' : bestTestAcc}
-
         self.expDetails['bestNetParam'] = bestNetParam
+        
+        # load the best model and evaulate this model in testData (if not None)
+        if testLoader:
+            self.net.load_state_dict(bestNetParam)
+            testPreds, testActs, testLoss = self._predict(testLoader)
+            testAcc = self.get_acc(testPreds, testActs)
+            bestRes['test'] = {
+                'preds': testPreds, 'acts': testActs, 'acc': testAcc, 'loss': testLoss
+            }
+            printLoss = printLoss+f' | test={testLoss:.4f}'
+            printAcc = printAcc+f' | test={testAcc:.4f}'
+            self.expDetails['result'] = {'bestTestAcc' : testAcc}
+            
+        # print the result of best model
+        loger.info(printLoss)
+        loger.info(printAcc)
 
         # store the experiment details
         with open(os.path.join(logDir, f'train.pkl'), 'wb') as f:
@@ -347,10 +364,6 @@ class Train:
         # store the best net model parameters
         modelPath = os.path.join(logDir, f'train_checkpoint_best.pth')
         torch.save(bestNetParam, modelPath)
-
-        # return results
-        if testLoader:
-            bestRes['test'] = testRes
         
         return bestRes
 

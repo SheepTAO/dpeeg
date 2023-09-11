@@ -7,7 +7,7 @@
     TODO: Data augmentation.
     
     @author: SheepTAO
-    @data: 2023/5/15
+    @data: 2023-5-15
 """
 
 
@@ -29,14 +29,12 @@ class Compose:
         self.transforms = transforms
         
     def __call__(self, input):
-        
         for t in self.transforms:
             input = t(input)
         
         return input
 
     def __repr__(self) -> str:
-        
         names = [trans.__class__.__name__ for trans in self.transforms]
         names = '\n'.join(names)
         
@@ -45,7 +43,6 @@ class Compose:
     def appends(self, transforms):
         '''Append a transform or a list of transforms to the last of composes.
         '''
-        
         if isinstance(transforms, list):
             self.transforms.extend(transforms)
         else:
@@ -56,7 +53,7 @@ class Compose:
         self.transforms.insert(index, transform)
     
 
-class _SplitDataset:
+class SplitDataset:
     '''Split the dataset into training and testing sets.
     '''
     def __init__(self, testSize : float = .2, seed : Optional[int] = None) -> None:
@@ -85,8 +82,8 @@ class _SplitDataset:
         return input
 
 
-class _ToTensor:
-    '''Convert the data in the dataset into Tensor format.
+class ToTensor:
+    '''Convert the numpy data in the dataset into Tensor format.
     '''
     def __init__(self) -> None:
         pass
@@ -143,7 +140,6 @@ class Normalization:
         self.eps = eps
 
     def __call__(self, input : dict) -> dict:
-        
         if self.mode not in self.modeList:
             raise ValueError('Only the following normalization methods are '+
                              f'supported: {self.modeList}')

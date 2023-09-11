@@ -25,7 +25,7 @@
 import mne
 from . import transforms
 from torch.utils.data import Dataset
-from typing import Optional, Callable
+from typing import Optional, Callable, List
 
 
 class EEGDataset(Dataset):
@@ -58,12 +58,16 @@ class EEGDataset(Dataset):
     @property
     def dataset(self) -> dict:
         return self._check_attr('_dataset')
-    
+
     def __init__(
         self,
+        subjects : Optional[list] = None,
+        tmin : float = 0,
+        tmax : float = 1,
+        transforms : Optional[List[Callable]] = None,
         testSize : float = .2, 
+        picks : Optional[List[str]] = None,
         seed : Optional[int] = None,
-        transforms : Optional[Callable] = None,
         verbose : Optional[str] = None
     ) -> None:
         super().__init__()
@@ -72,13 +76,13 @@ class EEGDataset(Dataset):
         
         self._testSize = testSize
         self._seed = seed
-        self._transforms = transforms if transforms else []
+        self._transforms = transforms
         self._dataset = None
         
         # NOTE
         # Please make sure the following attributes are correctly overridden
-        self._eventId = None
-        self._raw = None
+        self._eventId = None        # task name and its corresponding label
+        self._raw = None            # each subject and its corresponding Epochs
     
     def _load_data(self, split : bool = False) -> None:
         '''Extract data from Epochs and convert it into Tensor and split.
@@ -99,15 +103,16 @@ class EEGDataset(Dataset):
                     data = mEpochs.get_data()[:, :, :-1]
                     label = mEpochs.events[:, -1]
                     dataset[sub][mode] = [data, label]
+
+        # split the dataset before transforms
+        if self._transforms:
+            trans = transforms.Compose(self._transforms)
+            if not split:
+                trans.insert(0, transforms.SplitDataset(self._testSize, self._seed))
+            self._dataset = trans(dataset)
+        else:
+            self._dataset = dataset
         
-        trans = transforms.Compose([
-            self._transforms,
-            transforms._ToTensor(),
-        ])
-        if not split:
-            trans.insert(0, transforms._SplitDataset(self._testSize, self._seed))
-        
-        self._dataset = trans(dataset)
     
     def __getitem__(self, args) -> dict:
         '''Return the index position data of the corresponding subject
@@ -173,17 +178,18 @@ class EEGDataset(Dataset):
 class PhysioNet(EEGDataset):
     def __init__(
         self,
+        subjects : Optional[list] = None,
         tmin : float = 0,
         tmax : float = 1,
-        baseline = None,
+        transforms : Optional[List[Callable]] = None,
         testSize : float = .2,
+        picks : Optional[List[str]] = None,
+        baseline = None,
         seed : Optional[int] = None,
-        subjects : Optional[list] = None,
-        transforms : Optional[Callable] = None,
-        verbose : Optional[str] = 'ERROR',
+        verbose : Optional[str] = 'WARNING',
         **epoArgs
     ) -> None:
-        super().__init__(testSize, seed, transforms, verbose)
+        super().__init__(subjects, tmin, tmax, transforms, testSize, picks, seed, verbose)
         print('Reading PhysionetMI Dataset ...')
         
         from moabb.datasets import PhysionetMI
@@ -214,7 +220,7 @@ class PhysioNet(EEGDataset):
                 
                 events = ann[0][:-1]
                 epochsSes.append(mne.Epochs(run, events, ann[1], tmin, tmax,
-                                             baseline=baseline, **epoArgs))
+                                             baseline, picks, preload=True, **epoArgs))
             
             self._raw[sub] = mne.concatenate_epochs(epochsSes)
         
@@ -224,15 +230,16 @@ class PhysioNet(EEGDataset):
 class BCICIV2A(EEGDataset):
     def __init__(
         self,
-        tmin : float = 0,
-        tmax : float = 1,
-        baseline = None,
-        mode : int = 1,
-        testSize : float = .2,
-        seed : Optional[int] = None,
         subjects : Optional[list] = None,
-        transforms : Optional[Callable] = None,
-        verbose : Optional[str] = 'ERROR',
+        tmin : float = 0,
+        tmax : float = 4,
+        transforms : Optional[List[Callable]] = None,
+        testSize : float = .2,
+        mode : int = 1,
+        picks : Optional[List[str]] = None,
+        baseline = None,
+        seed : Optional[int] = None,
+        verbose : Optional[str] = 'WARNING',
         **epoArgs
     ) -> None:
         '''
@@ -242,7 +249,7 @@ class BCICIV2A(EEGDataset):
             If mode = 2, training data and test data will use both session 1 and 2.
             Default is 1.
         '''
-        super().__init__(testSize, seed, transforms, verbose)
+        super().__init__(subjects, tmin, tmax, transforms, testSize, picks, seed, verbose)
         print('Reading BCICIV 2A Dataset ...')
 
         from moabb.datasets import BNCI2014001
@@ -265,7 +272,7 @@ class BCICIV2A(EEGDataset):
                     events = mne.find_events(run, 'stim')
                     events[:, -1] -= 1
                     epochs = mne.Epochs(run, events, self._eventId, tmin, tmax,
-                                        baseline=baseline, preload=True, **epoArgs)
+                                        baseline, picks, preload=True, **epoArgs)
                     epochs.drop_channels(['stim', 'EOG1', 'EOG2', 'EOG3'])
                     
                     if session == 'session_T':
@@ -289,11 +296,37 @@ class BCICIV2A(EEGDataset):
 class HGD(EEGDataset):
     def __init__(
       self,
-      tmin : float = 0,
-      tmax : float = 1.,
-      baseline = None,
       subjects : Optional[list] = None,
-      transforms : Optional[Callable] = None,
+      tmin : float = 0,
+      tmax : float = 4,
+      transforms : Optional[List[Callable]] = None,
+      testSize : float = .2,
+      picks : Optional[List[str]] = None,
+      baseline = None,
+      seed : Optional[int] = None,
+      verbose : Optional[str] = 'WARNING',
       **epoArgs,
     ) -> None:
-        pass
+        super().__init__(subjects, tmin, tmax, transforms, testSize, picks, seed, verbose)
+        print('Reading High Gamma Dataset ...')
+
+        from moabb.datasets import Schirrmeister2017
+        self._baseRaw = Schirrmeister2017().get_data(subjects)
+        self._eventId = {
+            'feet': 0, 
+            'left_hand': 1, 
+            'rest': 2, 
+            'right_hand': 3
+        }
+
+        self._raw = {}
+        for sub, sess in self._baseRaw.items():
+            for mode, run in sess['session_0'].items():
+                events, _ = mne.events_from_annotations(run)
+                # update events
+                events[:, -1] -= 1
+                epochs = mne.Epochs(run, events, self._eventId, tmin, tmax,
+                                    baseline, picks, preload=True, **epoArgs)
+                self._raw.setdefault(sub, {})[mode] = epochs
+
+        self._load_data(split=True)
