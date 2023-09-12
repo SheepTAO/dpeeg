@@ -156,7 +156,7 @@ class Train:
         os.makedirs(self.outFolder, exist_ok=True)
 
         self.loger = Logger(f'_train_{net.__class__.__name__}', flevel=None)
-        self.loger.info(f'Results will be save in folder: {self.outFolder}')
+        self.loger.info(f'Results will be saved in folder: {self.outFolder}')
 
         # init trainer
         self.device = self.get_device(nGPU)

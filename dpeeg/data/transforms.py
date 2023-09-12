@@ -31,14 +31,16 @@ class Compose:
     def __call__(self, input):
         for t in self.transforms:
             input = t(input)
-        
         return input
 
     def __repr__(self) -> str:
-        names = [trans.__class__.__name__ for trans in self.transforms]
-        names = '\n'.join(names)
-        
-        return names
+        s = 'Compose('
+        if len(self.transforms) == 0:
+            return s + ')'
+        else:
+            for idx, tran in enumerate(self.transforms):
+                s += f'\n ({idx}): {tran}'
+        return s + '\n)'
 
     def appends(self, transforms):
         '''Append a transform or a list of transforms to the last of composes.
@@ -78,8 +80,13 @@ class SplitDataset:
             input[sub] = {}
             input[sub]['train'] = [trainX, trainy]
             input[sub]['test'] = [testX, testy]
-
         return input
+
+    def __repr__(self) -> str:
+        s = f'SplitDataset(testSize={self.testSize}'
+        if self.seed:
+            s += f', seed={self.seed}'
+        return s + ')'
 
 
 class ToTensor:
@@ -93,19 +100,25 @@ class ToTensor:
             for mode in ['train', 'test']:
                 sub[mode][0] = torch.as_tensor(sub[mode][0]).float()
                 sub[mode][1] = torch.as_tensor(sub[mode][1]).long()
-
         return input
+
+    def __repr__(self) -> str:
+        return 'ToTensor'
 
 
 class Normalization:
     '''Normalize the data.
     '''
     def __init__(
-        self, mode : str = 'z-score', 
+        self, 
+        mode : str = 'z-score', 
         factorNew : float = 1e-3,
         eps : float = 1e-4
     ) -> None:
         '''Normalize data in the given way in the given dimension.
+
+        Parameters
+        ----------
         mode : str, optional
             within subject:
             - `z-score`,
@@ -186,6 +199,13 @@ class Normalization:
                     sub[mode][0] = np.dot(sub[mode][0], R)
 
         return input
+    
+    def __repr__(self) -> str:
+        s = f'Normalization(mode={self.mode}'
+        if self.mode == 'z-score':
+            return s + ')'
+        elif self.mode == 'ems':
+            return s + f', factorNew={self.factorNew}, eps={self.eps})'
 
 
 class SlideWin:
@@ -196,6 +216,8 @@ class SlideWin:
         window operation on the original dataset. If the time axis is not divisible by 
         the sliding window, the last remaining time data will be discarded.
 
+        Parameters
+        ----------
         win : int, optional
             The size of the sliding window. Default is 125.
         overlap : int, optional
@@ -203,7 +225,7 @@ class SlideWin:
         '''
         self.win = win
         self.overlap = overlap
-        assert self.overlap < self.win, \
+        assert self.overlap < self.win and self.overlap >= 0, \
             f'overlap({overlap}) should be smaller than win({win}).'
 
     def __call__(self, input : dict) -> dict:
@@ -224,8 +246,13 @@ class SlideWin:
 
                 sub[mode][0] = np.concatenate(dataList)
                 sub[mode][1] = np.repeat(sub[mode][1], sldNum)
-
         return input
+    
+    def __repr__(self) -> str:
+        s = f'SlideWin(win={self.win}'
+        if self.overlap != 0:
+            s += f', overlap={self.overlap}'
+        return s + ')'
 
 
 class ApplyFunc:
@@ -249,8 +276,11 @@ class ApplyFunc:
         for sub in input.values():
             for mode in ['train', 'test']:
                 sub[mode][0] = self.func(sub[mode][0])
-
         return input
+    
+    def __repr__(self) -> str:
+        return f'ApplyFunc(func={self.func})'
+
 
 class Save:
     '''Save the transformed data.
@@ -261,16 +291,24 @@ class Save:
         Parameters
         ----------
         fileName : str
-            File or filename to which the data is saved, and `a .npy` extension will
+            File or filename to which the data is saved, and a `.npy` extension will
             be appended to the filename if it does not already have one.
         overwrite : bool, optional
             If True, overwrite the destination file if it exists. Default is False.
         '''
         self.fileName = os.path.abspath(fileName)
-        if self.fileName.endswith('.npy'):
+        self.overwrite = overwrite
+        if not self.fileName.endswith('.npy'):
             self.fileName += '.npy'
         if not overwrite and os.path.exists(self.fileName):
             raise FileExistsError('Data overwrite is not allowed.')
 
     def __call__(self, input : dict) -> Any:
+        print(f'Transformed data will be saved in: {self.fileName}')
         np.save(self.fileName, input)
+    
+    def __repr__(self) -> str:
+        s = f'Save(fileName={self.fileName}'
+        if self.overwrite:
+            s += ', overwrite=True'
+        return s + ')'
