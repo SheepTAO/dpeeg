@@ -24,11 +24,10 @@
 
 import mne
 from . import transforms
-from torch.utils.data import Dataset
 from typing import Optional, Callable, List
 
 
-class EEGDataset(Dataset):
+class EEGDataset:
     '''Base EEG dataset'''
     def _check_attr(self, attr : str) -> dict:
         '''Check if the attribute is None.'''
@@ -41,22 +40,26 @@ class EEGDataset(Dataset):
     def size(self) -> tuple:
         '''Return the current dimension of the dataset.'''
         sub = next(iter(self.dataset.values()))
-        return tuple(sub['train'][0].size())
+        return tuple(sub['train'][0].shape)
         
     @property
     def eventId(self) -> dict:
+        '''Return the event label of the dataset and its corresponding id.'''
         return self._check_attr('_eventId')
     
     @property
     def classes(self) -> tuple:
+        '''Return the event label of the dataset.'''
         return tuple(self.eventId.keys())
     
     @property
     def raw(self) -> dict:
+        '''Return the original Epochs data.'''
         return self._check_attr('_raw')
     
     @property
     def dataset(self) -> dict:
+        '''Return the loaded data.'''
         return self._check_attr('_dataset')
 
     def __init__(
@@ -70,6 +73,28 @@ class EEGDataset(Dataset):
         seed : Optional[int] = None,
         verbose : Optional[str] = None
     ) -> None:
+        '''EEG Dataset abstract base class.
+
+        Parameters
+        ----------
+        subjects : list of int, optional
+            List of subject number. If None, all subjects will be loaded. Default is None.
+        tmin, tmax : float, optional
+            Start and end time of the epochs in seconds, relative to the time-locked event.
+            The closest or matching samples corresponding to the start and end time are 
+            included. Default is start and end time of epochs, respectively.
+        transforms : list of Callable, optional
+            List of pre-transforms on dataset. Default is None.
+        testSize : float, optional
+            Split the training set and test set proportions. If the dataset is already split,
+            it will be ignored. Default is 0.2.
+        picks : list of str, optional
+            Channels to include. If None, will pick all channels. Default is None.
+        seed : int, optional
+            Random seed when splitting. Default is None.
+        verbose : str, optional
+            Log level of mne. Default is None.
+        '''
         super().__init__()
 
         mne.set_log_level(verbose)
@@ -85,7 +110,7 @@ class EEGDataset(Dataset):
         self._raw = None            # each subject and its corresponding Epochs
     
     def _load_data(self, split : bool = False) -> None:
-        '''Extract data from Epochs and convert it into Tensor and split.
+        '''Extract data from Epochs and split.
         
         split : bool, optional
             Whether `self.raw` has been splited. Default is False.
@@ -307,6 +332,10 @@ class HGD(EEGDataset):
       verbose : Optional[str] = 'WARNING',
       **epoArgs,
     ) -> None:
+        '''High Gamma Dataset.
+        channels=128; subjects=1-14; tasks={0:feet, 1:left hand, 2:rest, 3:right hand};
+        duration=4s.
+        '''
         super().__init__(subjects, tmin, tmax, transforms, testSize, picks, seed, verbose)
         print('Reading High Gamma Dataset ...')
 

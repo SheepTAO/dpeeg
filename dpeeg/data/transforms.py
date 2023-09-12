@@ -208,11 +208,11 @@ class SlideWin:
 
     def __call__(self, input : dict) -> dict:
         assert self.overlap < self.win
-        
+
         winSize = self.win - self.overlap
         for sub in input.values():
             for mode in ['train', 'test']:
-                
+
                 dataList = []
                 sldNum = sub[mode][0].shape[-1] // winSize
                 for i in range(sldNum):
@@ -221,10 +221,10 @@ class SlideWin:
                     else:
                         sld = sub[mode][0][..., i*winSize-self.overlap : (i+1)*winSize]
                     dataList.append(sld)
-                
+
                 sub[mode][0] = np.concatenate(dataList)
                 sub[mode][1] = np.repeat(sub[mode][1], sldNum)
-        
+
         return input
 
 
@@ -244,12 +244,12 @@ class ApplyFunc:
         >>> transforms.ApplyFunc(lambda x: np.expand_dims(x, 1))
         '''
         self.func = func
-        
+
     def __call__(self, input : dict) -> dict:
         for sub in input.values():
             for mode in ['train', 'test']:
                 sub[mode][0] = self.func(sub[mode][0])
-                
+
         return input
 
 class Save:
