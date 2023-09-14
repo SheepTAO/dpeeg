@@ -86,7 +86,6 @@ class Train:
         batchSize : int = 256,
         valCheck : str  = 'valInacc',
         outFolder : Optional[str] = None,
-        overwrite : bool = False,
         dataSize : Optional[Union[tuple, list]] = None,
         depth : int = 3,
         pinMem : bool = True
@@ -150,12 +149,11 @@ class Train:
             self.outFolder = os.path.abspath(outFolder)
         else:
             self.outFolder = os.path.join(DEEGDIR, 'out', net.__class__.__name__)
-        if not overwrite and os.path.exists(self.outFolder):
-            raise FileExistsError(f'Results already exit in such folder: {self.outFolder}'
-                                  ', result output overwrite is not allowed.')
         os.makedirs(self.outFolder, exist_ok=True)
+        if os.listdir(self.outFolder):
+            raise FileExistsError(f'{self.outFolder} is not a empty folder.')
 
-        self.loger = Logger(f'_train_{net.__class__.__name__}', flevel=None)
+        self.loger = Logger('dpeeg_train', flevel=None)
         self.loger.info(f'Results will be saved in folder: {self.outFolder}')
 
         # init trainer
@@ -453,7 +451,6 @@ class Train:
         torch.manual_seed(seed)
         if self.device != torch.device('cpu'):
             torch.cuda.manual_seed_all(seed)
-
         self.loger.info(f'Set all random seed = {seed}')
 
     def get_device(self, nGPU : int = 0) -> torch.device:
@@ -473,7 +470,6 @@ class Train:
             dev = torch.device(f'cuda:{nGPU}')
             self.loger.info(f'Network will be trained in "cuda:{nGPU} ' +
                             f'({torch.cuda.get_device_name(dev)})"')
-        
         return dev
     
     def _data_loader(

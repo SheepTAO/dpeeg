@@ -24,6 +24,7 @@
 
 import mne
 from . import transforms
+from ..tools.logger import loger, verbose
 from typing import Optional, Callable, List
 
 
@@ -116,6 +117,7 @@ class EEGDataset:
             Whether `self.raw` has been splited. Default is False.
         NOTE: Avoid data leakage when you split data.
         '''
+        loger.info('Loading data from Epochs ...')
         dataset = {}
         for sub, sEpochs in self.raw.items():
             if not split:
@@ -137,6 +139,7 @@ class EEGDataset:
             self._dataset = trans(dataset)
         else:
             self._dataset = dataset
+        loger.info('Loading dataset done.')
         
     
     def __getitem__(self, args) -> dict:
@@ -201,6 +204,7 @@ class EEGDataset:
         
         
 class PhysioNet(EEGDataset):
+    @verbose
     def __init__(
         self,
         subjects : Optional[list] = None,
@@ -211,11 +215,11 @@ class PhysioNet(EEGDataset):
         picks : Optional[List[str]] = None,
         baseline = None,
         seed : Optional[int] = None,
-        verbose : Optional[str] = 'WARNING',
+        verbose : Optional[str] = None,
         **epoArgs
     ) -> None:
         super().__init__(subjects, tmin, tmax, transforms, testSize, picks, seed, verbose)
-        print('Reading PhysionetMI Dataset ...')
+        loger.info('Reading PhysionetMI Dataset ...')
         
         from moabb.datasets import PhysionetMI
         self._baseRaw = PhysionetMI().get_data(subjects)
@@ -229,6 +233,7 @@ class PhysioNet(EEGDataset):
         
         self._raw = {}
         for sub, sess in self._baseRaw.copy().items():
+            loger.info(f'\nCreate sub{sub} Epochs ...')
             if sub in self._badSub:
                 continue
             
@@ -244,8 +249,10 @@ class PhysioNet(EEGDataset):
                     ann[1][key] = self._eventId[key]
                 
                 events = ann[0][:-1]
-                epochsSes.append(mne.Epochs(run, events, ann[1], tmin, tmax,
-                                             baseline, picks, preload=True, **epoArgs))
+                epochsSes.append(
+                    mne.Epochs(run, events, ann[1], tmin, tmax, baseline, picks,
+                               preload=True, **epoArgs)
+                )
             
             self._raw[sub] = mne.concatenate_epochs(epochsSes)
         
@@ -253,6 +260,7 @@ class PhysioNet(EEGDataset):
             
 
 class BCICIV2A(EEGDataset):
+    @verbose
     def __init__(
         self,
         subjects : Optional[list] = None,
@@ -264,7 +272,7 @@ class BCICIV2A(EEGDataset):
         picks : Optional[List[str]] = None,
         baseline = None,
         seed : Optional[int] = None,
-        verbose : Optional[str] = 'WARNING',
+        verbose : Optional[str] = None,
         **epoArgs
     ) -> None:
         '''
@@ -275,7 +283,7 @@ class BCICIV2A(EEGDataset):
             Default is 1.
         '''
         super().__init__(subjects, tmin, tmax, transforms, testSize, picks, seed, verbose)
-        print('Reading BCICIV 2A Dataset ...')
+        loger.info('Reading BCICIV 2A Dataset ...')
 
         from moabb.datasets import BNCI2014001
         self._baseRaw = BNCI2014001().get_data(subjects)
@@ -288,6 +296,7 @@ class BCICIV2A(EEGDataset):
         
         self._raw = {}
         for sub, data1 in self._baseRaw.copy().items():
+            loger.info(f'Create sub{sub} Epochs ...')
             
             epochsSesOne, epochsSesTwo = [], []
             for session, data2 in data1.items():
@@ -319,6 +328,11 @@ class BCICIV2A(EEGDataset):
 
 
 class HGD(EEGDataset):
+    '''High Gamma Dataset.
+    channels=128; subjects=1-14; tasks={0:feet, 1:left hand, 2:rest, 3:right hand};
+    duration=4s.
+    '''
+    @verbose
     def __init__(
       self,
       subjects : Optional[list] = None,
@@ -329,15 +343,11 @@ class HGD(EEGDataset):
       picks : Optional[List[str]] = None,
       baseline = None,
       seed : Optional[int] = None,
-      verbose : Optional[str] = 'WARNING',
+      verbose : Optional[str] = None,
       **epoArgs,
     ) -> None:
-        '''High Gamma Dataset.
-        channels=128; subjects=1-14; tasks={0:feet, 1:left hand, 2:rest, 3:right hand};
-        duration=4s.
-        '''
         super().__init__(subjects, tmin, tmax, transforms, testSize, picks, seed, verbose)
-        print('Reading High Gamma Dataset ...')
+        loger.info('Reading High Gamma Dataset ...')
 
         from moabb.datasets import Schirrmeister2017
         self._baseRaw = Schirrmeister2017().get_data(subjects)
@@ -350,6 +360,7 @@ class HGD(EEGDataset):
 
         self._raw = {}
         for sub, sess in self._baseRaw.items():
+            loger.info(f'Create sub{sub} Epochs ...')
             for mode, run in sess['session_0'].items():
                 events, _ = mne.events_from_annotations(run)
                 # update events

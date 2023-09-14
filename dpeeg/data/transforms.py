@@ -15,22 +15,38 @@ import os
 import torch
 import numpy as np
 import pandas as pd
-from typing import Any, Optional, Callable
+from ..tools.logger import loger, verbose
+from .functions import (
+    slide_win,
+    save,
+)
+from typing import Any, Optional, Callable, Union
 
 
 class Compose:
     '''Composes several transforms together.
     '''
-    def __init__(self, transforms : list) -> None:
+    @verbose
+    def __init__(
+        self, 
+        transforms : list, 
+        verbose : Optional[Union[int, str]] = None,
+    ) -> None:
         '''
         transforms : list
             Transforms (list of `Transform` objects): list of transforms to compose.
+        verbose : int, str, optional
+            The log level of the entire transformation list. Default is None (INFO).
         '''
         self.transforms = transforms
         
     def __call__(self, input):
+        loger.info('Transform dataset ...')
+        loger.info('---------------------')
         for t in self.transforms:
             input = t(input)
+        loger.info('---------------')
+        loger.info('Transform done.')
         return input
 
     def __repr__(self) -> str:
@@ -58,7 +74,13 @@ class Compose:
 class SplitDataset:
     '''Split the dataset into training and testing sets.
     '''
-    def __init__(self, testSize : float = .2, seed : Optional[int] = None) -> None:
+    @verbose
+    def __init__(
+        self, 
+        testSize : float = .2, 
+        seed : Optional[int] = None,
+        verbose = None
+    ) -> None:
         '''
         testSize : float, optional
             The proportion of the test set. Default is 0.2.
@@ -71,7 +93,8 @@ class SplitDataset:
     def __call__(self, input : dict) -> dict:
         
         from sklearn.model_selection import train_test_split
-        
+
+        loger.info(f'{str(self)} ...')
         for sub, data in input.items():
             trainX, testX, trainy, testy = \
                 train_test_split(data[0], data[1], test_size=self.testSize,
@@ -92,10 +115,11 @@ class SplitDataset:
 class ToTensor:
     '''Convert the numpy data in the dataset into Tensor format.
     '''
-    def __init__(self) -> None:
+    def __init__(self, verbose) -> None:
         pass
 
     def __call__(self, input : dict) -> dict:
+        loger.info('Convert data to tensor format ...')
         for sub in input.values():
             for mode in ['train', 'test']:
                 sub[mode][0] = torch.as_tensor(sub[mode][0]).float()
@@ -109,11 +133,13 @@ class ToTensor:
 class Normalization:
     '''Normalize the data.
     '''
+    @verbose
     def __init__(
         self, 
         mode : str = 'z-score', 
         factorNew : float = 1e-3,
-        eps : float = 1e-4
+        eps : float = 1e-4,
+        verbose = None
     ) -> None:
         '''Normalize data in the given way in the given dimension.
 
@@ -157,6 +183,7 @@ class Normalization:
             raise ValueError('Only the following normalization methods are '+
                              f'supported: {self.modeList}')
 
+        loger.info(f'{self} starting ...')
         R = np.empty(0)
         if self.mode == 'ea':
             dataList = []
@@ -197,7 +224,6 @@ class Normalization:
                 for mode in ['train', 'test']:
                     sub[mode][0] /= np.max(np.abs(sub[mode][0]))
                     sub[mode][0] = np.dot(sub[mode][0], R)
-
         return input
     
     def __repr__(self) -> str:
@@ -211,41 +237,26 @@ class Normalization:
 class SlideWin:
     '''Apply a sliding window to the dataset.
     '''
-    def __init__(self, win : int = 125, overlap : int = 0) -> None:
-        '''This transform is only splits the time series(dim = -1) through the sliding 
-        window operation on the original dataset. If the time axis is not divisible by 
-        the sliding window, the last remaining time data will be discarded.
-
-        Parameters
-        ----------
-        win : int, optional
-            The size of the sliding window. Default is 125.
-        overlap : int, optional
-            The amount of overlap between adjacent sliding windows. Default is 0.
-        '''
+    @verbose
+    def __init__(
+        self, 
+        win : int = 125, 
+        overlap : int = 0,
+        verbose = None
+    ) -> None:
         self.win = win
         self.overlap = overlap
-        assert self.overlap < self.win and self.overlap >= 0, \
-            f'overlap({overlap}) should be smaller than win({win}).'
+        self.verbose = verbose
 
     def __call__(self, input : dict) -> dict:
-        assert self.overlap < self.win
-
-        winSize = self.win - self.overlap
-        for sub in input.values():
+        loger.info(f'{self} starting ...')
+        for sub, data in input.items():
+            loger.info(f'Sliding window to sub_{sub}.')
             for mode in ['train', 'test']:
-
-                dataList = []
-                sldNum = sub[mode][0].shape[-1] // winSize
-                for i in range(sldNum):
-                    if i == 0:
-                        sld = sub[mode][0][..., i*winSize : (i+1)*winSize]
-                    else:
-                        sld = sub[mode][0][..., i*winSize-self.overlap : (i+1)*winSize]
-                    dataList.append(sld)
-
-                sub[mode][0] = np.concatenate(dataList)
-                sub[mode][1] = np.repeat(sub[mode][1], sldNum)
+                data[mode][0], data[mode][1] = slide_win(
+                    data[mode][0], self.win, self.overlap,
+                    data[mode][1], verbose='WARNING'
+                )
         return input
     
     def __repr__(self) -> str:
@@ -285,30 +296,17 @@ class ApplyFunc:
 class Save:
     '''Save the transformed data.
     '''
-    def __init__(self, fileName : str, overwrite = False) -> None:
-        '''Save transformed dataset to a binary file in NumPy `.npy` format.
+    @verbose
+    def __init__(
+        self, 
+        folder : str, 
+        verbose = None
+    ) -> None:
+        self.folder = folder
+        self.verbose = verbose
 
-        Parameters
-        ----------
-        fileName : str
-            File or filename to which the data is saved, and a `.npy` extension will
-            be appended to the filename if it does not already have one.
-        overwrite : bool, optional
-            If True, overwrite the destination file if it exists. Default is False.
-        '''
-        self.fileName = os.path.abspath(fileName)
-        self.overwrite = overwrite
-        if not self.fileName.endswith('.npy'):
-            self.fileName += '.npy'
-        if not overwrite and os.path.exists(self.fileName):
-            raise FileExistsError('Data overwrite is not allowed.')
-
-    def __call__(self, input : dict) -> Any:
-        print(f'Transformed data will be saved in: {self.fileName}')
-        np.save(self.fileName, input)
+    def __call__(self, input : dict) -> None:
+        save(self.folder, input, verbose=self.verbose)
     
     def __repr__(self) -> str:
-        s = f'Save(fileName={self.fileName}'
-        if self.overwrite:
-            s += ', overwrite=True'
-        return s + ')'
+        return f'Save(folder={self.folder})'
