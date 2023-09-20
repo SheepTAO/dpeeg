@@ -7,11 +7,8 @@
     @Time    : 2023-07-20
 """
 
-import os, sys, logging, functools
-from typing import Union, Optional, Callable, TypeVar, Any
-
-
-_CLEVEL = logging.INFO
+import os, sys, logging
+from typing import Union, Optional
 
 
 class Logger:
@@ -19,9 +16,9 @@ class Logger:
         self,
         loger : Optional[str] = None,
         path : Optional[str] = None,
-        mode : Optional[str] = 'a',
-        clevel : Optional[Union[int, str]] = _CLEVEL,
-        flevel : Optional[Union[int, str]] = logging.INFO,
+        mode : str = 'a',
+        clevel : Union[int, str] = logging.INFO,
+        flevel : Optional[Union[int, str]] = None,
     ) -> None:
         '''Logging hooks for terminals and file streams.
 
@@ -37,13 +34,13 @@ class Logger:
             return the root logger. Default is None.
         path : str, optional
             The path of log file. Default is None.
-        mode : str, optional
+        mode : str
             The write mode of the log file. Default is 'a'.
-        clevel : int, str, optional
+        clevel : int, str
             The log level of console. Default is DEBUG.
         flevel : int, str, optional
             The log level of filehandler. If it is None, the log file will not be written
-            and parameter path will be ignored. Default is INFO.
+            and parameter path will be ignored. Default is None.
         '''
 
         self._logger = logging.getLogger(loger)
@@ -69,6 +66,9 @@ class Logger:
     def _update_sh_level(self, level : Union[int, str]):
         self._sh.setLevel(level)
 
+    def _get_sh_level(self) -> str:
+        return logging.getLevelName(self._sh.level)
+
     def debug(self, message : str):
         self._logger.debug(message)
 
@@ -88,32 +88,3 @@ class Logger:
         if issubclass(exc_type, KeyboardInterrupt):
             sys.__excepthook__(exc_type, exc_value, exc_traceback)
         self._logger.critical("Uncaught exception>>>", exc_info=(exc_type, exc_value, exc_traceback))
-
-
-loger = Logger('dpeeg', flevel=None)
-
-
-_FuncT = TypeVar("_FuncT", bound=Callable[..., Any])
-
-
-def verbose(func : _FuncT) -> _FuncT:
-    '''Verbose decorator to allow functions to override log-level.
-
-    Parameters
-    ----------
-    func : callable
-        Function to be decorated by setting the verbosity level.
-
-    Returns
-    -------
-    dec : callable
-        The decorated function.
-    '''
-    @functools.wraps(func)
-    def inner(*args, **kwargs):
-        kwargs.setdefault('verbose', _CLEVEL)
-        loger._update_sh_level(kwargs['verbose'])
-        # # for debug
-        # print(kwargs, func)
-        return func(*args, **kwargs)
-    return inner

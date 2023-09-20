@@ -9,7 +9,7 @@
 
 
 import time
-from typing import Tuple, Optional
+from typing import Tuple
 
 
 class Timer:
@@ -21,13 +21,13 @@ class Timer:
         self._end = {}
         self.start(__name__)
 
-    def start(self, name : Optional[str] = __name__) -> str:
+    def start(self, name : str = __name__) -> str:
         '''Update specified timer. Create a timer if it does not exist.
         '''
         self._beg[name] = time.time()
         return self.ctime()
 
-    def stop(self, name : Optional[str] = __name__) -> Tuple[int, int, float]:
+    def stop(self, name : str = __name__) -> Tuple[int, int, float]:
         '''Get the time of the specified timer.
         '''
         if name not in self._beg.keys():

@@ -28,40 +28,25 @@
 """
 
 
-import os, torch, pickle, random
-import numpy as np
+import os, torch, pickle
 from torch import nn
 from torch import optim
 from torch import Tensor
 from copy import deepcopy
 from torchinfo import summary
-from ..tools import Logger, Timer
 from typing import Optional, Tuple, Union, Dict
 from torch.utils.tensorboard.writer import SummaryWriter
-from torch.utils.data import TensorDataset, DataLoader
-from .stopcriteria import Criteria, ComposeStopCriteria, StrPath
+from torch.utils.data import TensorDataset, DataLoader, ConcatDataset
 from torchmetrics.functional.classification.accuracy import accuracy
+
+from ..tools import Logger, Timer
+from ..utils import DPEEG_SEED, DPEEG_DIR
+from ..data.functions import to_tensor
+from .stopcriteria import ComposeStopCriteria
 
 from torch.backends import cudnn
 cudnn.benchmark = False
 cudnn.deterministic = True
-
-DEEGDIR = os.path.join(os.path.expanduser('~'), 'deeg')
-STOPCRI = {
-    "cri_1": {
-        "type": "MaxEpoch",
-        "maxEpochs": 1000,
-        "varName": "epoch"
-    },
-    
-    "sym_2": "or",
-
-    "cri_3": {
-        "type": "NoDecrease",
-        "numEpochs": 100,
-        "varName": "valInacc"
-    }
-}
 
 
 # base train Model
@@ -72,9 +57,9 @@ class Train:
         self,
         net : nn.Module,
         classes : Union[list, tuple],
+        stopCri : Union[str, dict],
         nGPU : int = 0,
-        stopCri : Optional[Union[Criteria, StrPath, dict]] = STOPCRI,
-        seed : Optional[int] = None,
+        seed : int = DPEEG_SEED,
         lossFn : str = 'NLLLoss',
         lossFnArgs : dict = {},
         optimizer : str = 'AdamW',
@@ -84,13 +69,15 @@ class Train:
         lrSchArgs : dict = {},
         gradAcc : int = 1,
         batchSize : int = 256,
-        valCheck : str  = 'valInacc',
+        varCheck : str  = 'valLoss',
         outFolder : Optional[str] = None,
         dataSize : Optional[Union[tuple, list]] = None,
         depth : int = 3,
         pinMem : bool = True
     ) -> None:
         '''Initialize the basic attribute of the train model.
+        Generate a trainer to test the performance of the same network on different
+        datasets.
 
         Parameters
         ----------
@@ -98,48 +85,48 @@ class Train:
             Inherit nn.Module and should define the forward method.
         classes : list, tuple
             The name of given labels.
-        nGPU : int, optional
+        nGPU : int
             Select the gpu id to train. Default is 0.
-        stopCri : Criteria, StrPath, dict, optional
-            Criteria for training to stop. Default is max epochs = 1000, 
+        stopCri : str, dict
+            Criteria for training to stop. Default is max epochs = 1000, val loss
             no decrease epochs = 100.
-        seed : int, optional
-            Select random seed for review. Default is None.
-        lossFn : str, optional
+        seed : int
+            Select random seed for review. Default is DPEEG_SEED.
+        lossFn : str
             Name of the loss function from torch.nn which will be used for
             training. Default is NLLLoss.
-        lossFnArgs : dict, optional
+        lossFnArgs : dict
             Additional arguments to be passed to the loss function. Default is {}.
-        optimizer : str, optional
+        optimizer : str
             Name of the optimization function from torch.optim which will be used
             for training. Default is AdamW.
-        optimArgs : dict, optional
+        optimArgs : dict
             Additional arguments to be passed to the optimization function.
             Default is {}.
-        lr : float, optional
+        lr : float
             Learning rate. Default is 1e-3.
-        lrSch : str, optional
-            Name of the lr_scheduler from torch.optim.lr_scheduler which will be used
-            for training. Default is ''.
-        lrSchArgs : dict, optional
+        lrSch : str
+            Name of the lr_scheduler from torch.optim.lr_scheduler which will be 
+            used for training. Default is ''.
+        lrSchArgs : dict
             Additional arguments to be passed to the lr_scheduler function.
             Default is {}.
-        gradAcc : int, optional
+        gradAcc : int
             Aradient accumulation. Default is 1.
-        batchSize : int, optional
+        batchSize : int
             Mini-batch size. Default is 256.
-        valCheck : str, optional
-            The best value ('valInacc'/'valLoss') to check while determining the best
-            model. Default is 'valInacc'.
+        varCheck : str
+            The best value ('valInacc'/'valLoss') to check while determining 
+            the best model. Default is 'valLoss'.
         outFolder : str, optional
             Store all results during training to the given folder. Default is
             '~/dpeeg/out/model_name/'.
         dataSize : tuple, list, optional
             Output the structure of the network model according to the input data
             dimension if the `dataSize` is given. Default is None.
-        depth : int, optional
+        depth : int
             Depth of nested layers to display. Default is 3.
-        pinMem : bool, optional
+        pinMem : bool
             Whether to `pin_memory` to reduce data loading time. Default is True.
         '''
         self.net = net
@@ -148,10 +135,15 @@ class Train:
         if outFolder:
             self.outFolder = os.path.abspath(outFolder)
         else:
-            self.outFolder = os.path.join(DEEGDIR, 'out', net.__class__.__name__)
+            self.outFolder = os.path.join(DPEEG_DIR, 'out', net.__class__.__name__)
         os.makedirs(self.outFolder, exist_ok=True)
         if os.listdir(self.outFolder):
             raise FileExistsError(f'{self.outFolder} is not a empty folder.')
+
+        checkList = ['valInacc', 'valLoss']
+        if varCheck not in checkList:
+            raise ValueError(f'Parameter `valCheck` only supports: {checkList}, '
+                             f'but got {varCheck}')
 
         self.loger = Logger('dpeeg_train', flevel=None)
         self.loger.info(f'Results will be saved in folder: {self.outFolder}')
@@ -159,9 +151,7 @@ class Train:
         # init trainer
         self.device = self.get_device(nGPU)
         self.net.to(self.device)
-        
-        if seed != None:
-            self.set_seed(seed)
+        self.set_seed(seed)
 
         # summarize network structure
         self.netArch = str(net) + '\n'
@@ -184,36 +174,36 @@ class Train:
         self.gradAcc = gradAcc
         self.batchSize = batchSize
         self.stopCri = stopCri
-        self.valCheck = valCheck
+        self.varCheck = varCheck
         self.classes = classes
         self.pinMem = pinMem
         self.numClasses = len(classes)
 
         # set experimental details
-        self.expDetails = {'seed': seed, 'expParam': {
-            'lossFn': lossFn, 'lossFnArgs': lossFnArgs, 'optimizer': optimizer, 
-            'optimArgs': optimArgs, 'lr': lr, 'lrSch': lrSch, 'lrSchArgs': lrSchArgs,
-            'stopCir': str(stopCri), 'batchSize': batchSize}, 
+        self.expDetails = {'expParam': {'seed': seed, 'lossFn': lossFn, 
+            'lossFnArgs': lossFnArgs, 'optimizer': optimizer, 'lr': lr,
+            'optimArgs': optimArgs, 'lrSch': lrSch, 'lrSchArgs': lrSchArgs,
+            'batchSize': batchSize, 'gradAcc': gradAcc, 'varCheck': varCheck},
             'origNetParam': deepcopy(self.net.state_dict()),
         }
-
-        # set monitor of stop criteria
-        if isinstance(stopCri, Criteria):
-            self.stopMon = stopCri
-        elif isinstance(stopCri, (StrPath, dict)):
-            self.stopMon = ComposeStopCriteria(stopCri)
-        else:
-            raise TypeError(f'Cant parse \'{type(stopCri)}\'.')
-        self.loger.info(f'Stop criteria: {str(self.stopMon)}')
     
     def run(
         self,
         trainData : Union[tuple, list, DataLoader],
         valData : Union[tuple, list, DataLoader],
-        testData : Optional[Union[tuple, list, DataLoader]] = None,
+        testData : Union[tuple, list, DataLoader],
         logDir : Optional[str] = None,
     ) -> Dict[str, Dict[str, Tensor]]:
-        '''Apex function to train and test network.
+        '''Two-stage training strategy was used. In the first stage, the model 
+        was trained using only the training set with the early stopping criteria
+        whereby the validation set accuracy and loss was monitored and training
+        was stopped if there was no increase in the validation set accuracy (or 
+        loss) for consecutive 200 epochs. After reaching the stopping criteria, 
+        network parameters with the best validation set accuracy (or loss) were
+        restored. In the second stage, the model was trained with the complete 
+        training data (train + validation set). The second stage training was
+        stopped when the validation set loss reduced below the stage 1 training 
+        set loss.
 
         Parameters
         ----------
@@ -223,8 +213,9 @@ class Train:
         valData : tuple, list, DataLoader
             Dataset used for validation. If type is tuple or list, dataset should
             be (data, labels).
-        testData : tuple, list, DataLoader, optional
-            Dataset used to evaluate the model. Default is None.
+        testData : tuple, list, DataLoader
+            Dataset used to evaluate the model. If type is tuple or list, dataset
+            should be (data, labels).
         logDir : str, optional
             Save directory location (under outFolder) and support hierarchical folder 
             structure. Default is None, which means use outFolder.
@@ -234,9 +225,9 @@ class Train:
         According to the input dataset, return train, validation and test (if testData
         is given) results dict.
         {
-            'train' : {'preds': Tensor, 'acts': Tensor, 'acc': Tensor},
+            'train' : {'preds': Tensor, 'acts': Tensor, 'acc': Tensor, 'loss': Tensor},
+            'test'  : ...
             'val'   : ...,
-            'test'  : ...(if testData is given)
         }
         '''
         # reset parameters of nn.Moudle and lr_scheduler
@@ -254,29 +245,34 @@ class Train:
             (self.optimizer, **self.lrSchArgs) if self.lrSchType else None
 
         # check the best model
-        bestVal = float('inf')
+        bestVar = float('inf')
         bestNetParam = deepcopy(self.net.state_dict())
+        bestOptimParam = deepcopy(self.optimizer.state_dict())
 
         # create log writer
         logDir = os.path.join(self.outFolder, logDir) if logDir else self.outFolder
         writer = SummaryWriter(logDir)
         loger = Logger(logDir, path=os.path.join(logDir, 'running.log'), mode='a')
         
-        # reset stop criteria
-        self.stopMon.reset_variables()
-        
         # initialize dataloader
         trainLoader = self._data_loader(trainData, self.batchSize, self.pinMem)
         valLoader = self._data_loader(valData, self.batchSize, self.pinMem)
-        testLoader = self._data_loader(testData, self.batchSize, self.pinMem) \
-            if testData else None
+        testLoader = self._data_loader(testData, self.batchSize, self.pinMem)
         
         # start the training
-        monitors = {'epoch': 0, 'valLoss': float('inf'), 'valInacc': 1}
-        doStop = False
-        bestRes = {}
         timer = Timer()
         loger.info(f'[Training...] - [{timer.ctime()}]')
+
+        stopMon = ComposeStopCriteria({'And': {
+            'cri1': {'MaxEpoch': {
+                'maxEpochs': 1500, 'varName': 'epoch'
+            }},
+            'cri2': {'NoDecrease': {
+                'numEpochs': 200, 'varName': 'valLoss'
+            }}
+        }})
+        monitors = {'epoch': 0, 'valLoss': float('inf'), 'valInacc': 1}
+        earlyStopReached, doStop = False, False
         
         while not doStop: 
             
@@ -286,8 +282,6 @@ class Train:
             # evaluate the training and validation accuracy
             trainPreds, trainActs, trainLoss = self._predict(trainLoader)
             trainAcc = self.get_acc(trainPreds, trainActs)
-            monitors['trainInacc'] = 1 - trainAcc
-            monitors['trainLoss'] = trainLoss
 
             valPreds, valActs, valLoss = self._predict(valLoader)
             valAcc = self.get_acc(valPreds, valActs)
@@ -295,30 +289,48 @@ class Train:
             monitors['valLoss'] = valLoss
 
             # store loss and acc
-            writer.add_scalars('loss', {'train': trainLoss, 'val': valLoss},
+            writer.add_scalars('train', {'loss': trainLoss, 'acc': trainAcc}, 
                                 monitors['epoch'])
-            writer.add_scalars('acc', {'train': trainAcc, 'val': valAcc}, 
-                               monitors['epoch'])
-
+            writer.add_scalars('val', {'loss': valLoss, 'acc': valAcc}, 
+                                monitors['epoch'])
             # print the epoch info
-            loger.info(f'---Epoch : {monitors["epoch"] + 1}')
-            loger.info(f'   train Loss/Acc = {trainLoss:.4f} / {trainAcc:.4f}' +
-                       f' | val Loss/Acc = {valLoss:.4f} / {valAcc:.4f}')
+            loger.info(f'-->Epoch : {monitors["epoch"] + 1}')
+            loger.info(f'   train Loss/Acc = {trainLoss:.4f}/{trainAcc:.4f}'
+                        f' | val Loss/Acc = {valLoss:.4f}/{valAcc:.4f}')
 
-            # select best model
-            if monitors[self.valCheck] <= bestVal:
-                bestVal = monitors[self.valCheck]
+            # select best model on Stage 1
+            if monitors[self.varCheck] <= bestVar:
+                bestVar = monitors[self.varCheck]
                 bestNetParam = deepcopy(self.net.state_dict())
-                bestRes['train'] = {
-                    'preds': trainPreds, 'acts': trainActs, 'acc': trainAcc, 'loss': trainLoss
-                }
-                bestRes['test'] = {
-                    'preds': valPreds, 'acts': valActs, 'acc': valAcc, 'loss': valLoss
-                }
+                bestOptimParam = deepcopy(self.optimizer.state_dict())
             
-            # check if to stop
-            if self.stopMon(monitors):
-                doStop = True
+            # check if to stop training
+            if stopMon(monitors):
+                # check whether to enter the second stage of training
+                if not earlyStopReached:
+                    earlyStopReached = True
+                    self.loger.info('[Early Stopping Reached] -> Start training '
+                                    'on both training set and val set.')
+                    # load the best state
+                    self.net.load_state_dict(bestNetParam)
+                    self.optimizer.load_state_dict(bestOptimParam)
+
+                    # Combine the train and val dataset
+                    trainLoader = self._data_loader(trainData, valData)
+
+                    # update stop monitor and epoch
+                    stopMon = ComposeStopCriteria({'Or': {
+                        'cri1': {'MaxEpoch': {
+                            'maxEpochs': 600, 'varName': 'epochs'
+                        }},
+                        'cir2': {'Smaller': {
+                            'var': trainLoss, 'varName': 'valLoss'
+                        }}
+                    }})
+                    monitors['epoch'] = 0
+                else:
+                    bestNetParam = deepcopy(self.net.state_dict())
+                    doStop = True
             monitors['epoch'] += 1
         
         writer.close()
@@ -328,34 +340,36 @@ class Train:
         h, m, s = timer.stop()
         loger.info(f'Cost Time = {h}H:{m}M:{s:.2f}S')
 
-        # load the best result
-        trainLoss, valLoss = bestRes["train"]["loss"], bestRes["test"]["loss"]
-        printLoss = f'Loss: train={trainLoss:.4f} | val={valLoss:.4f}'
-        trainAcc, valAcc = bestRes["train"]["acc"], bestRes["val"]["acc"]
-        printAcc = f'Acc : train={trainAcc:.4f} | val={valAcc:.4f}'
+        # load the best model and evaulate this model in testData
+        self.net.load_state_dict(bestNetParam)
+
+        results = {}
+        trainPreds, trainActs, trainLoss = self._predict(trainLoader)
+        trainAcc = self.get_acc(trainPreds, trainActs)
+        results['train'] = {
+            'preds': trainPreds, 'acts': trainActs, 'acc': trainAcc, 'loss': trainLoss,
+        }
+        valPreds, valActs, valLoss = self._predict(valLoader)
+        valAcc = self.get_acc(valPreds, valActs)
+        results['val'] = {
+            'preds': valPreds, 'acts': valActs, 'acc': valActs, 'loss': valLoss
+        }
+        testPreds, testActs, testLoss = self._predict(testLoader)
+        testAcc = self.get_acc(testPreds, testActs)
+        results['test'] = {
+            'preds': testPreds, 'acts': testActs, 'acc': testAcc, 'loss': testLoss
+        }
+
+        loger.info(f'Loss: train={trainLoss:.4f} | val={valLoss:.4f} | '
+                   f'test={testLoss:.4f}')
+        loger.info(f'Acc: train={trainAcc:.4f} | val={valAcc:.4f} | '
+                   f'test={testAcc:.4f}')
 
         # save the experiment details
-        self.expDetails['result'] = {'bestTrainAcc' : bestRes['train']['acc']}
-        self.expDetails['result'] = {'bestValAcc' : bestRes['val']['acc']}
+        self.expDetails['result'] = results
         self.expDetails['bestNetParam'] = bestNetParam
-        
-        # load the best model and evaulate this model in testData (if not None)
-        if testLoader:
-            self.net.load_state_dict(bestNetParam)
-            testPreds, testActs, testLoss = self._predict(testLoader)
-            testAcc = self.get_acc(testPreds, testActs)
-            bestRes['test'] = {
-                'preds': testPreds, 'acts': testActs, 'acc': testAcc, 'loss': testLoss
-            }
-            printLoss = printLoss+f' | test={testLoss:.4f}'
-            printAcc = printAcc+f' | test={testAcc:.4f}'
-            self.expDetails['result'] = {'bestTestAcc' : testAcc}
-            
-        # print the result of best model
-        loger.info(printLoss)
-        loger.info(printAcc)
 
-        # store the experiment details
+        # store the training details
         with open(os.path.join(logDir, f'train.pkl'), 'wb') as f:
             pickle.dump(self.expDetails, f)
 
@@ -363,7 +377,7 @@ class Train:
         modelPath = os.path.join(logDir, f'train_checkpoint_best.pth')
         torch.save(bestNetParam, modelPath)
         
-        return bestRes
+        return results
 
     def _run_one_epoch(
         self,
@@ -443,13 +457,12 @@ class Train:
         '''
         return accuracy(preds, acts, 'multiclass', num_classes=self.numClasses)
 
-    def set_seed(self, seed : int = 3407) -> None:
-        '''Set all the random initializations with a given seed.
+    def set_seed(self, seed : int = DPEEG_SEED) -> None:
+        '''Sets the seed for generating random numbers for cpu and gpu.
         '''
-        random.seed(seed)
-        np.random.seed(seed)
         torch.manual_seed(seed)
         if self.device != torch.device('cpu'):
+            torch.cuda.manual_seed(seed)
             torch.cuda.manual_seed_all(seed)
         self.loger.info(f'Set all random seed = {seed}')
 
@@ -458,14 +471,14 @@ class Train:
 
         Parameters
         ----------
-        nGPU : int, optional
+        nGPU : int
             GPU number to train on. Default is 0.
         '''
         if not torch.cuda.is_available():
             self.loger.info('GPU is not avaiable and the CPU will be used')
             dev = torch.device('cpu')
         else:
-            if nGPU > torch.cuda.device_count()-1:
+            if nGPU > torch.cuda.device_count() - 1:
                 raise ValueError(f'GPU: {nGPU} does not exit.')
             dev = torch.device(f'cuda:{nGPU}')
             self.loger.info(f'Network will be trained in "cuda:{nGPU} ' +
@@ -474,31 +487,31 @@ class Train:
     
     def _data_loader(
         self, 
-        dataset : Union[tuple, list, DataLoader],
+        *datasets,
         batchSize : int = 256,
         pinMem : bool = True
     ) -> DataLoader:
-        '''Wrap the data and labels and return DataLoader.
+        '''Wrap multiple sets of data and labels and return DataLoader.
 
         Parameters
         ----------
-        dataset : tuple/list(tensor/ndarray, tensor/ndarray), dataloader
-            Return the corresponding `DataLoader` with according to the dataset.
+        dataset : evey two sequence of indexables with same length / shape[0]
+            Allowed inputs are lists and tuple of tensor or ndarray.
         '''
-        if isinstance(dataset, DataLoader):
-            DataLoader.pin_memory = pinMem
-            return dataset
+        nDataset = len(datasets)
+        if nDataset % 2:
+            raise ValueError('One data set corresponds to one label set, but the '
+                             f'total number of data got is {nDataset}.')
+        if nDataset == 0:
+            raise ValueError('At least one dataset required ad input.')
 
-        if len(dataset) != 2:
-            raise ValueError('The first dimension of input must be 2 (data, label), ' +
-                             f'but get {len(dataset)}.')
-        
-        if isinstance(dataset[0], np.ndarray):
-            dataset = [torch.as_tensor(v) for v in dataset]
-        dataset = (dataset[0].float(), dataset[1].long())
-        
-        return DataLoader(TensorDataset(*dataset), batch_size=batchSize,
-                          shuffle=True, pin_memory=pinMem)
+        # dataset wrapping tensors
+        td = []
+        for i in range(0, nDataset, 2):
+            td.append(TensorDataset(*to_tensor(datasets[i], datasets[i + 1])))
+        td = ConcatDataset(td)
+
+        return DataLoader(td, batchSize, True, pin_memory=pinMem)
 
     def __repr__(self) -> str:
         '''Trainer details.
@@ -517,6 +530,6 @@ class Train:
                 s += f'[LrSch Args]:\t{self.lrSchArgs}\n'
         s += f'[Seed]:\t{self.seed}\n'
         s += f'[Grad Acc]:\t{self.gradAcc}\n'
-        s += f'[Stop Cri]:\t{str(self.stopMon)}\n'
-        s += f'[Value check]:\t{self.valCheck}\n'
+        s += f'[Value check]:\t{self.varCheck}\n'
         s += f'[Classes name]:\t{self.classes}\n'
+        return s

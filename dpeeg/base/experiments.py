@@ -17,6 +17,7 @@ import os, torch
 from torch import Tensor
 from .train import Train
 from ..tools import Timer, Filer
+from ..utils import DPEEG_SEED
 from .evaluate import cal_cm_and_plt_img
 from typing import Union, Optional, Tuple
 from sklearn.model_selection import StratifiedKFold
@@ -31,7 +32,7 @@ class KFoldCV:
         trainer : Train,
         k : int = 10,
         shuffle : bool = True,
-        seed : int = 3407,
+        seed : int = DPEEG_SEED,
     ) -> None:
         '''K-Fold cross-validation class.
 
@@ -44,7 +45,7 @@ class KFoldCV:
         shuffle : bool, optional
             Wheter shuffle dataset. Default is True.
         seed : int, optional
-            Seed of random for review. Default is 3407.
+            Seed of random for review. Default is DPEEG_SEED.
 
         All experimental results of the model will be saved in the outFolder
         directory of the trainer parameter.
@@ -66,7 +67,7 @@ class KFoldCV:
         self,
         trainset : Union[tuple, list],
         testset : Union[tuple, list],
-        sub : Optional[str]
+        sub : Optional[str] = None
     ) -> Tuple[Tensor, ...]:
         '''Basic K-Fold cross-validation function.
 
@@ -80,7 +81,7 @@ class KFoldCV:
             should be (data, labels).
         sub : str, optional
             Create a subdirectory of outFolder to store all yield results during 
-            KFold_CV. Default is None.
+            KFold_CV. If None, will use outFolder. Default is None.
         
         Returns
         -------
@@ -91,7 +92,7 @@ class KFoldCV:
             task : str, 
             var : str = 'acc'
         ) -> Tensor:
-            '''Get all results from the results by var and return them.
+            '''Get all value from the results by var and return them.
             '''
             res = []
             for i in range(self.k):

@@ -11,19 +11,20 @@
 """
 
 
-import os
-import torch
 import numpy as np
 import pandas as pd
-from ..tools.logger import loger, verbose
+from typing import Any, Optional, Callable, Union, List
+
+from ..utils import loger, verbose, DPEEG_SEED, DPEEG_DIR
 from .functions import (
+    split_train_test,
+    to_tensor,
     slide_win,
     save,
 )
-from typing import Any, Optional, Callable, Union
 
 
-class Compose:
+class ComposeTransforms:
     '''Composes several transforms together.
     '''
     @verbose
@@ -39,6 +40,11 @@ class Compose:
             The log level of the entire transformation list. Default is None (INFO).
         '''
         self.transforms = transforms
+        for tran in transforms:
+            try:
+                tran.verbose = verbose
+            except:
+                pass
         
     def __call__(self, input):
         loger.info('Transform dataset ...')
@@ -69,61 +75,73 @@ class Compose:
     def insert(self, index, transform):
         '''Insert a transform at index.'''
         self.transforms.insert(index, transform)
-    
 
-class SplitDataset:
+
+class SplitTrainTest:
     '''Split the dataset into training and testing sets.
     '''
     @verbose
     def __init__(
         self, 
         testSize : float = .2, 
-        seed : Optional[int] = None,
-        verbose = None
+        seed : int = DPEEG_SEED, 
+        sample : Optional[List[int]] = None,
+        verbose : Optional[Union[int, str]] = None
     ) -> None:
-        '''
-        testSize : float, optional
-            The proportion of the test set. Default is 0.2.
-        seed : int, optional
-            Random seed when splitting. Default is None.
+        '''Split the dataset into training and testing sets.
+
+        Parameters
+        ----------
+        testSize : float
+            The proportion of the test set. Default is 0.2. If index is not None,
+            testSize will be ignored. Default use stratified fashion and the last
+            arr serves as the class labels.
+        seed : int
+            Random seed when splitting. Default is DPEEG_SEED.
+        sample : list of int, optional
+            A list of integers, the entries indicate which data were selected
+            as the test set. If None, testSize will be used. Default is None.
         '''
         self.testSize = testSize
         self.seed = seed
+        self.sample = sample
+        self.verbose = verbose
 
     def __call__(self, input : dict) -> dict:
-        
-        from sklearn.model_selection import train_test_split
-
-        loger.info(f'{str(self)} ...')
+        loger.info(f'{self} starting ...')
         for sub, data in input.items():
-            trainX, testX, trainy, testy = \
-                train_test_split(data[0], data[1], test_size=self.testSize,
-                                 random_state=self.seed, stratify=data[1])
-
+            trainX, testX, trainy, testy = split_train_test(
+                data[0], data[1], testSize=self.testSize, seed=self.seed,
+                sample=self.sample, verbose=self.verbose
+            )
             input[sub] = {}
             input[sub]['train'] = [trainX, trainy]
             input[sub]['test'] = [testX, testy]
         return input
 
     def __repr__(self) -> str:
-        s = f'SplitDataset(testSize={self.testSize}'
-        if self.seed:
-            s += f', seed={self.seed}'
+        s = 'SplitDataset('
+        if self.sample:
+            s += 'sample'
+        else:
+            s += f'testSize={self.testSize}'
+            if self.seed:
+                s += f', seed={self.seed}'
         return s + ')'
 
 
 class ToTensor:
     '''Convert the numpy data in the dataset into Tensor format.
     '''
+    @verbose
     def __init__(self, verbose) -> None:
-        pass
+        self.verbose = verbose
 
     def __call__(self, input : dict) -> dict:
-        loger.info('Convert data to tensor format ...')
+        loger.info(f'{self} starting ...')
         for sub in input.values():
             for mode in ['train', 'test']:
-                sub[mode][0] = torch.as_tensor(sub[mode][0]).float()
-                sub[mode][1] = torch.as_tensor(sub[mode][1]).long()
+                sub[mode][0], sub[mode][1] = to_tensor(sub[mode][0], sub[mode][1])
         return input
 
     def __repr__(self) -> str:
@@ -139,13 +157,13 @@ class Normalization:
         mode : str = 'z-score', 
         factorNew : float = 1e-3,
         eps : float = 1e-4,
-        verbose = None
+        verbose : Optional[Union[int, str]] = None
     ) -> None:
         '''Normalize data in the given way in the given dimension.
 
         Parameters
         ----------
-        mode : str, optional
+        mode : str
             within subject:
             - `z-score`,
                 :math: $X_{i}=\\frac{X_{i}-mean(X_{i})}{std(X_{i})}$ where mean
@@ -168,15 +186,16 @@ class Normalization:
 
             Default is z-score.
             
-        factorNew : float, optional
+        factorNew : float
             Smoothing factor of exponential moving standardize. Default is 1e-3.
-        eps : float, optional
+        eps : float
             Stabilizer for division by zero variance. Default is 1e-4.
         '''
         self.modeList = ['z-score', 'ems', 'ea']
         self.mode = mode
         self.factorNew = factorNew
         self.eps = eps
+        self.verbose = verbose
 
     def __call__(self, input : dict) -> dict:
         if self.mode not in self.modeList:
@@ -225,13 +244,14 @@ class Normalization:
                     sub[mode][0] /= np.max(np.abs(sub[mode][0]))
                     sub[mode][0] = np.dot(sub[mode][0], R)
         return input
-    
+
     def __repr__(self) -> str:
         s = f'Normalization(mode={self.mode}'
         if self.mode == 'z-score':
             return s + ')'
         elif self.mode == 'ems':
             return s + f', factorNew={self.factorNew}, eps={self.eps})'
+        return s + ')'
 
 
 class SlideWin:
@@ -242,8 +262,19 @@ class SlideWin:
         self, 
         win : int = 125, 
         overlap : int = 0,
-        verbose = None
+        verbose : Optional[Union[int, str]] = None
     ) -> None:
+        '''This transform is only splits the time series (dim = -1) through the sliding 
+        window operation on the original dataset. If the time axis is not divisible by 
+        the sliding window, the last remaining time data will be discarded.
+
+        Parameters
+        ----------
+        win : int
+            The size of the sliding window.
+        overlap : int
+            The amount of overlap between adjacent sliding windows. Default is 0.
+        '''
         self.win = win
         self.overlap = overlap
         self.verbose = verbose
@@ -258,7 +289,7 @@ class SlideWin:
                     data[mode][1], verbose='WARNING'
                 )
         return input
-    
+
     def __repr__(self) -> str:
         s = f'SlideWin(win={self.win}'
         if self.overlap != 0:
@@ -269,7 +300,11 @@ class SlideWin:
 class ApplyFunc:
     '''Apply a function on data.
     '''
-    def __init__(self, func : Callable) -> None:
+    def __init__(
+        self, 
+        func : Callable, 
+        verbose: Optional[Union[int, str]] = None
+    ) -> None:
         '''This transform can be used to filter the data (via the `mne` library or
         other methods), change the data shape (via the `numpy`) and so on.
 
@@ -282,13 +317,14 @@ class ApplyFunc:
         >>> transforms.ApplyFunc(lambda x: np.expand_dims(x, 1))
         '''
         self.func = func
+        self.verbose = verbose
 
     def __call__(self, input : dict) -> dict:
         for sub in input.values():
             for mode in ['train', 'test']:
                 sub[mode][0] = self.func(sub[mode][0])
         return input
-    
+
     def __repr__(self) -> str:
         return f'ApplyFunc(func={self.func})'
 
@@ -300,13 +336,21 @@ class Save:
     def __init__(
         self, 
         folder : str, 
-        verbose = None
+        verbose : Optional[Union[int, str]] = None
     ) -> None:
+        '''Save transformed dataset to a binary file in NumPy `.npy` format.
+
+        Parameters
+        ----------
+        folder : str
+            Folder name to save transformed data.
+        '''
         self.folder = folder
         self.verbose = verbose
 
     def __call__(self, input : dict) -> None:
+        loger.info(f'{self} starting ...')
         save(self.folder, input, verbose=self.verbose)
-    
+
     def __repr__(self) -> str:
         return f'Save(folder={self.folder})'

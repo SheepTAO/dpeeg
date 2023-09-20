@@ -10,16 +10,99 @@
 
 
 import os
+import torch
 import numpy as np
 from numpy import ndarray
-from typing import Optional, Union, Tuple
-from ..tools.logger import loger, verbose
+from torch import Tensor
+from typing import Optional, Union, Tuple, List
+
+from ..utils import loger, verbose, DPEEG_SEED
+
+
+@verbose
+def split_train_test(
+    *arrs, 
+    testSize : float = .2, 
+    seed : int = DPEEG_SEED, 
+    sample : Optional[List[int]] = None, 
+    verbose : Optional[Union[int, str]] = None
+) -> list:
+    '''Split an dataset into training and testing sets. The axis along which
+    to split is 0.
+
+    Parameters
+    ----------
+    *arrs : sequence of indexables with same length / shape[0]
+        Allowed inputs are lists and numpy arrays.
+    testSize : float
+        The proportion of the test set. Default is 0.2. If index is not None,
+        testSize will be ignored. Default use stratified fashion and the last
+        arr serves as the class labels.
+    seed : int
+        Random seed when splitting. Default is DPEEG_SEED.
+    sample : list of int, optional
+        A list of integers, the entries indicate which data were selected
+        as the test set. If None, testSize will be used. Default is None.
+    '''
+    nArrs = len(arrs)
+    if nArrs == 0:
+        raise ValueError('At least one array required as input.')
+
+    arrList = [np.array(arr) for arr in arrs]
+    lengths = [len(arr) for arr in arrList]
+    uniques = np.unique(lengths)
+    if len(uniques) > 1:
+        raise ValueError(
+            'Found input variables with inconsistent numbers of samples: %r'
+            % [int(l) for l in lengths]
+        )
+        
+    if sample:
+        smparr = np.array(sample)
+        if np.unique(smparr).size != smparr.size:
+            raise IndexError(
+                f'Found repeated sampling of test set: {smparr.tolist()}.'
+            )
+        length = lengths[0]
+        if smparr.size >= uniques:
+            raise IndexError(f'The number of samples (={len(smparr)}) in the '
+                             'test set cannot exceed the total number of data '
+                             f'sets (={length}).'
+            )
+
+        testSample, trainSample = smparr, np.setdiff1d(np.arange(length), smparr)
+        res = []
+        for arr in arrList:
+            res.extend([arr[trainSample], arr[testSample]])
+        return res
+    else:
+        from sklearn.model_selection import train_test_split
+        return train_test_split(arrList, test_size=testSize, random_state=seed,
+                                stratify=arrList[-1])
+
+
+@verbose
+def to_tensor(
+    data: Union[Tensor, ndarray],
+    label: Union[Tensor, ndarray],
+    verbose : Optional[Union[int, str]] = None
+) -> Tuple[Tensor, Tensor]:
+    '''Convert the numpy data and label into trainable Tensor format.
+    '''
+    dataT = torch.from_numpy(data).float() \
+        if isinstance(data, ndarray) else data.float()
+    labelT = torch.from_numpy(label).long() \
+        if isinstance(label, ndarray) else label.long()
+    if dataT.size(0) != labelT.size(0):
+        loger.warning('Data and label do not match in the first dimension: '
+                      f'{dataT.size(0)} and {labelT.size(0)} respectively.')
+    return dataT, labelT
 
 
 @verbose
 def slide_win(
     data : ndarray,
-    win : int = 125, 
+    win : int, 
     overlap : int = 0,
     label : Optional[ndarray] = None,
     verbose : Optional[Union[int, str]] = None,
@@ -32,9 +115,9 @@ def slide_win(
     ----------
     data : array of float, shape (..., times)
         The data to split.
-    win : int, optional
-        The size of the sliding window. Default is 125.
-    overlap : int, optional
+    win : int
+        The size of the sliding window.
+    overlap : int
         The amount of overlap between adjacent sliding windows. Default is 0.
     label : ndarray, optional
         The label of the data. If not None, label will update with sliding window.
@@ -99,7 +182,7 @@ def save(
 @verbose
 def load(
     folder : str,
-    subjects : Optional[list] = None,
+    subjects : Optional[List[int]] = None,
     mode : str = 'all',
     verbose : Optional[Union[int, str]] = None,
 ) -> dict:
@@ -111,9 +194,9 @@ def load(
         Folder name where transformed data is saved.
     subjects : list of int, optional
         List of subject number. If None, all subjects will be loaded. Default is None.
-    mode : str, optional
+    mode : str
         Mode to load data. If 'all', both train set and test set will be loaded. If 
-        'train', only train set will be loaded. 'test' is the same.
+        'train', only train set will be loaded. 'test' is the same. Default is 'all'.
     '''
     path = os.path.abspath(folder)
     loger.info(f'Loading dataset from \'{path}\'')

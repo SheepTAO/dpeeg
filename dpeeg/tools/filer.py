@@ -26,6 +26,7 @@ class Filer:
 
 import csv
 
+
 class CSVer(Filer):
     def __init__(self, path: str, mode: str = 'a') -> None:
         super().__init__(path, mode)
