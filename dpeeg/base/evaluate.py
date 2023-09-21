@@ -14,7 +14,6 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from matplotlib.figure import Figure
 from typing import Optional, Union
 from torchmetrics.functional.classification.confusion_matrix import confusion_matrix
 
@@ -24,7 +23,7 @@ def plt_cm_img(
     classes : Union[list, tuple],
     imgPath : Optional[str] = None,
     store : bool = False
-) -> Figure:
+) -> None:
     '''Store the corresponding confusion matrix figure to the given img path
         or return a Axes instance.
             
@@ -53,8 +52,6 @@ def plt_cm_img(
     # store image
     if store:
         plt.savefig(imgPath)
-    
-    return ax.get_figure()
 
 def cal_cm_and_plt_img(
     preds : torch.Tensor,
@@ -62,7 +59,7 @@ def cal_cm_and_plt_img(
     classes : Union[list, tuple],
     imgPath : Optional[str] = None,
     store : bool = False
-) -> Figure:
+) -> None:
         '''Calculate confusion matrix and get (store) the corresponding image.
 
         Parameters
@@ -81,5 +78,4 @@ def cal_cm_and_plt_img(
         '''
         cm = confusion_matrix(preds, acts, task='multiclass',
                               num_classes=len(classes))
-        
-        return plt_cm_img(cm, classes, imgPath, store)
+        plt_cm_img(cm, classes, imgPath, store)

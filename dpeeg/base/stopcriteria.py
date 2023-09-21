@@ -60,6 +60,9 @@ class ComposeStopCriteria(Criteria):
     def __repr__(self) -> str:
         return str(self.call)
 
+    def reset_parameters(self) -> None:
+        self.call.reset_parameters()
+
 
 class And(Criteria):
     def __init__(self, cri1, cri2) -> None:
@@ -166,7 +169,7 @@ class NoDecrease(Criteria):
         self.currentEpoch = 0
 
     def __call__(self, variables : dict) -> bool:
-        if variables[self.varName] < (1 - self.minChange) * self.minValue:
+        if variables[self.varName] <= (1 - self.minChange) * self.minValue:
             self.minValue= variables[self.varName]
             self.currentEpoch = 1
         else:

@@ -25,7 +25,7 @@ from typing import (
 # Life, the Universe, and Everything
 DPEEG_SEED : int = 42
 DPEEG_LOGGING_LEVEL = 'INFO'
-DPEEG_DIR = os.path.join(os.path.expanduser('~'), 'deeg')
+DPEEG_DIR = os.path.join(os.path.expanduser('~'), 'dpeeg')
 
 
 loger = Logger('dpeeg', flevel=None)

@@ -7,6 +7,7 @@
     @Time    : 2023-07-20
 """
 
+
 import os, sys, logging
 from typing import Union, Optional
 
@@ -14,7 +15,7 @@ from typing import Union, Optional
 class Logger:
     def __init__(
         self,
-        loger : Optional[str] = None,
+        loger : str = 'dpeeg_root',
         path : Optional[str] = None,
         mode : str = 'a',
         clevel : Union[int, str] = logging.INFO,
@@ -23,15 +24,15 @@ class Logger:
         '''Logging hooks for terminals and file streams.
 
         Can handle terminal printing and file writing in three situations:
-        1.Terminal printing;
-        2.Log file writing;
-        3.Ordinary file writing.
+        1.Terminal print;
+        2.Terminal and file streams write simultaneously;
+        3.Ordinary file write.
 
         Parameters
         ----------
-        loger : str, optional
+        loger : str
             Specify the logger name, creating it if necessary. If no name is specified, 
-            return the root logger. Default is None.
+            return the root logger. Default is dpeeg_root.
         path : str, optional
             The path of log file. Default is None.
         mode : str
@@ -70,7 +71,7 @@ class Logger:
         return logging.getLevelName(self._sh.level)
 
     def debug(self, message : str):
-        self._logger.debug(message)
+        self._logger.debug(f'[DEBUG]: {message}')
 
     def info(self, message : str):
         self._logger.info(message)

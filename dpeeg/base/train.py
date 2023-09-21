@@ -40,7 +40,7 @@ from torch.utils.data import TensorDataset, DataLoader, ConcatDataset
 from torchmetrics.functional.classification.accuracy import accuracy
 
 from ..tools import Logger, Timer
-from ..utils import DPEEG_SEED, DPEEG_DIR
+from ..utils import DPEEG_SEED
 from ..data.functions import to_tensor
 from .stopcriteria import ComposeStopCriteria
 
@@ -56,8 +56,6 @@ class Train:
     def __init__(
         self,
         net : nn.Module,
-        classes : Union[list, tuple],
-        stopCri : Union[str, dict],
         nGPU : int = 0,
         seed : int = DPEEG_SEED,
         lossFn : str = 'NLLLoss',
@@ -69,11 +67,9 @@ class Train:
         lrSchArgs : dict = {},
         gradAcc : int = 1,
         batchSize : int = 256,
-        varCheck : str  = 'valLoss',
-        outFolder : Optional[str] = None,
         dataSize : Optional[Union[tuple, list]] = None,
         depth : int = 3,
-        pinMem : bool = True
+        verbose : Union[int, str] = 'INFO',
     ) -> None:
         '''Initialize the basic attribute of the train model.
         Generate a trainer to test the performance of the same network on different
@@ -83,13 +79,8 @@ class Train:
         ----------
         net : nn.Module
             Inherit nn.Module and should define the forward method.
-        classes : list, tuple
-            The name of given labels.
         nGPU : int
             Select the gpu id to train. Default is 0.
-        stopCri : str, dict
-            Criteria for training to stop. Default is max epochs = 1000, val loss
-            no decrease epochs = 100.
         seed : int
             Select random seed for review. Default is DPEEG_SEED.
         lossFn : str
@@ -115,38 +106,18 @@ class Train:
             Aradient accumulation. Default is 1.
         batchSize : int
             Mini-batch size. Default is 256.
-        varCheck : str
-            The best value ('valInacc'/'valLoss') to check while determining 
-            the best model. Default is 'valLoss'.
-        outFolder : str, optional
-            Store all results during training to the given folder. Default is
-            '~/dpeeg/out/model_name/'.
         dataSize : tuple, list, optional
             Output the structure of the network model according to the input data
             dimension if the `dataSize` is given. Default is None.
         depth : int
             Depth of nested layers to display. Default is 3.
-        pinMem : bool
-            Whether to `pin_memory` to reduce data loading time. Default is True.
+        verbose : int, str
+            The log level of console. Default is INFO. Mainly used for debugging.
         '''
         self.net = net
 
-        # set output folder
-        if outFolder:
-            self.outFolder = os.path.abspath(outFolder)
-        else:
-            self.outFolder = os.path.join(DPEEG_DIR, 'out', net.__class__.__name__)
-        os.makedirs(self.outFolder, exist_ok=True)
-        if os.listdir(self.outFolder):
-            raise FileExistsError(f'{self.outFolder} is not a empty folder.')
-
-        checkList = ['valInacc', 'valLoss']
-        if varCheck not in checkList:
-            raise ValueError(f'Parameter `valCheck` only supports: {checkList}, '
-                             f'but got {varCheck}')
-
-        self.loger = Logger('dpeeg_train', flevel=None)
-        self.loger.info(f'Results will be saved in folder: {self.outFolder}')
+        self.loger = Logger('dpeeg_train', clevel=verbose)
+        self.timer = Timer()
 
         # init trainer
         self.device = self.get_device(nGPU)
@@ -173,26 +144,27 @@ class Train:
         self.seed = seed
         self.gradAcc = gradAcc
         self.batchSize = batchSize
-        self.stopCri = stopCri
-        self.varCheck = varCheck
-        self.classes = classes
-        self.pinMem = pinMem
-        self.numClasses = len(classes)
+        self.verbose = verbose
 
         # set experimental details
         self.expDetails = {'expParam': {'seed': seed, 'lossFn': lossFn, 
             'lossFnArgs': lossFnArgs, 'optimizer': optimizer, 'lr': lr,
             'optimArgs': optimArgs, 'lrSch': lrSch, 'lrSchArgs': lrSchArgs,
-            'batchSize': batchSize, 'gradAcc': gradAcc, 'varCheck': varCheck},
+            'batchSize': batchSize, 'gradAcc': gradAcc},
             'origNetParam': deepcopy(self.net.state_dict()),
         }
     
-    def run(
+    def fit_with_val(
         self,
-        trainData : Union[tuple, list, DataLoader],
-        valData : Union[tuple, list, DataLoader],
-        testData : Union[tuple, list, DataLoader],
-        logDir : Optional[str] = None,
+        trainData : Union[tuple, list],
+        valData : Union[tuple, list],
+        testData : Union[tuple, list],
+        logDir : str,
+        clsName : Union[tuple, list],
+        maxEpochs_1 : int = 1500,
+        maxEpochs_2 : int = 600,
+        noIncreaseEpochs : int = 100,
+        varCheck : str = 'valInacc',
     ) -> Dict[str, Dict[str, Tensor]]:
         '''Two-stage training strategy was used. In the first stage, the model 
         was trained using only the training set with the early stopping criteria
@@ -207,25 +179,36 @@ class Train:
 
         Parameters
         ----------
-        trainData : tuple, list, DataLoader
+        trainData : tuple, list
             Dataset used for training. If type is tuple or list, dataset should
             be (data, labels).
-        valData : tuple, list, DataLoader
-            Dataset used for validation. If type is tuple or list, dataset should
-            be (data, labels).
-        testData : tuple, list, DataLoader
-            Dataset used to evaluate the model. If type is tuple or list, dataset
+        valData : tuple, list
+            Dataset used for validation. If type is tuple or list, dataset 
             should be (data, labels).
-        logDir : str, optional
-            Save directory location (under outFolder) and support hierarchical folder 
-            structure. Default is None, which means use outFolder.
-        
+        testData : tuple, list
+            Dataset used to evaluate the model. If type is tuple or list, 
+            dataset should be (data, labels).
+        logDir : str
+            Directory location and support hierarchical folder structure to save
+            training log.
+        clsName : tuple, list
+            The name of dataset labels.
+        maxEpochs_1, maxEpochs_2 : int
+            Maximum number of epochs in the x stage of training. Default is
+            1500 and 600 respectively.
+        noIncreaseEpochs : int
+            Maximum number of consecutive epochs when the accuracy of the first-
+            stage validation set has no relative improvement. Default is 100.
+        varCheck : str
+            The best value ('valInacc'/'valLoss') to check while determining 
+            the best model which will be used for parameter initialization in
+            the second stage of model training. Default is 'valInacc'.
+            
         Returns
         -------
-        According to the input dataset, return train, validation and test (if testData
-        is given) results dict.
+        Return train, validation and test results dict.
         {
-            'train' : {'preds': Tensor, 'acts': Tensor, 'acc': Tensor, 'loss': Tensor},
+            'train' : {'preds': Tensor, 'acts': Tensor, 'acc': Tensor},
             'test'  : ...
             'val'   : ...,
         }
@@ -249,29 +232,42 @@ class Train:
         bestNetParam = deepcopy(self.net.state_dict())
         bestOptimParam = deepcopy(self.optimizer.state_dict())
 
+        checkList = ['valInacc', 'valLoss']
+        if varCheck not in checkList:
+            raise ValueError(f'Parameter `varCheck` only supports: {checkList}, '
+                             f'but got {varCheck}')
+
         # create log writer
-        logDir = os.path.join(self.outFolder, logDir) if logDir else self.outFolder
+        logDir = os.path.abspath(logDir)
         writer = SummaryWriter(logDir)
-        loger = Logger(logDir, path=os.path.join(logDir, 'running.log'), mode='a')
+        loger = Logger(logDir, path=os.path.join(logDir, 'running.log'), mode='a',
+                       flevel='INFO', clevel=self.verbose)
         
         # initialize dataloader
-        trainLoader = self._data_loader(trainData, self.batchSize, self.pinMem)
-        valLoader = self._data_loader(valData, self.batchSize, self.pinMem)
-        testLoader = self._data_loader(testData, self.batchSize, self.pinMem)
+        trainLoader = self._data_loader(*trainData, batchSize=self.batchSize)
+        valLoader = self._data_loader(*valData, batchSize=self.batchSize)
+        testLoader = self._data_loader(*testData, batchSize=self.batchSize)
+        ncls = len(clsName)
         
         # start the training
-        timer = Timer()
-        loger.info(f'[Training...] - [{timer.ctime()}]')
+        self.timer.start()
+        loger.info(f'[Training...] - [{self.timer.ctime()}]')
 
-        stopMon = ComposeStopCriteria({'And': {
+        stopMon = ComposeStopCriteria({'Or': {
             'cri1': {'MaxEpoch': {
-                'maxEpochs': 1500, 'varName': 'epoch'
+                'maxEpochs': maxEpochs_1, 'varName': 'epoch'
             }},
             'cri2': {'NoDecrease': {
-                'numEpochs': 200, 'varName': 'valLoss'
+                'numEpochs': noIncreaseEpochs, 'varName': 'valLoss'
             }}
         }})
-        monitors = {'epoch': 0, 'valLoss': float('inf'), 'valInacc': 1}
+        self.expDetails['fit'] = {
+            'type': 'fit_with_val',
+            'varCheck': varCheck,
+            'stopMon_1': str(stopMon)
+        }
+        monitors = {'epoch': 0, 'valLoss': float('inf'), 'valInacc': 1,
+                    'globalEpoch': 0}
         earlyStopReached, doStop = False, False
         
         while not doStop: 
@@ -281,63 +277,67 @@ class Train:
 
             # evaluate the training and validation accuracy
             trainPreds, trainActs, trainLoss = self._predict(trainLoader)
-            trainAcc = self.get_acc(trainPreds, trainActs)
+            trainAcc = self.get_acc(trainPreds, trainActs, ncls)
 
             valPreds, valActs, valLoss = self._predict(valLoader)
-            valAcc = self.get_acc(valPreds, valActs)
+            valAcc = self.get_acc(valPreds, valActs, ncls)
             monitors['valInacc'] = 1 - valAcc
             monitors['valLoss'] = valLoss
 
             # store loss and acc
             writer.add_scalars('train', {'loss': trainLoss, 'acc': trainAcc}, 
-                                monitors['epoch'])
+                                monitors['globalEpoch'])
             writer.add_scalars('val', {'loss': valLoss, 'acc': valAcc}, 
-                                monitors['epoch'])
+                                monitors['globalEpoch'])
             # print the epoch info
             loger.info(f'-->Epoch : {monitors["epoch"] + 1}')
-            loger.info(f'   train Loss/Acc = {trainLoss:.4f}/{trainAcc:.4f}'
+            loger.info(f'  \u21b3train Loss/Acc = {trainLoss:.4f}/{trainAcc:.4f}'
                         f' | val Loss/Acc = {valLoss:.4f}/{valAcc:.4f}')
 
             # select best model on Stage 1
-            if monitors[self.varCheck] <= bestVar:
-                bestVar = monitors[self.varCheck]
+            if monitors[varCheck] <= bestVar:
+                bestVar = monitors[varCheck]
                 bestNetParam = deepcopy(self.net.state_dict())
                 bestOptimParam = deepcopy(self.optimizer.state_dict())
-            
+
+            monitors['epoch'] += 1
+            monitors['globalEpoch'] += 1
+
             # check if to stop training
             if stopMon(monitors):
                 # check whether to enter the second stage of training
                 if not earlyStopReached:
                     earlyStopReached = True
-                    self.loger.info('[Early Stopping Reached] -> Start training '
-                                    'on both training set and val set.')
+                    loger.info('[Early Stopping Reached] -> Continue '
+                                    'training on full set.')
                     # load the best state
                     self.net.load_state_dict(bestNetParam)
                     self.optimizer.load_state_dict(bestOptimParam)
 
                     # Combine the train and val dataset
-                    trainLoader = self._data_loader(trainData, valData)
+                    trainLoader = self._data_loader(*trainData, *valData,
+                                                    batchSize=self.batchSize)
 
                     # update stop monitor and epoch
                     stopMon = ComposeStopCriteria({'Or': {
                         'cri1': {'MaxEpoch': {
-                            'maxEpochs': 600, 'varName': 'epochs'
+                            'maxEpochs': maxEpochs_2, 'varName': 'epoch'
                         }},
-                        'cir2': {'Smaller': {
+                        'cri2': {'Smaller': {
                             'var': trainLoss, 'varName': 'valLoss'
                         }}
                     }})
+                    self.expDetails['fit']['stopMon_2'] = str(stopMon)
                     monitors['epoch'] = 0
                 else:
                     bestNetParam = deepcopy(self.net.state_dict())
                     doStop = True
-            monitors['epoch'] += 1
         
         writer.close()
 
         # report the checkpoint time of end and compute cost time
-        loger.info(f'[Train Finish] - [{timer.ctime()}]')
-        h, m, s = timer.stop()
+        loger.info(f'[Train Finish] - [{self.timer.ctime()}]')
+        h, m, s = self.timer.stop()
         loger.info(f'Cost Time = {h}H:{m}M:{s:.2f}S')
 
         # load the best model and evaulate this model in testData
@@ -345,24 +345,24 @@ class Train:
 
         results = {}
         trainPreds, trainActs, trainLoss = self._predict(trainLoader)
-        trainAcc = self.get_acc(trainPreds, trainActs)
+        trainAcc = self.get_acc(trainPreds, trainActs, ncls)
         results['train'] = {
-            'preds': trainPreds, 'acts': trainActs, 'acc': trainAcc, 'loss': trainLoss,
+            'preds': trainPreds, 'acts': trainActs, 'acc': trainAcc
         }
         valPreds, valActs, valLoss = self._predict(valLoader)
-        valAcc = self.get_acc(valPreds, valActs)
+        valAcc = self.get_acc(valPreds, valActs, ncls)
         results['val'] = {
-            'preds': valPreds, 'acts': valActs, 'acc': valActs, 'loss': valLoss
+            'preds': valPreds, 'acts': valActs, 'acc': valAcc
         }
         testPreds, testActs, testLoss = self._predict(testLoader)
-        testAcc = self.get_acc(testPreds, testActs)
+        testAcc = self.get_acc(testPreds, testActs, ncls)
         results['test'] = {
-            'preds': testPreds, 'acts': testActs, 'acc': testAcc, 'loss': testLoss
+            'preds': testPreds, 'acts': testActs, 'acc': testAcc
         }
 
         loger.info(f'Loss: train={trainLoss:.4f} | val={valLoss:.4f} | '
                    f'test={testLoss:.4f}')
-        loger.info(f'Acc: train={trainAcc:.4f} | val={valAcc:.4f} | '
+        loger.info(f'Acc:  train={trainAcc:.4f} | val={valAcc:.4f} | '
                    f'test={testAcc:.4f}')
 
         # save the experiment details
@@ -452,10 +452,10 @@ class Train:
         
         return predicted, actual, lossSum / len(dataLoader)
     
-    def get_acc(self, preds : Tensor, acts : Tensor) -> Tensor:
+    def get_acc(self, preds : Tensor, acts : Tensor, ncls : int) -> Tensor:
         '''Easy for program to caculate the accuarcy.
         '''
-        return accuracy(preds, acts, 'multiclass', num_classes=self.numClasses)
+        return accuracy(preds, acts, 'multiclass', num_classes=ncls)
 
     def set_seed(self, seed : int = DPEEG_SEED) -> None:
         '''Sets the seed for generating random numbers for cpu and gpu.
@@ -489,7 +489,6 @@ class Train:
         self, 
         *datasets,
         batchSize : int = 256,
-        pinMem : bool = True
     ) -> DataLoader:
         '''Wrap multiple sets of data and labels and return DataLoader.
 
@@ -511,7 +510,7 @@ class Train:
             td.append(TensorDataset(*to_tensor(datasets[i], datasets[i + 1])))
         td = ConcatDataset(td)
 
-        return DataLoader(td, batchSize, True, pin_memory=pinMem)
+        return DataLoader(td, batchSize, True, pin_memory=True)
 
     def __repr__(self) -> str:
         '''Trainer details.
@@ -528,8 +527,5 @@ class Train:
             s += f'[Lr scheduler]:\t{self.lrSchType}\n'
             if self.lrSchArgs:
                 s += f'[LrSch Args]:\t{self.lrSchArgs}\n'
-        s += f'[Seed]:\t{self.seed}\n'
         s += f'[Grad Acc]:\t{self.gradAcc}\n'
-        s += f'[Value check]:\t{self.varCheck}\n'
-        s += f'[Classes name]:\t{self.classes}\n'
         return s
