@@ -208,7 +208,7 @@ class Train:
         -------
         Return train, validation and test results dict.
         {
-            'train' : {'preds': Tensor, 'acts': Tensor, 'acc': Tensor},
+            'train' : {'preds': Tensor, 'target': Tensor, 'acc': Tensor},
             'test'  : ...
             'val'   : ...,
         }
@@ -267,7 +267,7 @@ class Train:
             'stopMon_1': str(stopMon)
         }
         monitors = {'epoch': 0, 'valLoss': float('inf'), 'valInacc': 1,
-                    'globalEpoch': 0}
+                    'trainLoss': float('inf'), 'globalEpoch': 0}
         earlyStopReached, doStop = False, False
         
         while not doStop: 
@@ -276,11 +276,11 @@ class Train:
             self._run_one_epoch(trainLoader)
 
             # evaluate the training and validation accuracy
-            trainPreds, trainActs, trainLoss = self._predict(trainLoader)
-            trainAcc = self.get_acc(trainPreds, trainActs, ncls)
+            trainPreds, trainTarget, trainLoss = self._predict(trainLoader)
+            trainAcc = self.get_acc(trainPreds, trainTarget, ncls)
 
-            valPreds, valActs, valLoss = self._predict(valLoader)
-            valAcc = self.get_acc(valPreds, valActs, ncls)
+            valPreds, valTarget, valLoss = self._predict(valLoader)
+            valAcc = self.get_acc(valPreds, valTarget, ncls)
             monitors['valInacc'] = 1 - valAcc
             monitors['valLoss'] = valLoss
 
@@ -299,6 +299,7 @@ class Train:
                 bestVar = monitors[varCheck]
                 bestNetParam = deepcopy(self.net.state_dict())
                 bestOptimParam = deepcopy(self.optimizer.state_dict())
+                monitors['trainLoss'] = trainLoss
 
             monitors['epoch'] += 1
             monitors['globalEpoch'] += 1
@@ -324,7 +325,7 @@ class Train:
                             'maxEpochs': maxEpochs_2, 'varName': 'epoch'
                         }},
                         'cri2': {'Smaller': {
-                            'var': trainLoss, 'varName': 'valLoss'
+                            'var': monitors['trainLoss'], 'varName': 'valLoss'
                         }}
                     }})
                     self.expDetails['fit']['stopMon_2'] = str(stopMon)
@@ -344,20 +345,20 @@ class Train:
         self.net.load_state_dict(bestNetParam)
 
         results = {}
-        trainPreds, trainActs, trainLoss = self._predict(trainLoader)
-        trainAcc = self.get_acc(trainPreds, trainActs, ncls)
+        trainPreds, trainTarget, trainLoss = self._predict(trainLoader)
+        trainAcc = self.get_acc(trainPreds, trainTarget, ncls)
         results['train'] = {
-            'preds': trainPreds, 'acts': trainActs, 'acc': trainAcc
+            'preds': trainPreds, 'target': trainTarget, 'acc': trainAcc
         }
-        valPreds, valActs, valLoss = self._predict(valLoader)
-        valAcc = self.get_acc(valPreds, valActs, ncls)
+        valPreds, valTarget, valLoss = self._predict(valLoader)
+        valAcc = self.get_acc(valPreds, valTarget, ncls)
         results['val'] = {
-            'preds': valPreds, 'acts': valActs, 'acc': valAcc
+            'preds': valPreds, 'target': valTarget, 'acc': valAcc
         }
-        testPreds, testActs, testLoss = self._predict(testLoader)
-        testAcc = self.get_acc(testPreds, testActs, ncls)
+        testPreds, testTarget, testLoss = self._predict(testLoader)
+        testAcc = self.get_acc(testPreds, testTarget, ncls)
         results['test'] = {
-            'preds': testPreds, 'acts': testActs, 'acc': testAcc
+            'preds': testPreds, 'target': testTarget, 'acc': testAcc
         }
 
         loger.info(f'Loss: train={trainLoss:.4f} | val={valLoss:.4f} | '
@@ -424,15 +425,14 @@ class Train:
 
         Returns
         -------
-        predicted : Tensor
-            Tensor of predicted labels.
-        actual : Tensor
-            Tensor of actual labels.
+        preds : Tensor
+            Predicted labels, as returned by a classifier.
+        target : Tensor
+            Ground truth (correct) labels.
         loss : float
             Average loss.
         '''
-        predicted = torch.empty(0)
-        actual = torch.empty(0)
+        preds, target = [], []
         lossSum = 0
 
         # set the network in the eval mode
@@ -445,17 +445,16 @@ class Train:
                 out = self.net(data)
                 lossSum += self.lossFn(out, label).detach().item()
                 # convert the output of soft-max to class label
-                preds = torch.argmax(out, dim=1)
                 # save preds and actual label
-                predicted = torch.cat((predicted, preds.detach().cpu()))
-                actual = torch.cat((actual, label.cpu()))
+                preds.append(torch.argmax(out, dim=1).detach().cpu())
+                target.append(label.cpu())
         
-        return predicted, actual, lossSum / len(dataLoader)
+        return torch.cat(preds), torch.cat(target), lossSum / len(dataLoader)
     
-    def get_acc(self, preds : Tensor, acts : Tensor, ncls : int) -> Tensor:
+    def get_acc(self, preds : Tensor, target : Tensor, ncls : int) -> Tensor:
         '''Easy for program to caculate the accuarcy.
         '''
-        return accuracy(preds, acts, 'multiclass', num_classes=ncls)
+        return accuracy(preds, target, 'multiclass', num_classes=ncls)
 
     def set_seed(self, seed : int = DPEEG_SEED) -> None:
         '''Sets the seed for generating random numbers for cpu and gpu.

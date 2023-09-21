@@ -23,7 +23,7 @@ from .train import Train
 from ..data.datasets import EEGDataset
 from ..tools import Timer, Filer, Logger
 from ..utils import DPEEG_SEED, DPEEG_DIR
-from .evaluate import cal_cm_and_plt_img
+from .evaluate import save_cm_img
 
 
 class KFoldCV:
@@ -167,9 +167,9 @@ class KFoldCV:
             trainRes, valRes, testRes = res['train'], res['val'], res['test']
 
             # save the confusion matirx image
-            cal_cm_and_plt_img(testRes['preds'], testRes['acts'], clsName,
-                               os.path.join(cmFolder, f'expNo_{idx+1}_CM.png'),
-                               store=True)
+            save_cm_img(testRes['preds'], testRes['target'], clsName,
+                        os.path.join(cmFolder, f'expNo_{idx+1}_CM.png')
+            )
 
             # save all results
             results['train'].append(trainRes)
@@ -197,7 +197,7 @@ class KFoldCV:
         # calculate cohen kappa
         testKappa = cohen_kappa(
             get_res(results, 'test', 'preds'),
-            get_res(results, 'test', 'acts'),
+            get_res(results, 'test', 'target'),
             task = 'multiclass',
             num_classes = len(clsName)
         )
