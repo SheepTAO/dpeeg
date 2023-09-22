@@ -28,7 +28,7 @@ from .functions import (
 class Transforms(abc.ABC):
     def __init__(self, verbose : Optional[Union[int, str]] = None) -> None:
         self.verbose = verbose
-    
+
     @abc.abstractmethod
     def __call__(self, input : dict) -> dict:
         pass
@@ -59,18 +59,26 @@ class ComposeTransforms(Transforms):
             The log level of the entire transformation list. Default is None (INFO).
         '''
         super().__init__(verbose)
-        self.trans = [transforms] \
-            if isinstance(transforms, Transforms) else transforms
+
+        self.trans = []
+        if isinstance(transforms, Transforms):
+            if isinstance(transforms, ComposeTransforms):
+                self.trans.extend(transforms.get_data())
+            else:
+                self.trans.append(transforms)
+        else:
+            self.trans = transforms
+
         for tran in self.trans:
                 tran.verbose = verbose
-        
+
     def __call__(self, input):
-        loger.info('[Transform dataset ...]')
-        loger.info('---------------------')
+        loger.info('Transform dataset ...')
+        loger.info('----------------------')
         for t in self.trans:
             input = t(input)
-        loger.info('---------------')
-        loger.info('[Transform done.]')
+        loger.info('----------------')
+        loger.info('Transform done.')
         return input
 
     def __repr__(self) -> str:
@@ -82,7 +90,7 @@ class ComposeTransforms(Transforms):
                 s += f'\n ({idx}): {tran}'
         return s + '\n)'
 
-    def appends(self, transforms):
+    def appends(self, transforms : Union[List[Transforms], Transforms]) -> None:
         '''Append a transform or a list of transforms to the last of composes.
         '''
         if isinstance(transforms, list):
@@ -90,9 +98,15 @@ class ComposeTransforms(Transforms):
         else:
             self.trans.append(transforms)
         
-    def insert(self, index, transform):
-        '''Insert a transform at index.'''
+    def insert(self, index : int, transform : Transforms) -> None:
+        '''Insert a transform at index.
+        '''
         self.trans.insert(index, transform)
+
+    def get_data(self) -> List[Transforms]:
+        '''Return list of Transforms.
+        '''
+        return self.trans
 
 
 class SplitTrainTest(Transforms):
@@ -333,13 +347,18 @@ class ApplyFunc(Transforms):
         '''This transform can be used to filter the data (via the `mne` library or
         other methods), change the data shape (via the `numpy`) and so on.
 
-        NOTE:
+        Examples
+        --------
         If you want to pass a function with parameters, such as you want to
         use `np.expand_dims()` with `axis` parameter, you can do as follows:
         >>> from functools import partial
         >>> transforms.ApplyFunc(partial(np.expand_dims, axis=1))
         or
         >>> transforms.ApplyFunc(lambda x: np.expand_dims(x, 1))
+
+        Notes
+        -----
+        heavy development
         '''
         super().__init__(verbose)
         self.func = func

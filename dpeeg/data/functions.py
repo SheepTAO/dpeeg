@@ -134,14 +134,22 @@ def slide_win(
         raise ValueError(f'overlap={overlap} should be less than win={win}.')
 
     loger.info(f'Sliding window with win:{win} and overlap:{overlap}.')
-    winSize = win - overlap
-    sldNum = data.shape[-1] // winSize
-    if not sldNum:
-        loger.warning('The sliding window is larger than the data to be split.')
-    dataList = [data[..., : winSize]]
-    for i in range(1, sldNum):
-        sld = data[..., i*winSize-overlap :(i+1)*winSize-overlap]
-        dataList.append(sld)
+
+    end = win
+    times = data.shape[-1]
+    if end > times:
+        loger.warning('The window is larger than the times to be split.')
+        if isinstance(label, ndarray):
+            return data, label
+        return data
+
+    sldNum = 0
+    dataList = []
+    while end <= times:
+        dataList.append(data[..., end-win:end])
+        loger.info(f' Intercept data from {end-win} to {end}.')
+        sldNum += 1
+        end += win - overlap
 
     data = np.concatenate(dataList)
     if isinstance(label, ndarray):
