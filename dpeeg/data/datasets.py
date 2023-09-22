@@ -129,7 +129,7 @@ class EEGDataset:
 
         # split the dataset before transforms
         if self._transforms:
-            trans = transforms.Compose(self._transforms)
+            trans = transforms.ComposeTransforms(self._transforms)
             if not split:
                 trans.insert(0, transforms.SplitTrainTest(self._testSize, self._seed))
             self._dataset = trans(dataset)
@@ -200,6 +200,10 @@ class EEGDataset:
         
         
 class PhysioNet(EEGDataset):
+    '''Physionet MI Dataset.
+    channels=64; subjects=1-109[88, 92, 100, 104], tasks={0:left hand, 1:right 
+    hand, 2:hands, 3:feet}; duration=3s; freq=160Hz, sessions=1.
+    '''
     @verbose
     def __init__(
         self,
@@ -214,6 +218,8 @@ class PhysioNet(EEGDataset):
         verbose : Optional[str] = None,
         **epoArgs
     ) -> None:
+        '''Physionet MI Dataset.
+        '''
         super().__init__(transforms, testSize, seed, verbose)
         loger.info('Reading PhysionetMI Dataset ...')
         
@@ -256,6 +262,10 @@ class PhysioNet(EEGDataset):
             
 
 class BCICIV2A(EEGDataset):
+    '''BCI Competition IV Data sets 2a.
+    channels=22; subjects=1-9; tasks={0:left hand, 1:right hand, 2:feet, 3:tongue};
+    duration=4s; freq=250Hz; sessions=2.
+    '''
     @verbose
     def __init__(
         self,
@@ -271,7 +281,10 @@ class BCICIV2A(EEGDataset):
         verbose : Optional[str] = None,
         **epoArgs
     ) -> None:
-        '''
+        '''BCI Competition IV Data sets 2a.
+
+        Parameters
+        ----------
         mode: int, optional
             If mode = 0, training data and test data will only use session 1.
             If mode = 1, training data and test data will use session 1 and 2, respectively.
@@ -318,6 +331,8 @@ class BCICIV2A(EEGDataset):
                 self._raw[sub]['test'] = mne.concatenate_epochs(epochsSesTwo)
             elif mode == 2:
                 self._raw[sub] = mne.concatenate_epochs(epochsSesOne + epochsSesTwo)
+            else:
+                raise ValueError(f'Mode can only be 0, 1 and 2, but got {mode}.')
         
         split = True if mode == 1 else False
         self._load_data(split)
@@ -326,7 +341,7 @@ class BCICIV2A(EEGDataset):
 class HGD(EEGDataset):
     '''High Gamma Dataset.
     channels=128; subjects=1-14; tasks={0:feet, 1:left hand, 2:rest, 3:right hand};
-    duration=4s.
+    duration=4s; freq=500Hz; sessions=1.
     '''
     @verbose
     def __init__(
@@ -342,6 +357,8 @@ class HGD(EEGDataset):
       verbose : Optional[str] = None,
       **epoArgs,
     ) -> None:
+        '''High Gamma Dataset.
+        '''
         super().__init__(transforms, testSize, seed, verbose)
         loger.info('Reading High Gamma Dataset ...')
 
