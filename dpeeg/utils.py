@@ -17,8 +17,10 @@ import functools
 import numpy as np
 from .tools.logger import Logger
 from typing import (
+    Any,
     Union,
     Callable,
+    TypeVar,
 )
 
 
@@ -31,7 +33,12 @@ DPEEG_DIR = os.path.join(os.path.expanduser('~'), 'dpeeg')
 loger = Logger('dpeeg', flevel=None)
 
 
-def verbose(func : Callable) -> Callable:
+# Provide help for static type checkers:
+# https://mypy.readthedocs.io/en/stable/generics.html#declaring-decorators
+_FuncT = TypeVar('_FuncT', bound=Callable[..., Any])
+
+
+def verbose(func : _FuncT) -> _FuncT:
     '''Verbose decorator to allow functions to override log-level.
 
     Parameters
@@ -45,7 +52,7 @@ def verbose(func : Callable) -> Callable:
         The decorated function.
     '''
     @functools.wraps(func)
-    def inner(*args, **kwargs):
+    def inner(*args, **kwargs) -> _FuncT:
         kwargs.setdefault('verbose', DPEEG_LOGGING_LEVEL)
         loger._update_sh_level(kwargs['verbose'])
         # # for debug

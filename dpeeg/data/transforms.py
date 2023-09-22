@@ -11,11 +11,12 @@
 """
 
 
+import abc
 import numpy as np
 import pandas as pd
-from typing import Any, Optional, Callable, Union, List
+from typing import Optional, Callable, Union, List
 
-from ..utils import loger, verbose, DPEEG_SEED, DPEEG_DIR
+from ..utils import loger, verbose, DPEEG_SEED
 from .functions import (
     split_train_test,
     to_tensor,
@@ -24,32 +25,48 @@ from .functions import (
 )
 
 
-class ComposeTransforms:
+class Transforms(abc.ABC):
+    def __init__(self, verbose : Optional[Union[int, str]] = None) -> None:
+        self.verbose = verbose
+    
+    @abc.abstractmethod
+    def __call__(self, input : dict) -> dict:
+        pass
+
+    @abc.abstractmethod
+    def __repr__(self) -> str:
+        pass
+
+
+class ComposeTransforms(Transforms):
     '''Composes several transforms together.
     '''
     @verbose
     def __init__(
         self, 
-        transforms : list, 
+        transforms : Union[List[Transforms], Transforms], 
         verbose : Optional[Union[int, str]] = None,
     ) -> None:
-        '''
-        transforms : list
+        '''Composes several transforms together. 
+        The transforms in `ComposeTransforms` are connected in a cascading way.
+
+        Parameters
+        ----------
+        transforms : list of Transforms, Transforms
             Transforms (list of `Transform` objects): list of transforms to compose.
+            If is Transforms, then will be turned into a list containing input.
         verbose : int, str, optional
             The log level of the entire transformation list. Default is None (INFO).
         '''
-        self.transforms = transforms
-        for tran in transforms:
-            try:
+        self.trans = [transforms] \
+            if isinstance(transforms, Transforms) else transforms
+        for tran in self.trans:
                 tran.verbose = verbose
-            except:
-                pass
         
     def __call__(self, input):
         loger.info('Transform dataset ...')
         loger.info('---------------------')
-        for t in self.transforms:
+        for t in self.trans:
             input = t(input)
         loger.info('---------------')
         loger.info('Transform done.')
@@ -57,10 +74,10 @@ class ComposeTransforms:
 
     def __repr__(self) -> str:
         s = 'Compose('
-        if len(self.transforms) == 0:
+        if len(self.trans) == 0:
             return s + ')'
         else:
-            for idx, tran in enumerate(self.transforms):
+            for idx, tran in enumerate(self.trans):
                 s += f'\n ({idx}): {tran}'
         return s + '\n)'
 
@@ -68,13 +85,13 @@ class ComposeTransforms:
         '''Append a transform or a list of transforms to the last of composes.
         '''
         if isinstance(transforms, list):
-            self.transforms.extend(transforms)
+            self.trans.extend(transforms)
         else:
-            self.transforms.append(transforms)
+            self.trans.append(transforms)
         
     def insert(self, index, transform):
         '''Insert a transform at index.'''
-        self.transforms.insert(index, transform)
+        self.trans.insert(index, transform)
 
 
 class SplitTrainTest:
@@ -300,6 +317,7 @@ class SlideWin:
 class ApplyFunc:
     '''Apply a function on data.
     '''
+    @verbose
     def __init__(
         self, 
         func : Callable, 

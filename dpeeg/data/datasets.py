@@ -23,9 +23,10 @@
 """
 
 import mne
-from . import transforms
+from typing import Optional, List, Union
+
+from .transforms import Transforms, ComposeTransforms, SplitTrainTest
 from ..utils import loger, verbose, DPEEG_SEED
-from typing import Optional, Callable, List
 
 
 class EEGDataset:
@@ -65,7 +66,7 @@ class EEGDataset:
 
     def __init__(
         self,
-        transforms : Optional[List[Callable]] = None,
+        transforms : Optional[Union[List[Transforms], Transforms]] = None,
         testSize : float = .2, 
         seed : int = DPEEG_SEED,
         verbose : Optional[str] = None
@@ -129,9 +130,9 @@ class EEGDataset:
 
         # split the dataset before transforms
         if self._transforms:
-            trans = transforms.ComposeTransforms(self._transforms)
+            trans = ComposeTransforms(self._transforms)
             if not split:
-                trans.insert(0, transforms.SplitTrainTest(self._testSize, self._seed))
+                trans.insert(0, SplitTrainTest(self._testSize, self._seed))
             self._dataset = trans(dataset)
         else:
             self._dataset = dataset
@@ -210,7 +211,7 @@ class PhysioNet(EEGDataset):
         subjects : Optional[List[int]] = None,
         tmin : float = 0,
         tmax : float = 1,
-        transforms : Optional[List[Callable]] = None,
+        transforms : Optional[Union[List[Transforms], Transforms]] = None,
         testSize : float = .2,
         picks : Optional[List[str]] = None,
         baseline = None,
@@ -272,7 +273,7 @@ class BCICIV2A(EEGDataset):
         subjects : Optional[List[int]] = None,
         tmin : float = 0,
         tmax : float = 4,
-        transforms : Optional[List[Callable]] = None,
+        transforms : Optional[Union[List[Transforms], Transforms]] = None,
         testSize : float = .2,
         mode : int = 1,
         picks : Optional[List[str]] = None,
@@ -349,7 +350,7 @@ class HGD(EEGDataset):
       subjects : Optional[List[int]] = None,
       tmin : float = 0,
       tmax : float = 4,
-      transforms : Optional[List[Callable]] = None,
+      transforms : Optional[Union[List[Transforms], Transforms]] = None,
       testSize : float = .2,
       picks : Optional[List[str]] = None,
       baseline = None,
