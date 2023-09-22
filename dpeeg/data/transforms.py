@@ -58,6 +58,7 @@ class ComposeTransforms(Transforms):
         verbose : int, str, optional
             The log level of the entire transformation list. Default is None (INFO).
         '''
+        super().__init__(verbose)
         self.trans = [transforms] \
             if isinstance(transforms, Transforms) else transforms
         for tran in self.trans:
@@ -94,7 +95,7 @@ class ComposeTransforms(Transforms):
         self.trans.insert(index, transform)
 
 
-class SplitTrainTest:
+class SplitTrainTest(Transforms):
     '''Split the dataset into training and testing sets.
     '''
     @verbose
@@ -119,6 +120,7 @@ class SplitTrainTest:
             A list of integers, the entries indicate which data were selected
             as the test set. If None, testSize will be used. Default is None.
         '''
+        super().__init__(verbose)
         self.testSize = testSize
         self.seed = seed
         self.sample = sample
@@ -147,11 +149,12 @@ class SplitTrainTest:
         return s + ')'
 
 
-class ToTensor:
+class ToTensor(Transforms):
     '''Convert the numpy data in the dataset into Tensor format.
     '''
     @verbose
     def __init__(self, verbose) -> None:
+        super().__init__(verbose)
         self.verbose = verbose
 
     def __call__(self, input : dict) -> dict:
@@ -165,7 +168,7 @@ class ToTensor:
         return 'ToTensor'
 
 
-class Normalization:
+class Normalization(Transforms):
     '''Normalize the data.
     '''
     @verbose
@@ -208,6 +211,7 @@ class Normalization:
         eps : float
             Stabilizer for division by zero variance. Default is 1e-4.
         '''
+        super().__init__(verbose)
         self.modeList = ['z-score', 'ems', 'ea']
         self.mode = mode
         self.factorNew = factorNew
@@ -271,7 +275,7 @@ class Normalization:
         return s + ')'
 
 
-class SlideWin:
+class SlideWin(Transforms):
     '''Apply a sliding window to the dataset.
     '''
     @verbose
@@ -292,6 +296,7 @@ class SlideWin:
         overlap : int
             The amount of overlap between adjacent sliding windows. Default is 0.
         '''
+        super().__init__(verbose)
         self.win = win
         self.overlap = overlap
         self.verbose = verbose
@@ -314,7 +319,7 @@ class SlideWin:
         return s + ')'
 
 
-class ApplyFunc:
+class ApplyFunc(Transforms):
     '''Apply a function on data.
     '''
     @verbose
@@ -334,6 +339,7 @@ class ApplyFunc:
         or
         >>> transforms.ApplyFunc(lambda x: np.expand_dims(x, 1))
         '''
+        super().__init__(verbose)
         self.func = func
         self.verbose = verbose
 
@@ -347,7 +353,7 @@ class ApplyFunc:
         return f'ApplyFunc(func={self.func})'
 
 
-class Save:
+class Save(Transforms):
     '''Save the transformed data.
     '''
     @verbose
@@ -363,6 +369,7 @@ class Save:
         folder : str
             Folder name to save transformed data.
         '''
+        super().__init__(verbose)
         self.folder = folder
         self.verbose = verbose
 
