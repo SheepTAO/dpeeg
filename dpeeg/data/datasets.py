@@ -67,40 +67,46 @@ class EEGDataset:
     def __init__(
         self,
         transforms : Optional[Union[List[Transforms], Transforms]] = None,
-        testSize : float = .2, 
+        testSize : float = .25, 
         seed : int = DPEEG_SEED,
-        verbose : Optional[str] = None
+        verbose : Optional[str] = None, 
+        verboseTrans : bool = False,
     ) -> None:
         '''EEG Dataset abstract base class.
 
         Parameters
         ----------
-        %(subjects)s : list of int, optional
-            List of subject number. If None, all subjects will be loaded. Default is None.
-        %(tmin, tmax)s : float
-            Start and end time of the epochs in seconds, relative to the time-locked event.
-            The closest or matching samples corresponding to the start and end time are 
-            included. Default is start and end time of epochs, respectively.
-        %(picks)s : list of str, optional
-            Channels to include. If None, will pick all channels. Default is None.
+        subjects : list of int, optional
+            List of subject number. If None, all subjects will be loaded. 
+            Default is None.
+        tmin, tmax : float
+            Start and end time of the epochs in seconds, relative to the time-
+            locked event. The closest or matching samples corresponding to the
+            start and end time are included. Default is start and end time of 
+            epochs, respectively.
+        picks : list of str, optional
+            Channels to include. If None, pick all channels. Default is None.
         transforms : list of Callable, optional
             List of pre-transforms on dataset. Default is None.
         testSize : float
-            Split the training set and test set proportions. If the dataset is already split,
-            it will be ignored. Default is 0.2.
+            Split the training set and test set proportions. If the dataset is
+            already split, it will be ignored. Default is 0.25.
         seed : int
             Random seed when splitting. Default is DPEEG_SEED.
         verbose : str, optional
             Log level of mne. Default is None.
+        verboseTrans : bool
+            If True, verbose of `transforms` will be set at the same time.
+            Default is False.
         '''
-        super().__init__()
-
         mne.set_log_level(verbose)
         
         self._testSize = testSize
         self._seed = seed
         self._transforms = transforms
         self._dataset = None
+        self._verbose = verbose
+        self._verboseTrans = verboseTrans
         
         # NOTE
         # Please make sure the following attributes are correctly overridden
@@ -130,7 +136,8 @@ class EEGDataset:
 
         # split the dataset before transforms
         if self._transforms:
-            trans = ComposeTransforms(self._transforms)
+            trans = ComposeTransforms(self._transforms, self._verbose) \
+                if self._verboseTrans else ComposeTransforms(self._transforms)
             if not split:
                 trans.insert(0, SplitTrainTest(self._testSize, self._seed))
             self._dataset = trans(dataset)
@@ -217,11 +224,12 @@ class PhysioNet(EEGDataset):
         baseline = None,
         seed : int = DPEEG_SEED,
         verbose : Optional[str] = None,
+        verboseTrans: bool = False,
         **epoArgs
     ) -> None:
         '''Physionet MI Dataset.
         '''
-        super().__init__(transforms, testSize, seed, verbose)
+        super().__init__(transforms, testSize, seed, verbose, verboseTrans)
         loger.info('Reading PhysionetMI Dataset ...')
         
         from moabb.datasets import PhysionetMI
@@ -280,6 +288,7 @@ class BCICIV2A(EEGDataset):
         baseline = None,
         seed : int = DPEEG_SEED,
         verbose : Optional[str] = None,
+        verboseTrans: bool = False,
         **epoArgs
     ) -> None:
         '''BCI Competition IV Data sets 2a.
@@ -292,7 +301,7 @@ class BCICIV2A(EEGDataset):
             If mode = 2, training data and test data will use both session 1 and 2.
             Default is 1.
         '''
-        super().__init__(transforms, testSize, seed, verbose)
+        super().__init__(transforms, testSize, seed, verbose, verboseTrans)
         loger.info('Reading BCICIV 2A Dataset ...')
 
         from moabb.datasets import BNCI2014001
@@ -356,11 +365,12 @@ class HGD(EEGDataset):
       baseline = None,
       seed : int = DPEEG_SEED,
       verbose : Optional[str] = None,
+      verboseTrans: bool = False,
       **epoArgs,
     ) -> None:
         '''High Gamma Dataset.
         '''
-        super().__init__(transforms, testSize, seed, verbose)
+        super().__init__(transforms, testSize, seed, verbose, verboseTrans)
         loger.info('Reading High Gamma Dataset ...')
 
         from moabb.datasets import Schirrmeister2017

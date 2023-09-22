@@ -77,7 +77,7 @@ def split_train_test(
         return res
     else:
         from sklearn.model_selection import train_test_split
-        return train_test_split(arrList, test_size=testSize, random_state=seed,
+        return train_test_split(*arrList, test_size=testSize, random_state=seed,
                                 stratify=arrList[-1])
 
 

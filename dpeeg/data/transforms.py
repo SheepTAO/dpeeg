@@ -65,12 +65,12 @@ class ComposeTransforms(Transforms):
                 tran.verbose = verbose
         
     def __call__(self, input):
-        loger.info('Transform dataset ...')
+        loger.info('[Transform dataset ...]')
         loger.info('---------------------')
         for t in self.trans:
             input = t(input)
         loger.info('---------------')
-        loger.info('Transform done.')
+        loger.info('[Transform done.]')
         return input
 
     def __repr__(self) -> str:
@@ -101,7 +101,7 @@ class SplitTrainTest(Transforms):
     @verbose
     def __init__(
         self, 
-        testSize : float = .2, 
+        testSize : float = .25, 
         seed : int = DPEEG_SEED, 
         sample : Optional[List[int]] = None,
         verbose : Optional[Union[int, str]] = None
@@ -111,7 +111,7 @@ class SplitTrainTest(Transforms):
         Parameters
         ----------
         testSize : float
-            The proportion of the test set. Default is 0.2. If index is not None,
+            The proportion of the test set. Default is 0.25. If index is not None,
             testSize will be ignored. Default use stratified fashion and the last
             arr serves as the class labels.
         seed : int
@@ -127,7 +127,7 @@ class SplitTrainTest(Transforms):
         self.verbose = verbose
 
     def __call__(self, input : dict) -> dict:
-        loger.info(f'{self} starting ...')
+        loger.info(f'[{self} starting ...]')
         for sub, data in input.items():
             trainX, testX, trainy, testy = split_train_test(
                 data[0], data[1], testSize=self.testSize, seed=self.seed,
@@ -158,10 +158,12 @@ class ToTensor(Transforms):
         self.verbose = verbose
 
     def __call__(self, input : dict) -> dict:
-        loger.info(f'{self} starting ...')
+        loger.info(f'[{self} starting ...]')
         for sub in input.values():
             for mode in ['train', 'test']:
-                sub[mode][0], sub[mode][1] = to_tensor(sub[mode][0], sub[mode][1])
+                sub[mode][0], sub[mode][1] = to_tensor(
+                    sub[mode][0], sub[mode][1], verbose=self.verbose
+                )
         return input
 
     def __repr__(self) -> str:
@@ -223,7 +225,7 @@ class Normalization(Transforms):
             raise ValueError('Only the following normalization methods are '+
                              f'supported: {self.modeList}')
 
-        loger.info(f'{self} starting ...')
+        loger.info(f'[{self} starting ...]')
         R = np.empty(0)
         if self.mode == 'ea':
             dataList = []
@@ -302,13 +304,13 @@ class SlideWin(Transforms):
         self.verbose = verbose
 
     def __call__(self, input : dict) -> dict:
-        loger.info(f'{self} starting ...')
+        loger.info(f'[{self} starting ...]')
         for sub, data in input.items():
             loger.info(f'Sliding window to sub_{sub}.')
             for mode in ['train', 'test']:
                 data[mode][0], data[mode][1] = slide_win(
                     data[mode][0], self.win, self.overlap,
-                    data[mode][1], verbose='WARNING'
+                    data[mode][1], verbose=self.verbose
                 )
         return input
 
@@ -374,7 +376,7 @@ class Save(Transforms):
         self.verbose = verbose
 
     def __call__(self, input : dict) -> None:
-        loger.info(f'{self} starting ...')
+        loger.info(f'[{self} starting ...]')
         save(self.folder, input, verbose=self.verbose)
 
     def __repr__(self) -> str:
