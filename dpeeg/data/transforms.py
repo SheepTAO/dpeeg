@@ -226,6 +226,10 @@ class Normalization(Transforms):
             Smoothing factor of exponential moving standardize. Default is 1e-3.
         eps : float
             Stabilizer for division by zero variance. Default is 1e-4.
+
+        Notes
+        -----
+        heavy development
         '''
         super().__init__(verbose)
         self.modeList = ['z-score', 'ems', 'ea']

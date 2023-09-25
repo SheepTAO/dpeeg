@@ -49,13 +49,14 @@ class KFoldCV:
         k : int, optional
             k of k-Fold. Default is 10.
         outFolder : str, optional
-            Store all results during experiments to the given folder. Default is
+            Store all experimental results in a folder named with the model 
+            class name in the specified folder. Default is 
             '~/dpeeg/out/model_name/'.
         maxEpochs_1, maxEpochs_2 : int
             Maximum number of epochs in the x stage of training. Default is
             1500 and 600 respectively.
         noIncreaseEpochs : int
-            Maximum number of consecutive epochs when the accuracy of the first-
+            Maximum number of consecutive epochs when the accuracy of the first
             stage validation set has no relative improvement. Default is 100.
         varCheck : str
             The best value ('valInacc'/'valLoss') to check while determining 
@@ -83,8 +84,9 @@ class KFoldCV:
         self.timer = Timer()
         
         # set output folder
-        self.outFolder = os.path.abspath(outFolder) if outFolder else \
-            os.path.join(DPEEG_DIR, 'out', trainer.net.__class__.__name__)
+        netName = trainer.net.__class__.__name__
+        self.outFolder = os.path.join(os.path.abspath(outFolder), netName) \
+            if outFolder else os.path.join(DPEEG_DIR, 'out', netName)
         os.makedirs(self.outFolder, exist_ok=True)
         self.loger.info(f'Results will be saved in folder: {self.outFolder}')
 
@@ -231,13 +233,15 @@ class KFoldCV:
              1 : {...},
             ...}
             
-            where array can be `numpy.ndarray` or `torch.Tensor`. Please make sure 
-            that the dataset has been split.
+            where array can be `numpy.ndarray` or `torch.Tensor`. Please make 
+            sure that the dataset has been split.
         clsName : tuple, list
             The name of dataset labels.
         datasetName : str, optional
-            The dataset name to use. If None, `dataset.__class__.__name__` will be
-            used as the folder to save experimental results.
+            The dataset name to use. If None, `dataset.__class__.__name__` will 
+            be used as the folder to save experimental results. If the type of 
+            the dataset is dict, Please provide a dataset name to prevent 
+            confusing results.
         desc : str, optional
             Add a short description to the current experiment. Default is None.
         '''

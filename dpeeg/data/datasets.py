@@ -265,7 +265,7 @@ class PhysioNet(EEGDataset):
                                preload=True, **epoArgs)
                 )
             
-            self._raw[sub] = mne.concatenate_epochs(epochsSes)
+            self._raw[sub] = mne.concatenate_epochs(epochsSes, verbose='ERROR')
         
         self._load_data()
             
