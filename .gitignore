@@ -5,3 +5,6 @@ __pycache__/
 build/
 dist/
 *.egg-info/
+
+# Out for test
+tests/out/

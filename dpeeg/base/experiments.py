@@ -18,6 +18,7 @@ from torch import Tensor
 from typing import Union, Optional, Tuple
 from sklearn.model_selection import StratifiedKFold
 from torchmetrics.functional.classification.cohen_kappa import cohen_kappa
+from torchmetrics.aggregation import MeanMetric, CatMetric
 
 from .train import Train
 from ..data.datasets import EEGDataset
@@ -99,7 +100,7 @@ class KFoldCV:
         testset : Union[tuple, list],
         clsName : Union[tuple, list],
         sub : Optional[str] = None,
-    ) -> Tuple[Tensor, ...]:
+    ) -> Tuple:
         '''Basic K-Fold cross-validation function.
 
         Parameters
@@ -118,28 +119,17 @@ class KFoldCV:
         
         Returns
         -------
-        Return trainAcc, valAcc, testAcc and testKappa.
-        '''
-        def get_res(
-            results : dict, 
-            task : str, 
-            var : str = 'acc'
-        ) -> Tensor:
-            '''Get all value from the results by var and return them.
-            '''
-            res = []
-            for i in range(self.k):
-                data = results[task][i][var].unsqueeze(0) if var == 'acc' \
-                    else results[task][i][var]
-                res.append(data)
-            return torch.cat(res)
-
-        # save trained results
+        Return trainAcc, valAcc, testAcc and testKappa and results :
         results = {
-            'train' : [],
-            'val'   : [],
-            'test'  : [],
+            'expNo_x' : {...},
+            ...
         }
+        '''
+        # save trained results
+        results = {}
+        trainAccMetric, valAccMetric, testAccMetric = \
+            MeanMetric(), MeanMetric(), MeanMetric()
+        testPredsMetric, testTargetMetric = CatMetric(), CatMetric()
 
         # set kFold-cv results storage path
         subFolder = os.path.join(self.outFolder, sub) if sub else self.outFolder
@@ -166,17 +156,20 @@ class KFoldCV:
                 trainData, valData, testset, expPath, clsName, self.maxEpochs_1,
                 self.maxEpochs_2, self.noIncreaseEpochs, self.varCheck
             )
+
+            # save all results
+            results[f'expNo_{idx}'] = res
             trainRes, valRes, testRes = res['train'], res['val'], res['test']
+            trainAccMetric.update(trainRes['acc'])
+            valAccMetric.update(valRes['acc'])
+            testAccMetric.update(testRes['acc'])
+            testPredsMetric.update(testRes['preds'])
+            testTargetMetric.update(testRes['target'])
 
             # save the confusion matirx image
             save_cm_img(testRes['preds'], testRes['target'], clsName,
                         os.path.join(cmFolder, f'expNo_{idx+1}_CM.png')
             )
-
-            # save all results
-            results['train'].append(trainRes)
-            results['val'].append(valRes)
-            results['test'].append(testRes)
 
             filer.write(f'------------------ ExpNo_{idx+1} ------------------\n')
             filer.write(f'Acc : Train={trainRes["acc"]:.4f} | Val={valRes["acc"]:.4f}' +
@@ -186,30 +179,23 @@ class KFoldCV:
         self.loger.info(f'\n[Cross-Validation Finish]')
         self.loger.info(f'Cost time = {h}H:{m}M:{s:.2f}S')
 
-        # calculate the acerage acc
-        trainAccList = get_res(results, 'train')
-        valAccList = get_res(results, 'val')
-        testAccList = get_res(results, 'test')
-
-        trainAcc = torch.mean(trainAccList)
-        valAcc = torch.mean(valAccList)
-        testAcc = torch.mean(testAccList)
+        # calculate the average acc
+        trainAcc = trainAccMetric.compute()
+        valAcc = valAccMetric.compute()
+        testAcc = testAccMetric.compute()
         self.loger.info(f'Acc : train={trainAcc:.4f} | val={valAcc:.4f} | test={testAcc:.4f}') 
         
         # calculate cohen kappa
         testKappa = cohen_kappa(
-            get_res(results, 'test', 'preds'),
-            get_res(results, 'test', 'target'),
-            task = 'multiclass',
-            num_classes = len(clsName)
+            testPredsMetric.compute(), testTargetMetric.compute(),
+            task = 'multiclass', num_classes = len(clsName)
         )
 
         # store the subject accuracy and cohen kappa
-        filer.write(f'------------- Average -------------\n')
-        filer.write(f'Acc = {testAcc*100:.2f}\u00b1{torch.std(testAccList)*100:.2f}% | '+
-                    f'Kappa = {testKappa:.2f}\n')
+        filer.write(f'--------- Average ---------\n')
+        filer.write(f'Acc = {testAcc*100:.2f}% | Kappa = {testKappa:.2f}\n')
 
-        return trainAcc, valAcc, testAcc, testKappa
+        return trainAcc, valAcc, testAcc, testKappa, results
 
     def run(
         self, 
@@ -217,7 +203,7 @@ class KFoldCV:
         clsName : Union[tuple, list], 
         datasetName : Optional[str] = None,
         desc : Optional[str] = None,
-    ) -> None:
+    ) -> Tensor:
         '''Run K-Fold cross validation on eeg datasets.
 
         Will select train set to process k-fold cross validation `kFold`, and 
@@ -244,6 +230,10 @@ class KFoldCV:
             confusing results.
         desc : str, optional
             Add a short description to the current experiment. Default is None.
+
+        Returns
+        -------
+        Return a tensor of test set accuracy.
         '''
         self.loger.info(f'\n[{self.k}-Fold Cross-Validation Starting]')
         
@@ -296,6 +286,8 @@ class KFoldCV:
         self.loger.info('=' * 50)
         self.loger.info(f'[Acc = {acc*100:.2f}\u00b1{std*100:.2f}% | Kappa = '
                         f'{kappa:.2f}]')
+
+        return torch.cat(testAccList)
         
 
 class HoldOut:

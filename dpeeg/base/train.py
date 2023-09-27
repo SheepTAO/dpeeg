@@ -38,6 +38,7 @@ from typing import Optional, Tuple, Union, Dict
 from torch.utils.tensorboard.writer import SummaryWriter
 from torch.utils.data import TensorDataset, DataLoader, ConcatDataset
 from torchmetrics.functional.classification.accuracy import accuracy
+from torchmetrics.aggregation import MeanMetric, CatMetric
 
 from ..tools import Logger, Timer
 from ..utils import DPEEG_SEED
@@ -415,7 +416,7 @@ class Train:
     def _predict(
         self,
         dataLoader : DataLoader,
-    ) -> Tuple[Tensor, Tensor, float]:
+    ) -> Tuple[Tensor, Tensor, Tensor]:
         '''Predict the class of the input data.
 
         Parameters
@@ -429,11 +430,11 @@ class Train:
             Predicted labels, as returned by a classifier.
         target : Tensor
             Ground truth (correct) labels.
-        loss : float
+        loss : Tensor
             Average loss.
         '''
-        preds, target = [], []
-        lossSum = 0
+        loss = MeanMetric()
+        preds, target = CatMetric(), CatMetric()
 
         # set the network in the eval mode
         self.net.eval()
@@ -443,13 +444,12 @@ class Train:
             for data, label in dataLoader:
                 data, label = data.to(self.device), label.to(self.device)
                 out = self.net(data)
-                lossSum += self.lossFn(out, label).detach().item()
+                loss.update(self.lossFn(out, label), data.size(0))
                 # convert the output of soft-max to class label
                 # save preds and actual label
-                preds.append(torch.argmax(out, dim=1).detach().cpu())
-                target.append(label.cpu())
-        
-        return torch.cat(preds), torch.cat(target), lossSum / len(dataLoader)
+                preds.update(torch.argmax(out, dim=1).detach().cpu())
+                target.update(label.cpu())
+        return preds.compute(), target.compute(), loss.compute()
     
     def get_acc(self, preds : Tensor, target : Tensor, ncls : int) -> Tensor:
         '''Easy for program to caculate the accuarcy.
