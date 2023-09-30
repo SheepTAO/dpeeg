@@ -164,7 +164,7 @@ class Train:
         clsName : Union[tuple, list],
         maxEpochs_1 : int = 1500,
         maxEpochs_2 : int = 600,
-        noIncreaseEpochs : int = 100,
+        noIncreaseEpochs : int = 200,
         varCheck : str = 'valInacc',
     ) -> Dict[str, Dict[str, Tensor]]:
         '''Two-stage training strategy was used. In the first stage, the model 
@@ -199,7 +199,7 @@ class Train:
             1500 and 600 respectively.
         noIncreaseEpochs : int
             Maximum number of consecutive epochs when the accuracy of the first-
-            stage validation set has no relative improvement. Default is 100.
+            stage validation set has no relative improvement. Default is 200.
         varCheck : str
             The best value ('valInacc'/'valLoss') to check while determining 
             the best model which will be used for parameter initialization in
@@ -433,18 +433,18 @@ class Train:
         loss : Tensor
             Average loss.
         '''
-        loss = MeanMetric()
-        preds, target = CatMetric(), CatMetric()
-
         # set the network in the eval mode
         self.net.eval()
+
+        loss = MeanMetric()
+        preds, target = CatMetric(), CatMetric()
 
         # iterate over all the data
         with torch.no_grad():
             for data, label in dataLoader:
                 data, label = data.to(self.device), label.to(self.device)
                 out = self.net(data)
-                loss.update(self.lossFn(out, label), data.size(0))
+                loss.update(self.lossFn(out, label).item(), data.size(0))
                 # convert the output of soft-max to class label
                 # save preds and actual label
                 preds.update(torch.argmax(out, dim=1).detach().cpu())
@@ -515,7 +515,7 @@ class Train:
         '''Trainer details.
         '''
         s = '[Network architecture]:\n' + self.netArch
-        s += f'[Loss function]:\t{self.lossFnType}\n'
+        s += f'\n[Loss function]:\t{self.lossFnType}\n'
         if self.lossFnArgs:
             s += f'[LossFn Args]:\t{self.lrSchArgs}\n'
         s += f'[Optimizer]:\t{self.optimizerType}\n'

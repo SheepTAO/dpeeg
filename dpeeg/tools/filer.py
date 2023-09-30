@@ -12,6 +12,17 @@ import os
 
 class Filer:
     def __init__(self, path : str, mode : str = 'a', exist_ok : bool = False) -> None:
+        '''A simple file handler to write in realtime.
+
+        Parameters
+        ----------
+        path : str
+            File path. Support hierarchical folder structure.
+        mode : str
+            Mode of write.
+        exist_ok : bool
+            Whether to allow files that already exist. Default is False.
+        '''
         self.path = path
         self.mode = mode
         if os.path.exists(path) and not exist_ok:

@@ -36,8 +36,8 @@ class LinearWithNorm(nn.Linear):
 
 
 class EEGNet(nn.Module):
-    def __init__(self, nCh, nTime, C1=125, F1=8, D=2, F2=16, C2=23, P1=8, P2=16,
-                 p=0.5, cls=4, bias=False) -> None:
+    def __init__(self, nCh, nTime, C1=125, F1=8, D=2, F2=16, C2=15, P1=8, P2=16,
+                 p=0.5, cls=4) -> None:
         super().__init__()
 
         self.filter = nn.Sequential(

@@ -13,7 +13,7 @@
 """
 
 
-import os, torch
+import os, pickle
 from torch import Tensor
 from typing import Union, Optional, Tuple
 from sklearn.model_selection import StratifiedKFold
@@ -80,10 +80,10 @@ class KFoldCV:
         self.maxEpochs_2 = maxEpochs_2
         self.noIncreaseEpochs = noIncreaseEpochs
         self.varCheck = varCheck
-        
+
         self.loger = Logger('dpeeg_exp', clevel=verbose)
         self.timer = Timer()
-        
+
         # set output folder
         netName = trainer.net.__class__.__name__
         self.outFolder = os.path.join(os.path.abspath(outFolder), netName) \
@@ -100,7 +100,7 @@ class KFoldCV:
         testset : Union[tuple, list],
         clsName : Union[tuple, list],
         sub : Optional[str] = None,
-    ) -> Tuple:
+    ) -> Tuple[Tensor, Tensor, dict]:
         '''Basic K-Fold cross-validation function.
 
         Parameters
@@ -119,13 +119,16 @@ class KFoldCV:
         
         Returns
         -------
-        Return trainAcc, valAcc, testAcc and testKappa and results :
+        Return testAcc, testKappa and results :
+        
         results = {
-            'expNo_x' : {...},
-            ...
+            'expNo_x' : { ... },
+            .
+            .
+            .
         }
         '''
-        # save trained results
+        # save all exp results
         results = {}
         trainAccMetric, valAccMetric, testAccMetric = \
             MeanMetric(), MeanMetric(), MeanMetric()
@@ -136,11 +139,10 @@ class KFoldCV:
         os.makedirs(subFolder, exist_ok=True)
 
         # store experiment results
-        resPath = os.path.join(subFolder, 'resutls.txt')
-        filer = Filer(resPath)
+        filer = Filer(os.path.join(subFolder, 'summary.txt'))
         cmFolder = os.path.join(subFolder, 'confusion_matrix')
         os.makedirs(cmFolder)
-        
+
         # register a timer
         self.timer.start('kfold')
 
@@ -171,10 +173,10 @@ class KFoldCV:
                         os.path.join(cmFolder, f'expNo_{idx+1}_CM.png')
             )
 
-            filer.write(f'------------------ ExpNo_{idx+1} ------------------\n')
+            filer.write(f'------------------ expNo_{idx+1} ------------------\n')
             filer.write(f'Acc : Train={trainRes["acc"]:.4f} | Val={valRes["acc"]:.4f}' +
                         f' | Test={testRes["acc"]:.4f}\n\n')
-        
+
         h, m, s = self.timer.stop('kfold')
         self.loger.info(f'\n[Cross-Validation Finish]')
         self.loger.info(f'Cost time = {h}H:{m}M:{s:.2f}S')
@@ -191,11 +193,11 @@ class KFoldCV:
             task = 'multiclass', num_classes = len(clsName)
         )
 
-        # store the subject accuracy and cohen kappa
-        filer.write(f'--------- Average ---------\n')
+        # store the subject accuracy and cohen kappa on test set
+        filer.write(f'--------- TestAvg ---------\n')
         filer.write(f'Acc = {testAcc*100:.2f}% | Kappa = {testKappa:.2f}\n')
 
-        return trainAcc, valAcc, testAcc, testKappa, results
+        return testAcc, testKappa, results
 
     def run(
         self, 
@@ -203,7 +205,7 @@ class KFoldCV:
         clsName : Union[tuple, list], 
         datasetName : Optional[str] = None,
         desc : Optional[str] = None,
-    ) -> Tensor:
+    ) -> dict:
         '''Run K-Fold cross validation on eeg datasets.
 
         Will select train set to process k-fold cross validation `kFold`, and 
@@ -233,23 +235,22 @@ class KFoldCV:
 
         Returns
         -------
-        Return a tensor of test set accuracy.
+        Return a dict of all subjects and corresponding experimental results.
         '''
         self.loger.info(f'\n[{self.k}-Fold Cross-Validation Starting]')
-        
-        # store all subjects' results in one file
+
+        # store all subjects' results in one folder
         self.outFolder = os.path.join(self.outFolder, dataset.__class__.__name__) \
             if not datasetName else os.path.join(self.outFolder, datasetName)
         os.makedirs(self.outFolder)
-        resPath = os.path.join(self.outFolder, 'resutls.txt')
-        filer = Filer(resPath)
+        filer = Filer(os.path.join(self.outFolder, 'summary.txt'))
         filer.write(f'[Start Time]: {self.timer.ctime()}\n\n')
         filer.write(f'[ExP Description]: {desc}\n\n')
         filer.write(str(self.trainer) + '\n\n')
-            
-        # resport results
-        testAccList = []
-        testKappaList = []
+
+        # save all sub results
+        results = {}
+        testAccMetric, testKappaMetric = MeanMetric(), MeanMetric()
 
         # update root timer and start k-fold cross validation for each subject
         self.timer.start()
@@ -262,33 +263,34 @@ class KFoldCV:
             self.loger.info('-' * 50)
 
             # run a k-Fold cross validation
-            _, _, testAcc, testKappa = \
+            testAcc, testKappa, subExpRes = \
                 self.kfold(data['train'], data['test'], clsName, f'sub{sub}')
-            
-            testAccList.append(testAcc.unsqueeze(0))
-            testKappaList.append(testKappa.unsqueeze(0))
+
+            results[f'sub_{sub}'] = subExpRes
+            testAccMetric.update(testAcc)
+            testKappaMetric.update(testKappa)
 
             filer.write(f'---------- Sub_{sub} ----------\n')
             filer.write(f'Acc = {testAcc*100:.2f}% | Kappa = {testKappa:.2f}\n\n')
 
-        acc = torch.mean(torch.cat(testAccList))
-        std = torch.std(torch.cat(testAccList))
-        kappa = torch.mean(torch.cat(testKappaList))
+        acc = testAccMetric.compute()
+        kappa = testKappaMetric.compute()
+
         # store the model accuracy and cohen kappa
-        filer.write(f'------------- MODEL ------------\n')
-        filer.write(f'Acc = {acc*100:.2f}\u00b1{std*100:.2f}% | Kappa = '
-                    f'{kappa:.2f}\n')
+        filer.write(f'---------- MODEL ----------\n')
+        filer.write(f'Acc = {acc*100:.2f}% | Kappa = {kappa:.2f}\n')
+        with open(os.path.join(self.outFolder, f'results.pkl'), 'wb') as f:
+            pickle.dump(results, f)
 
         # end
         h, m, s = self.timer.stop()
         self.loger.info(f'\n[All subjects finished]')
         self.loger.info(f'Cost time = {h}H:{m}M:{s:.2f}S')
         self.loger.info('=' * 50)
-        self.loger.info(f'[Acc = {acc*100:.2f}\u00b1{std*100:.2f}% | Kappa = '
-                        f'{kappa:.2f}]')
+        self.loger.info(f'[Acc = {acc*100:.2f}% | Kappa = {kappa:.2f}]')
 
-        return torch.cat(testAccList)
-        
+        return results
+
 
 class HoldOut:
     '''TODO'''
