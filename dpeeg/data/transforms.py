@@ -2,7 +2,8 @@
 # coding: utf-8
 
 """
-    This module is used to perform common preprocessing on eeg data.
+    This module is used to perform common preprocessing on eeg data. All trans-
+    forms is in place.
 
     TODO: Data augmentation.
     
@@ -369,6 +370,7 @@ class ApplyFunc(Transforms):
         self.verbose = verbose
 
     def __call__(self, input : dict) -> dict:
+        loger.info(f'[{self} starting ...]')
         for sub in input.values():
             for mode in ['train', 'test']:
                 sub[mode][0] = self.func(sub[mode][0])

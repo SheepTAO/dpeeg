@@ -224,14 +224,17 @@ def load(
     for sub in subList:
         loger.info(f'Loading subject {sub}')
         fileName = os.path.join(path, str(sub))
+
         if mode.lower() == 'train' or mode.lower() == 'all':
             data = np.load(fileName + '_train_data.npy', allow_pickle=True)
             label = np.load(fileName + '_train_label.npy', allow_pickle=True)
             dataset.setdefault(sub, {})['train'] = [data, label]
+
         if mode.lower() == 'test' or mode.lower() == 'all':
             data = np.load(fileName + '_test_data.npy', allow_pickle=True)
             label = np.load(fileName + '_test_label.npy', allow_pickle=True)
             dataset.setdefault(sub, {})['test'] = [data, label]
+
         if mode not in ['train', 'test', 'all']:
             raise KeyError(f'Only support `all`, `train` and `test` mode.')
     loger.info('Load dataset done.')

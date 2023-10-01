@@ -24,9 +24,8 @@ from typing import (
 )
 
 
-# Life, the Universe, and Everything
-DPEEG_SEED : int = 42
-DPEEG_LOGGING_LEVEL = 'INFO'
+DPEEG_SEED : int = 42               # Life, the Universe, and Everything
+DPEEG_LOGER_LEVEL = 'INFO'
 DPEEG_DIR = os.path.join(os.path.expanduser('~'), 'dpeeg')
 
 
@@ -53,7 +52,7 @@ def verbose(func : _FuncT) -> _FuncT:
     '''
     @functools.wraps(func)
     def inner(*args, **kwargs) -> _FuncT:
-        kwargs.setdefault('verbose', DPEEG_LOGGING_LEVEL)
+        kwargs.setdefault('verbose', DPEEG_LOGER_LEVEL)
         loger._update_sh_level(kwargs['verbose'])
         # # for debug
         # print(kwargs, func)
@@ -62,7 +61,7 @@ def verbose(func : _FuncT) -> _FuncT:
 
 
 def set_log_level(
-    verbose : Union[int, str] = DPEEG_LOGGING_LEVEL,
+    verbose : Union[int, str] = DPEEG_LOGER_LEVEL,
     retOldLevel : bool = False
 ) -> Union[None, str]:
     '''Set the global logging level.
@@ -73,7 +72,7 @@ def set_log_level(
         The verbosity of messages to print. If a str, it can be either DEBUG,
         INFO, WARNING, ERROR, or CRITICAL. Note that these are for convenience
         and are equivalent to passing in logging.DEBUG, etc. If None, the 
-        environment variable `DPEEG_LOGGING_LEVEL` is read, defaults to INFO.
+        environment variable `DPEEG_LOGER_LEVEL` is read, defaults to INFO.
     retOldLevel : bool, optional
         If True, return the old verbosity level. Default is False.
 
@@ -81,9 +80,9 @@ def set_log_level(
     -------
     The old level. Only returned if `retOldLevel` is True.
     '''
-    global DPEEG_LOGGING_LEVEL
+    global DPEEG_LOGER_LEVEL
     oldLevel = loger._get_sh_level()
-    DPEEG_LOGGING_LEVEL = verbose
+    DPEEG_LOGER_LEVEL = verbose
     mne.set_log_level(verbose)
     if retOldLevel:
         return oldLevel
