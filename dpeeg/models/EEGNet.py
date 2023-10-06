@@ -14,7 +14,7 @@ class Conv2dWithNorm(nn.Conv2d):
         super().__init__(*args, **kwargs)
         self.maxNorm = maxNorm
         self.doWeightNorm = doWeightNorm
-        
+
     def forward(self, input: Tensor) -> Tensor:
         if self.doWeightNorm:
             self.weight.data = torch.renorm(
@@ -82,8 +82,3 @@ class EEGNet(nn.Module):
         out = self.separableConv(out)
         out = self.flatten(out)
         return self.fc(out)
-
-
-if __name__ == '__main__':
-    net = EEGNet(22, 1000).cuda()
-    summary(net, (1, 1, 22, 1000))

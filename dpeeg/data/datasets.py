@@ -26,6 +26,7 @@
 import mne
 from typing import Optional, List, Union
 
+from .preprocessing import Preprocess, ComposePreprocess
 from .transforms import Transforms, ComposeTransforms, SplitTrainTest
 from ..utils import loger, verbose, DPEEG_SEED
 
@@ -51,7 +52,7 @@ class EEGDataset:
         return self._check_attr('_eventId')
 
     @property
-    def classes(self) -> tuple:
+    def clsName(self) -> tuple:
         '''Return the event label of the dataset.'''
         return tuple(self.eventId.keys())
 
@@ -67,10 +68,11 @@ class EEGDataset:
 
     def __init__(
         self,
+        preprocess : Optional[Union[List[Preprocess], Preprocess]] = None,
         transforms : Optional[Union[List[Transforms], Transforms]] = None,
         testSize : float = .25, 
         seed : int = DPEEG_SEED,
-        verbose : Optional[str] = None, 
+        verbose : Optional[Union[str, int]] = None, 
         verboseTrans : bool = False,
     ) -> None:
         '''EEG Dataset abstract base class.
@@ -87,14 +89,16 @@ class EEGDataset:
             epochs, respectively.
         picks : list of str, optional
             Channels to include. If None, pick all channels. Default is None.
-        transforms : list of Callable, optional
+        preprocess : list of Preprocess, Preprocess, optional
+            List of preprocessing on epochs. Default is None.
+        transforms : list of Transforms, Transforms, optional
             List of pre-transforms on dataset. Default is None.
         testSize : float
             Split the training set and test set proportions. If the dataset is
             already split, it will be ignored. Default is 0.25.
         seed : int
             Random seed when splitting. Default is DPEEG_SEED.
-        verbose : str, optional
+        verbose : int, str, optional
             Log level of mne. Default is None.
         verboseTrans : bool
             If True, verbose of `transforms` will be set at the same time.
@@ -102,9 +106,10 @@ class EEGDataset:
         '''
         mne.set_log_level(verbose)
 
+        self._preprocess = preprocess
+        self._transforms = transforms
         self._testSize = testSize
         self._seed = seed
-        self._transforms = transforms
         self._dataset = None
         self._verbose = verbose
         self._verboseTrans = verboseTrans
@@ -114,26 +119,39 @@ class EEGDataset:
         self._eventId = None        # task name and its corresponding label
         self._epochs = None         # each subject and its corresponding Epochs
 
-    def load_data(self, split : bool = False) -> None:
+    def load_data(
+        self, 
+        split : bool = False,
+        unitFactor : float = 1e6
+    ) -> None:
         '''Extract data from Epochs and split.
-        
-        split : bool, optional
+
+        Parameters
+        ----------
+        split : bool
             Whether `self.raw` has been splited. Default is False.
+        unitFactor : float
+            Unit factor to convert the units of uv to v. Default is 1e6.
         NOTE: Avoid data leakage when you split data.
         '''
         loger.info('Loading data from Epochs ...')
+
+        if self._preprocess:
+            pres = ComposePreprocess(self._preprocess)
+            self._epochs = pres(self.epochs)
+
         dataset = {}
         for sub, sEpochs in self.epochs.items():
             if not split:
                 data = sEpochs.crop(include_tmax=False).get_data()
                 label = sEpochs.events[:, -1]
-                dataset[sub] = [data, label]
+                dataset[sub] = [data * unitFactor, label]
             else:
                 dataset[sub] = {}
                 for mode, mEpochs in sEpochs.items():
                     data = mEpochs.crop(include_tmax=False).get_data()
                     label = mEpochs.events[:, -1]
-                    dataset[sub][mode] = [data, label]
+                    dataset[sub][mode] = [data * unitFactor, label]
 
         # split the dataset before transforms
         if self._transforms:
@@ -278,6 +296,7 @@ class PhysioNet(EEGDataset):
         subjects : Optional[List[int]] = None,
         tmin : float = 0,
         tmax : float = 1,
+        preprocess : Optional[Union[List[Preprocess], Preprocess]] = None,
         transforms : Optional[Union[List[Transforms], Transforms]] = None,
         testSize : float = .25,
         picks : Optional[List[str]] = None,
@@ -289,7 +308,9 @@ class PhysioNet(EEGDataset):
     ) -> None:
         '''Physionet MI Dataset.
         '''
-        super().__init__(transforms, testSize, seed, verbose, verboseTrans)
+        super().__init__(
+            preprocess, transforms, testSize, seed, verbose, verboseTrans
+        )
         loger.info('Reading PhysionetMI Dataset ...')
 
         from moabb.datasets import PhysionetMI
@@ -344,6 +365,7 @@ class BCICIV2A(EEGDataset):
         subjects : Optional[List[int]] = None,
         tmin : float = 0,
         tmax : float = 4,
+        preprocess : Optional[Union[List[Preprocess], Preprocess]] = None,
         transforms : Optional[Union[List[Transforms], Transforms]] = None,
         testSize : float = .25,
         mode : int = 1,
@@ -364,7 +386,9 @@ class BCICIV2A(EEGDataset):
             If mode = 2, training data and test data will use both session 1 and 2.
             Default is 1.
         '''
-        super().__init__(transforms, testSize, seed, verbose, verboseTrans)
+        super().__init__(
+            preprocess, transforms, testSize, seed, verbose, verboseTrans
+        )
         loger.info('Reading BCICIV 2A Dataset ...')
 
         from moabb.datasets import BNCI2014001
@@ -425,6 +449,7 @@ class HGD(EEGDataset):
       subjects : Optional[List[int]] = None,
       tmin : float = 0,
       tmax : float = 4,
+      preprocess : Optional[Union[List[Preprocess], Preprocess]] = None,
       transforms : Optional[Union[List[Transforms], Transforms]] = None,
       testSize : float = .25,
       picks : Optional[List[str]] = None,
@@ -436,7 +461,9 @@ class HGD(EEGDataset):
     ) -> None:
         '''High Gamma Dataset.
         '''
-        super().__init__(transforms, testSize, seed, verbose, verboseTrans)
+        super().__init__(
+            preprocess, transforms, testSize, seed, verbose, verboseTrans
+        )
         loger.info('Reading High Gamma Dataset ...')
 
         from moabb.datasets import Schirrmeister2017

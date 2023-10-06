@@ -22,7 +22,7 @@ from ..utils import loger, verbose, DPEEG_SEED
 @verbose
 def split_train_test(
     *arrs, 
-    testSize : float = .2, 
+    testSize : float = .25, 
     seed : int = DPEEG_SEED, 
     sample : Optional[List[int]] = None, 
     verbose : Optional[Union[int, str]] = None
@@ -35,7 +35,7 @@ def split_train_test(
     *arrs : sequence of indexables with same length / shape[0]
         Allowed inputs are lists and numpy arrays.
     testSize : float
-        The proportion of the test set. Default is 0.2. If index is not None,
+        The proportion of the test set. Default is 0.25. If index is not None,
         testSize will be ignored. Default use stratified fashion and the last
         arr serves as the class labels.
     seed : int
@@ -43,6 +43,11 @@ def split_train_test(
     sample : list of int, optional
         A list of integers, the entries indicate which data were selected
         as the test set. If None, testSize will be used. Default is None.
+
+    Returns
+    -------
+    splitting : list, length=2 * len(arrays)
+        List containing train-test split of inputs.
     '''
     nArrs = len(arrs)
     if nArrs == 0:

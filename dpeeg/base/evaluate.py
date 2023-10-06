@@ -13,7 +13,7 @@ import torch
 import seaborn as sns
 import matplotlib.pyplot as plt
 from torch import Tensor
-from typing import Union, List, Optional
+from typing import Union
 from torchmetrics.functional.classification.confusion_matrix import confusion_matrix
 
 

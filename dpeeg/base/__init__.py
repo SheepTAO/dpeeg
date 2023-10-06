@@ -1,6 +1,6 @@
 from .experiments import (
-    KFoldCV,
-    HoldOut,
+    KFold,
+    Holdout,
 )
 from .train import (
     Train,

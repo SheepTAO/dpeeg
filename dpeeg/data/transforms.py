@@ -2,8 +2,8 @@
 # coding: utf-8
 
 """
-    This module is used to perform common preprocessing on eeg data. All trans-
-    forms is in place.
+    This module is used to perform common preprocessing on eeg data (ndarray). 
+    All transforms is in-place.
 
     TODO: Data augmentation.
     
@@ -49,15 +49,17 @@ class ComposeTransforms(Transforms):
         verbose : Optional[Union[int, str]] = None,
     ) -> None:
         '''Composes several transforms together. 
+
         The transforms in `ComposeTransforms` are connected in a cascading way.
 
         Parameters
         ----------
         transforms : list of Transforms, Transforms
-            Transforms (list of `Transform` objects): list of transforms to compose.
-            If is Transforms, then will be turned into a list containing input.
-        verbose : int, str, optional
-            The log level of the entire transformation list. Default is None (INFO).
+            Transforms (list of `Transform` objects): list of transforms to 
+            compose. If is Transforms, then will be turned into a list contain-
+            ing input.
+        verbose : int, str
+            The log level of the entire transformation list. Default is INFO.
         '''
         super().__init__(verbose)
 
@@ -83,7 +85,7 @@ class ComposeTransforms(Transforms):
         return input
 
     def __repr__(self) -> str:
-        s = 'Compose('
+        s = 'ComposeTransforms('
         if len(self.trans) == 0:
             return s + ')'
         else:
@@ -126,9 +128,9 @@ class SplitTrainTest(Transforms):
         Parameters
         ----------
         testSize : float
-            The proportion of the test set. Default is 0.25. If index is not None,
-            testSize will be ignored. Default use stratified fashion and the last
-            arr serves as the class labels.
+            The proportion of the test set. Default is 0.25. If index is not 
+            None, testSize will be ignored. Default use stratified fashion and 
+            the last arr serves as the class labels.
         seed : int
             Random seed when splitting. Default is DPEEG_SEED.
         sample : list of int, optional
@@ -193,7 +195,6 @@ class Normalization(Transforms):
         self, 
         mode : str = 'z-score', 
         factorNew : float = 1e-3,
-        eps : float = 1e-4,
         verbose : Optional[Union[int, str]] = None
     ) -> None:
         '''Normalize data in the given way in the given dimension.
@@ -225,8 +226,6 @@ class Normalization(Transforms):
             
         factorNew : float
             Smoothing factor of exponential moving standardize. Default is 1e-3.
-        eps : float
-            Stabilizer for division by zero variance. Default is 1e-4.
 
         Notes
         -----
@@ -236,7 +235,6 @@ class Normalization(Transforms):
         self.modeList = ['z-score', 'ems', 'ea']
         self.mode = mode
         self.factorNew = factorNew
-        self.eps = eps
         self.verbose = verbose
 
     def __call__(self, input : dict) -> dict:
@@ -264,7 +262,7 @@ class Normalization(Transforms):
             if self.mode == 'z-score':
                 m, s = np.mean(sub['train'][0]), np.std(sub['train'][0])
                 for mode in ['train', 'test']:
-                    sub[mode][0] = (sub[mode][0] - m) / np.maximum(self.eps, s)
+                    sub[mode][0] = (sub[mode][0] - m) / s
 
             # BUG
             elif self.mode == 'ems':
@@ -275,8 +273,7 @@ class Normalization(Transforms):
                     demeaned = df - meaned
                     squared = demeaned * demeaned
                     squareEwmed = squared.ewm(alpha=self.factorNew).mean()
-                    standardized = demeaned / np.maximum(self.eps, 
-                                            np.sqrt(np.array(squareEwmed)))
+                    standardized = demeaned / np.sqrt(np.array(squareEwmed))
                     standardized = np.array(standardized)
                     sub[mode][0] = standardized.T
 
@@ -289,10 +286,8 @@ class Normalization(Transforms):
 
     def __repr__(self) -> str:
         s = f'Normalization(mode={self.mode}'
-        if self.mode == 'z-score':
-            return s + ')'
-        elif self.mode == 'ems':
-            return s + f', factorNew={self.factorNew}, eps={self.eps})'
+        if self.mode == 'ems':
+            s += f', factorNew={self.factorNew})'
         return s + ')'
 
 
@@ -306,9 +301,10 @@ class SlideWin(Transforms):
         overlap : int = 0,
         verbose : Optional[Union[int, str]] = None
     ) -> None:
-        '''This transform is only splits the time series (dim = -1) through the sliding 
-        window operation on the original dataset. If the time axis is not divisible by 
-        the sliding window, the last remaining time data will be discarded.
+        '''This transform is only splits the time series (dim = -1) through the
+        sliding window operation on the original dataset. If the time axis is 
+        not divisible by the sliding window, the last remaining time data will 
+        be discarded.
 
         Parameters
         ----------
@@ -340,6 +336,36 @@ class SlideWin(Transforms):
         return s + ')'
 
 
+class Unsqueeze(Transforms):
+    '''Insert a dimension on the data.
+    '''
+    @verbose
+    def __init__(
+        self,
+        dim : int = 1,
+        verbose : Optional[Union[int, str]] = None
+    ) -> None:
+        '''This function is usually used to insert a feature dimension on EEG data.
+
+        Parameters
+        ----------
+        dim : int
+            Position in the expanded dim where the new dim is placed.
+        '''
+        super().__init__(verbose)
+        self.dim = dim
+
+    def __call__(self, input: dict) -> dict:
+        loger.info(f'[{self} starting ...]')
+        for sub in input.values():
+            for mode in ['train', 'test']:
+                sub[mode][0] = np.expand_dims(sub[mode][0], self.dim)
+        return input
+
+    def __repr__(self) -> str:
+        return f'Unsqueeze(dim={self.dim})'
+
+
 class ApplyFunc(Transforms):
     '''Apply a function on data.
     '''
@@ -349,8 +375,7 @@ class ApplyFunc(Transforms):
         func : Callable, 
         verbose: Optional[Union[int, str]] = None
     ) -> None:
-        '''This transform can be used to filter the data (via the `mne` library or
-        other methods), change the data shape (via the `numpy`) and so on.
+        '''This transform can be used to change the data shape and so on.
 
         Examples
         --------
