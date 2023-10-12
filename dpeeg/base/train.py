@@ -17,9 +17,8 @@
              DataLoder the first parameters is `data` and second is `label`.
         3. optimizer -> the optimizer of type torch.optim.
         4. lr_scheduler -> the scheduler of type torch.optim.lr_scheduler.
-        5. outFolder -> the folder where the results will be stored.
-        6. nGPU -> will run on GPU only if it's available
-             use CPU when the GPU is not available. 
+        5. nGPU -> will run on GPU only if it's available, use CPU when the GPU
+                is not available. 
 
     NOTE: The train model only support single-card training.
 
@@ -59,7 +58,7 @@ class Train:
         net : nn.Module,
         nGPU : int = 0,
         seed : int = DPEEG_SEED,
-        lossFn : str = 'NLLLoss',
+        lossFn : Union[str, nn.Module] = 'NLLLoss',
         lossFnArgs : Optional[dict] = None,
         optimizer : str = 'AdamW',
         optimArgs : Optional[dict] = None,
@@ -84,9 +83,10 @@ class Train:
             Select the gpu id to train. Default is 0.
         seed : int
             Select random seed for review. Default is DPEEG_SEED.
-        lossFn : str
+        lossFn : str, nn.Module
             Name of the loss function from torch.nn which will be used for
-            training. Default is NLLLoss.
+            training. If Module, means using a custom loss function. Default is
+            NLLLoss.
         lossFnArgs : dict, optional
             Additional arguments to be passed to the loss function. Default is 
             None.
@@ -156,6 +156,182 @@ class Train:
             'batchSize': batchSize, 'gradAcc': gradAcc},
             'origNetParam': deepcopy(self.net.state_dict()),
         }
+
+    def _run_one_epoch(
+        self,
+        trainLoader : DataLoader
+    ) -> None:
+        '''Run one epoch to train net.
+
+        Parameters
+        ----------
+        trainLoader : DataLoader
+            DataLoader used for training.
+        '''
+        # set the network in training mode
+        self.net.train()
+
+        # iterater over all the data
+        with torch.enable_grad():
+            for idx, (data, label) in enumerate(trainLoader):
+                data, label = data.to(self.device), label.to(self.device)
+                out = self.net(data)
+                loss = self.lossFn(out, label)
+                loss.backward()
+                # gradient accumulation
+                if((idx + 1) % self.gradAcc == 0):
+                    # 1 - update parameters
+                    self.optimizer.step()
+                    # 2 - zero the parameter gradients
+                    self.optimizer.zero_grad()
+            # update lr
+            # Note: Learning rate scheduling should be applied after optimizer’s update
+            if self.lrSch:
+                self.lrSch.step()
+
+    def _predict(
+        self,
+        dataLoader : DataLoader,
+    ) -> Tuple[Tensor, Tensor, Tensor]:
+        '''Predict the class of the input data.
+
+        Parameters
+        ----------
+        dataLoader : DataLoader
+            Dataset used for prediction.
+
+        Returns
+        -------
+        preds : Tensor
+            Predicted labels, as returned by a classifier.
+        target : Tensor
+            Ground truth (correct) labels.
+        loss : Tensor
+            Average loss.
+        '''
+        # set the network in the eval mode
+        self.net.eval()
+
+        lossSum = MeanMetric()
+        preds, target = CatMetric(), CatMetric()
+
+        # iterate over all the data
+        with torch.no_grad():
+            for data, label in dataLoader:
+                data, label = data.to(self.device), label.to(self.device)
+                out = self.net(data)
+                loss = self.lossFn(out, label)
+                lossSum.update(loss.item(), data.size(0))
+                # convert the output of soft-max to class label
+                # save preds and actual label
+                out = out[0] if isinstance(out, tuple) else out
+                preds.update(torch.argmax(out, dim=1).detach().cpu())
+                target.update(label.cpu())
+        return preds.compute(), target.compute(), lossSum.compute()
+
+    def reset_fitter(
+        self,
+        logDir : str
+    ) -> Tuple[str, SummaryWriter, Logger]:
+        '''Reset the relevant parameters of the fitter.
+
+        Reset the model's training parameters, learning rate schedule and opti-
+        mizer etc. to their initialized state.
+
+        Parameters
+        ----------
+        logDir : str
+            Directory location (support hierarchical folder structure) to save
+            training log.
+
+        Returns
+        -------
+        Return the absolute file path and a new SummaryWriter object and logger
+        manager for the fitter.
+        '''
+        # reset parameters of nn.Moudle and lr_scheduler
+        self.net.load_state_dict(self.expDetails['origNetParam'])
+
+        # create loss function
+        self.lossFn = getattr(nn, self.lossFnType)(**self.lossFnArgs) \
+            if isinstance(self.lossFnType, str) else self.lossFnType
+
+        # create optimizer
+        self.optimizer = getattr(optim, self.optimizerType) \
+            (self.net.parameters(), lr=self.lr, **self.optimArgs)
+
+        # create lr_scheduler
+        self.lrSch = getattr(optim.lr_scheduler, self.lrSchType) \
+            (self.optimizer, **self.lrSchArgs) if self.lrSchType else None
+
+        # create log writer
+        logDir = os.path.abspath(logDir)
+        writer = SummaryWriter(logDir)
+        loger = Logger(logDir, path=os.path.join(logDir, 'running.log'), 
+                       flevel='INFO', clevel=self.verbose)
+        return logDir, writer, loger
+
+    def get_acc(self, preds : Tensor, target : Tensor, ncls : int) -> Tensor:
+        '''Easy for program to caculate the accuarcy.
+        '''
+        return accuracy(preds, target, 'multiclass', num_classes=ncls)
+
+    def set_seed(self, seed : int = DPEEG_SEED) -> None:
+        '''Sets the seed for generating random numbers for cpu and gpu.
+        '''
+        torch.manual_seed(seed)
+        if self.device != torch.device('cpu'):
+            torch.cuda.manual_seed(seed)
+            torch.cuda.manual_seed_all(seed)
+        self.loger.info(f'Set all random seed = {seed}')
+
+    def get_device(self, nGPU : int = 0) -> torch.device:
+        '''Get the device for training and testing.
+
+        Parameters
+        ----------
+        nGPU : int
+            GPU number to train on. Default is 0.
+        '''
+        if not torch.cuda.is_available():
+            self.loger.info('GPU is not avaiable and the CPU will be used')
+            dev = torch.device('cpu')
+        else:
+            if nGPU > torch.cuda.device_count() - 1:
+                raise ValueError(f'GPU: {nGPU} does not exit.')
+            dev = torch.device(f'cuda:{nGPU}')
+            self.loger.info(f'Network will be trained in "cuda:{nGPU} ' +
+                            f'({torch.cuda.get_device_name(dev)})"')
+        return dev
+
+    def _data_loader(
+        self, 
+        *datasets,
+        batchSize : int = 32,
+    ) -> DataLoader:
+        '''Wrap multiple sets of data and labels and return DataLoader.
+
+        Parameters
+        ----------
+        dataset : evey two sequence of indexables with same length / shape[0]
+            Allowed inputs are lists and tuple of tensor or ndarray.
+        batchSize : int
+            Mini-batch size.
+        '''
+        nDataset = len(datasets)
+        if nDataset % 2:
+            raise ValueError('One dataset corresponds to one label set, but the '
+                             f'total number of data got is {nDataset}.')
+        if nDataset == 0:
+            raise ValueError('At least one dataset required ad input.')
+
+        # dataset wrapping tensors
+        td = []
+        for i in range(0, nDataset, 2):
+            td.append(TensorDataset(*to_tensor(datasets[i], datasets[i + 1])))
+        td = ConcatDataset(td)
+
+        return DataLoader(td, batchSize, True, pin_memory=True)
 
     def fit_without_val(
         self,
@@ -356,7 +532,7 @@ class Train:
             The best value (valInacc/valLoss) to check while determining the 
             best model which will be used for parameter initialization in the
             second stage of model training. Default is 'valInacc'.
-            
+
         Returns
         -------
         Return train, validation and test results dict.
@@ -378,13 +554,13 @@ class Train:
             s = ', '.join(checkList)
             raise ValueError(f'Parameter `varCheck` only supports: {s}'
                              f' when training with val, but got {varCheck}')
-        
+
         # initialize dataloader
         trainLoader = self._data_loader(*trainData, batchSize=self.batchSize)
         valLoader = self._data_loader(*valData, batchSize=self.batchSize)
         testLoader = self._data_loader(*testData, batchSize=self.batchSize)
         ncls = len(clsName)
-        
+
         # start the training
         self.timer.start()
         loger.info(f'[Training...] - [{self.timer.ctime()}]')
@@ -405,9 +581,9 @@ class Train:
         monitors = {'epoch': 0, 'valLoss': float('inf'), 'valInacc': 1,
                     'trainLoss': float('inf'), 'globalEpoch': 0}
         earlyStopReached, doStop = False, False
-        
+
         while not doStop: 
-            
+
             # train one epoch
             self._run_one_epoch(trainLoader)
 
@@ -470,7 +646,7 @@ class Train:
                     doStop = True
                 else:
                     doStop = True
-        
+
         writer.close()
 
         # report the checkpoint time of end and compute cost time
@@ -514,181 +690,8 @@ class Train:
         # store the best net model parameters
         modelPath = os.path.join(logDir, f'train_checkpoint_best.pth')
         torch.save(bestNetParam, modelPath)
-        
+
         return results
-
-    def _run_one_epoch(
-        self,
-        trainLoader : DataLoader
-    ) -> None:
-        '''Run one epoch to train net.
-
-        Parameters
-        ----------
-        trainLoader : DataLoader
-            DataLoader used for training.
-        '''
-        # set the network in training mode
-        self.net.train()
-
-        # iterater over all the data
-        with torch.enable_grad():
-            for idx, (data, label) in enumerate(trainLoader):
-                data, label = data.to(self.device), label.to(self.device)
-                out = self.net(data)
-                loss = self.lossFn(out, label)
-                loss.backward()
-                # gradient accumulation
-                if((idx + 1) % self.gradAcc == 0):
-                    # 1 - update parameters
-                    self.optimizer.step()
-                    # 2 - zero the parameter gradients
-                    self.optimizer.zero_grad()
-            # update lr
-            # Note: Learning rate scheduling should be applied after optimizer’s update
-            if self.lrSch:
-                self.lrSch.step()
-
-    def _predict(
-        self,
-        dataLoader : DataLoader,
-    ) -> Tuple[Tensor, Tensor, Tensor]:
-        '''Predict the class of the input data.
-
-        Parameters
-        ----------
-        dataLoader : DataLoader
-            Dataset used for prediction.
-
-        Returns
-        -------
-        preds : Tensor
-            Predicted labels, as returned by a classifier.
-        target : Tensor
-            Ground truth (correct) labels.
-        loss : Tensor
-            Average loss.
-        '''
-        # set the network in the eval mode
-        self.net.eval()
-
-        loss = MeanMetric()
-        preds, target = CatMetric(), CatMetric()
-
-        # iterate over all the data
-        with torch.no_grad():
-            for data, label in dataLoader:
-                data, label = data.to(self.device), label.to(self.device)
-                out = self.net(data)
-                loss.update(self.lossFn(out, label).item(), data.size(0))
-                # convert the output of soft-max to class label
-                # save preds and actual label
-                preds.update(torch.argmax(out, dim=1).detach().cpu())
-                target.update(label.cpu())
-        return preds.compute(), target.compute(), loss.compute()
-
-    def reset_fitter(
-        self,
-        logDir : str
-    ) -> Tuple[str, SummaryWriter, Logger]:
-        '''Reset the relevant parameters of the fitter.
-
-        Reset the model's training parameters, learning rate schedule and opti-
-        mizer etc. to their initialized state.
-
-        Parameters
-        ----------
-        logDir : str
-            Directory location (support hierarchical folder structure) to save
-            training log.
-
-        Returns
-        -------
-        Return the absolute file path and a new SummaryWriter object and logger
-        manager for the fitter.
-        '''
-        # reset parameters of nn.Moudle and lr_scheduler
-        self.net.load_state_dict(self.expDetails['origNetParam'])
-
-        # create loss function
-        self.lossFn = getattr(nn, self.lossFnType)(**self.lossFnArgs)
-
-        # create optimizer
-        self.optimizer = getattr(optim, self.optimizerType) \
-            (self.net.parameters(), lr=self.lr, **self.optimArgs)
-        
-        # create lr_scheduler
-        self.lrSch = getattr(optim.lr_scheduler, self.lrSchType) \
-            (self.optimizer, **self.lrSchArgs) if self.lrSchType else None
-
-        # create log writer
-        logDir = os.path.abspath(logDir)
-        writer = SummaryWriter(logDir)
-        loger = Logger(logDir, path=os.path.join(logDir, 'running.log'), 
-                       flevel='INFO', clevel=self.verbose)
-        return logDir, writer, loger
-    
-    def get_acc(self, preds : Tensor, target : Tensor, ncls : int) -> Tensor:
-        '''Easy for program to caculate the accuarcy.
-        '''
-        return accuracy(preds, target, 'multiclass', num_classes=ncls)
-
-    def set_seed(self, seed : int = DPEEG_SEED) -> None:
-        '''Sets the seed for generating random numbers for cpu and gpu.
-        '''
-        torch.manual_seed(seed)
-        if self.device != torch.device('cpu'):
-            torch.cuda.manual_seed(seed)
-            torch.cuda.manual_seed_all(seed)
-        self.loger.info(f'Set all random seed = {seed}')
-
-    def get_device(self, nGPU : int = 0) -> torch.device:
-        '''Get the device for training and testing.
-
-        Parameters
-        ----------
-        nGPU : int
-            GPU number to train on. Default is 0.
-        '''
-        if not torch.cuda.is_available():
-            self.loger.info('GPU is not avaiable and the CPU will be used')
-            dev = torch.device('cpu')
-        else:
-            if nGPU > torch.cuda.device_count() - 1:
-                raise ValueError(f'GPU: {nGPU} does not exit.')
-            dev = torch.device(f'cuda:{nGPU}')
-            self.loger.info(f'Network will be trained in "cuda:{nGPU} ' +
-                            f'({torch.cuda.get_device_name(dev)})"')
-        return dev
-    
-    def _data_loader(
-        self, 
-        *datasets,
-        batchSize : int = 32,
-    ) -> DataLoader:
-        '''Wrap multiple sets of data and labels and return DataLoader.
-
-        Parameters
-        ----------
-        dataset : evey two sequence of indexables with same length / shape[0]
-            Allowed inputs are lists and tuple of tensor or ndarray.
-        batchSize : int
-            Mini-batch size.
-        '''
-        nDataset = len(datasets)
-        if nDataset % 2:
-            raise ValueError('One dataset corresponds to one label set, but the '
-                             f'total number of data got is {nDataset}.')
-        if nDataset == 0:
-            raise ValueError('At least one dataset required ad input.')
-
-        # dataset wrapping tensors
-        td = []
-        for i in range(0, nDataset, 2):
-            td.append(TensorDataset(*to_tensor(datasets[i], datasets[i + 1])))
-        td = ConcatDataset(td)
-
-        return DataLoader(td, batchSize, True, pin_memory=True)
 
     def __repr__(self) -> str:
         '''Trainer details.
@@ -706,4 +709,5 @@ class Train:
             if self.lrSchArgs:
                 s += f'[LrSch Args]:\t{self.lrSchArgs}\n'
         s += f'[Grad Acc]:\t{self.gradAcc}\n'
+        s += f'[Batch Size]:\t{self.batchSize}\n'
         return s

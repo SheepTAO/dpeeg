@@ -17,7 +17,8 @@ import numpy as np
 import pandas as pd
 from typing import Optional, Callable, Union, List
 
-from ..utils import loger, verbose, DPEEG_SEED
+from ..utils import loger, verbose, DPEEG_SEED, unpacked, DPEEG_LOGER_LEVEL
+from ..tools.logger import _Level
 from .functions import (
     split_train_test,
     to_tensor,
@@ -27,11 +28,8 @@ from .functions import (
 
 
 class Transforms(abc.ABC):
-    def __init__(self, verbose : Optional[Union[int, str]] = None) -> None:
-        self.verbose = verbose
-
     @abc.abstractmethod
-    def __call__(self, input : dict) -> dict:
+    def __call__(self, input : dict, verbose : _Level = None) -> dict:
         pass
 
     @abc.abstractmethod
@@ -42,11 +40,9 @@ class Transforms(abc.ABC):
 class ComposeTransforms(Transforms):
     '''Composes several transforms together.
     '''
-    @verbose
     def __init__(
         self, 
-        transforms : Union[List[Transforms], Transforms], 
-        verbose : Optional[Union[int, str]] = None,
+        *transforms : Transforms, 
     ) -> None:
         '''Composes several transforms together. 
 
@@ -54,34 +50,18 @@ class ComposeTransforms(Transforms):
 
         Parameters
         ----------
-        transforms : list of Transforms, Transforms
-            Transforms (list of `Transform` objects): list of transforms to 
-            compose. If is Transforms, then will be turned into a list contain-
-            ing input.
-        verbose : int, str
-            The log level of the entire transformation list. Default is INFO.
+        transforms : sequential container of Transforms
+            Transforms (sequential of `Transform` objects): sequential of tran-
+            sforms to compose. 
         '''
-        super().__init__(verbose)
+        super().__init__()
+        self.trans : List[Transforms] = []
+        self.appends(*transforms)
 
-        self.trans = []
-        if isinstance(transforms, Transforms):
-            if isinstance(transforms, ComposeTransforms):
-                self.trans.extend(transforms.get_data())
-            else:
-                self.trans.append(transforms)
-        else:
-            self.trans = transforms
-
+    @verbose
+    def __call__(self, input : dict, verbose : _Level = None):
         for tran in self.trans:
-                tran.verbose = verbose
-
-    def __call__(self, input):
-        loger.info('Transform dataset ...')
-        loger.info('----------------------')
-        for t in self.trans:
-            input = t(input)
-        loger.info('----------------')
-        loger.info('Transform done.')
+            input = tran(input, verbose=verbose)
         return input
 
     def __repr__(self) -> str:
@@ -93,13 +73,15 @@ class ComposeTransforms(Transforms):
                 s += f'\n ({idx}): {tran}'
         return s + '\n)'
 
-    def appends(self, transforms : Union[List[Transforms], Transforms]) -> None:
-        '''Append a transform or a list of transforms to the last of composes.
+    def appends(self, *transforms : Transforms) -> None:
+        '''Append transforms to the last of composes.
         '''
-        if isinstance(transforms, list):
-            self.trans.extend(transforms)
-        else:
-            self.trans.append(transforms)
+        trans = unpacked(*transforms)
+        for tran in trans:
+            if isinstance(tran, ComposeTransforms):
+                self.trans.extend(tran.get_data())
+            else:
+                self.trans.append(tran)
         
     def insert(self, index : int, transform : Transforms) -> None:
         '''Insert a transform at index.
@@ -115,13 +97,11 @@ class ComposeTransforms(Transforms):
 class SplitTrainTest(Transforms):
     '''Split the dataset into training and testing sets.
     '''
-    @verbose
     def __init__(
         self, 
         testSize : float = .25, 
         seed : int = DPEEG_SEED, 
         sample : Optional[List[int]] = None,
-        verbose : Optional[Union[int, str]] = None
     ) -> None:
         '''Split the dataset into training and testing sets.
 
@@ -137,18 +117,18 @@ class SplitTrainTest(Transforms):
             A list of integers, the entries indicate which data were selected
             as the test set. If None, testSize will be used. Default is None.
         '''
-        super().__init__(verbose)
+        super().__init__()
         self.testSize = testSize
         self.seed = seed
         self.sample = sample
-        self.verbose = verbose
 
-    def __call__(self, input : dict) -> dict:
-        loger.info(f'[{self} starting ...]')
+    @verbose
+    def __call__(self, input : dict, verbose : _Level = None) -> dict:
+        loger.info(f'[{self} starting] ...')
         for sub, data in input.items():
             trainX, testX, trainy, testy = split_train_test(
                 data[0], data[1], testSize=self.testSize, seed=self.seed,
-                sample=self.sample, verbose=self.verbose
+                sample=self.sample, verbose=verbose
             )
             input[sub] = {}
             input[sub]['train'] = [trainX, trainy]
@@ -170,16 +150,12 @@ class ToTensor(Transforms):
     '''Convert the numpy data in the dataset into Tensor format.
     '''
     @verbose
-    def __init__(self, verbose) -> None:
-        super().__init__(verbose)
-        self.verbose = verbose
-
-    def __call__(self, input : dict) -> dict:
-        loger.info(f'[{self} starting ...]')
+    def __call__(self, input : dict, verbose : _Level = None) -> dict:
+        loger.info(f'[{self} starting] ...')
         for sub in input.values():
             for mode in ['train', 'test']:
                 sub[mode][0], sub[mode][1] = to_tensor(
-                    sub[mode][0], sub[mode][1], verbose=self.verbose
+                    sub[mode][0], sub[mode][1], verbose=verbose
                 )
         return input
 
@@ -190,12 +166,11 @@ class ToTensor(Transforms):
 class Normalization(Transforms):
     '''Normalize the data.
     '''
-    @verbose
     def __init__(
         self, 
         mode : str = 'z-score', 
         factorNew : float = 1e-3,
-        verbose : Optional[Union[int, str]] = None
+        verbose : _Level = None
     ) -> None:
         '''Normalize data in the given way in the given dimension.
 
@@ -231,18 +206,18 @@ class Normalization(Transforms):
         -----
         heavy development
         '''
-        super().__init__(verbose)
+        super().__init__()
         self.modeList = ['z-score', 'ems', 'ea']
         self.mode = mode
         self.factorNew = factorNew
-        self.verbose = verbose
 
-    def __call__(self, input : dict) -> dict:
+    @verbose
+    def __call__(self, input : dict, verbose : _Level = None) -> dict:
         if self.mode not in self.modeList:
             raise ValueError('Only the following normalization methods are '+
                              f'supported: {self.modeList}')
 
-        loger.info(f'[{self} starting ...]')
+        loger.info(f'[{self} starting] ...')
         R = np.empty(0)
         if self.mode == 'ea':
             dataList = []
@@ -294,12 +269,10 @@ class Normalization(Transforms):
 class SlideWin(Transforms):
     '''Apply a sliding window to the dataset.
     '''
-    @verbose
     def __init__(
         self, 
         win : int = 125, 
         overlap : int = 0,
-        verbose : Optional[Union[int, str]] = None
     ) -> None:
         '''This transform is only splits the time series (dim = -1) through the
         sliding window operation on the original dataset. If the time axis is 
@@ -313,19 +286,18 @@ class SlideWin(Transforms):
         overlap : int
             The amount of overlap between adjacent sliding windows. Default is 0.
         '''
-        super().__init__(verbose)
+        super().__init__()
         self.win = win
         self.overlap = overlap
-        self.verbose = verbose
 
-    def __call__(self, input : dict) -> dict:
-        loger.info(f'[{self} starting ...]')
-        for sub, data in input.items():
-            loger.info(f'Sliding window to sub_{sub}.')
+    @verbose
+    def __call__(self, input : dict, verbose : _Level = None) -> dict:
+        loger.info(f'[{self} starting] ...')
+        for sub in input.values():
             for mode in ['train', 'test']:
-                data[mode][0], data[mode][1] = slide_win(
-                    data[mode][0], self.win, self.overlap,
-                    data[mode][1], verbose=self.verbose
+                sub[mode][0], sub[mode][1] = slide_win(
+                    sub[mode][0], self.win, self.overlap,
+                    sub[mode][1], verbose=verbose
                 )
         return input
 
@@ -339,11 +311,9 @@ class SlideWin(Transforms):
 class Unsqueeze(Transforms):
     '''Insert a dimension on the data.
     '''
-    @verbose
     def __init__(
         self,
         dim : int = 1,
-        verbose : Optional[Union[int, str]] = None
     ) -> None:
         '''This function is usually used to insert a feature dimension on EEG data.
 
@@ -352,11 +322,12 @@ class Unsqueeze(Transforms):
         dim : int
             Position in the expanded dim where the new dim is placed.
         '''
-        super().__init__(verbose)
+        super().__init__()
         self.dim = dim
 
-    def __call__(self, input: dict) -> dict:
-        loger.info(f'[{self} starting ...]')
+    @verbose
+    def __call__(self, input : dict, verbose : _Level = None) -> dict:
+        loger.info(f'[{self} starting] ...')
         for sub in input.values():
             for mode in ['train', 'test']:
                 sub[mode][0] = np.expand_dims(sub[mode][0], self.dim)
@@ -369,11 +340,9 @@ class Unsqueeze(Transforms):
 class ApplyFunc(Transforms):
     '''Apply a function on data.
     '''
-    @verbose
     def __init__(
         self, 
         func : Callable, 
-        verbose: Optional[Union[int, str]] = None
     ) -> None:
         '''This transform can be used to change the data shape and so on.
 
@@ -390,12 +359,12 @@ class ApplyFunc(Transforms):
         -----
         heavy development
         '''
-        super().__init__(verbose)
+        super().__init__()
         self.func = func
-        self.verbose = verbose
 
-    def __call__(self, input : dict) -> dict:
-        loger.info(f'[{self} starting ...]')
+    @verbose
+    def __call__(self, input : dict, verbose : _Level = None) -> dict:
+        loger.info(f'[{self} starting] ...')
         for sub in input.values():
             for mode in ['train', 'test']:
                 sub[mode][0] = self.func(sub[mode][0])
@@ -408,11 +377,9 @@ class ApplyFunc(Transforms):
 class Save(Transforms):
     '''Save the transformed data.
     '''
-    @verbose
     def __init__(
         self, 
         folder : str, 
-        verbose : Optional[Union[int, str]] = None
     ) -> None:
         '''Save transformed dataset to a binary file in NumPy `.npy` format.
 
@@ -421,13 +388,13 @@ class Save(Transforms):
         folder : str
             Folder name to save transformed data.
         '''
-        super().__init__(verbose)
+        super().__init__()
         self.folder = folder
-        self.verbose = verbose
 
-    def __call__(self, input : dict) -> None:
-        loger.info(f'[{self} starting ...]')
-        save(self.folder, input, verbose=self.verbose)
+    @verbose
+    def __call__(self, input : dict, verbose : _Level = None) -> None:
+        loger.info(f'[{self} starting] ...')
+        save(self.folder, input, verbose=verbose)
 
     def __repr__(self) -> str:
         return f'Save(folder={self.folder})'

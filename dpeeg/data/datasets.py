@@ -68,12 +68,11 @@ class EEGDataset:
 
     def __init__(
         self,
-        preprocess : Optional[Union[List[Preprocess], Preprocess]] = None,
-        transforms : Optional[Union[List[Transforms], Transforms]] = None,
+        preprocess : Optional[Preprocess] = None,
+        transforms : Optional[Transforms] = None,
         testSize : float = .25, 
         seed : int = DPEEG_SEED,
         verbose : Optional[Union[str, int]] = None, 
-        verboseTrans : bool = False,
     ) -> None:
         '''EEG Dataset abstract base class.
 
@@ -89,10 +88,10 @@ class EEGDataset:
             epochs, respectively.
         picks : list of str, optional
             Channels to include. If None, pick all channels. Default is None.
-        preprocess : list of Preprocess, Preprocess, optional
-            List of preprocessing on epochs. Default is None.
-        transforms : list of Transforms, Transforms, optional
-            List of pre-transforms on dataset. Default is None.
+        preprocess : Preprocess, optional
+            Apply preprocessing on epochs. Default is None.
+        transforms : Transforms, optional
+            Apply pre-transforms on dataset. Default is None.
         testSize : float
             Split the training set and test set proportions. If the dataset is
             already split, it will be ignored. Default is 0.25.
@@ -100,9 +99,6 @@ class EEGDataset:
             Random seed when splitting. Default is DPEEG_SEED.
         verbose : int, str, optional
             Log level of mne. Default is None.
-        verboseTrans : bool
-            If True, verbose of `transforms` will be set at the same time.
-            Default is False.
         '''
         mne.set_log_level(verbose)
 
@@ -112,7 +108,6 @@ class EEGDataset:
         self._seed = seed
         self._dataset = None
         self._verbose = verbose
-        self._verboseTrans = verboseTrans
 
         # NOTE
         # Please make sure the following attributes are correctly overridden
@@ -134,8 +129,6 @@ class EEGDataset:
             Unit factor to convert the units of uv to v. Default is 1e6.
         NOTE: Avoid data leakage when you split data.
         '''
-        loger.info('Loading data from Epochs ...')
-
         if self._preprocess:
             pres = ComposePreprocess(self._preprocess)
             self._epochs = pres(self.epochs)
@@ -155,14 +148,13 @@ class EEGDataset:
 
         # split the dataset before transforms
         if self._transforms:
-            trans = ComposeTransforms(self._transforms, self._verbose) \
-                if self._verboseTrans else ComposeTransforms(self._transforms)
+            trans = ComposeTransforms(self._transforms)
             if not split:
                 trans.insert(0, SplitTrainTest(self._testSize, self._seed))
-            self._dataset = trans(dataset)
+            self._dataset = trans(dataset, verbose=self._verbose)
         else:
             self._dataset = dataset
-        loger.info('Loading dataset done.')
+        loger.info('[Loading dataset done]')
 
     def process_interval(
         self,
@@ -275,6 +267,9 @@ class EEGDataset:
                 'test': tuple(self.dataset[sub]['test'])
             }
 
+    def __repr__(self) -> str:
+        return self.__class__.__name__
+
     def items(self):
         return self.dataset.items()
 
@@ -296,22 +291,30 @@ class PhysioNet(EEGDataset):
         subjects : Optional[List[int]] = None,
         tmin : float = 0,
         tmax : float = 1,
-        preprocess : Optional[Union[List[Preprocess], Preprocess]] = None,
-        transforms : Optional[Union[List[Transforms], Transforms]] = None,
+        preprocess : Optional[Preprocess] = None,
+        transforms : Optional[Transforms] = None,
         testSize : float = .25,
         picks : Optional[List[str]] = None,
         baseline = None,
         seed : int = DPEEG_SEED,
         verbose : Optional[str] = None,
-        verboseTrans: bool = False,
         **epoArgs
     ) -> None:
         '''Physionet MI Dataset.
         '''
-        super().__init__(
-            preprocess, transforms, testSize, seed, verbose, verboseTrans
-        )
+        super().__init__(preprocess, transforms, testSize, seed, verbose)
         loger.info('Reading PhysionetMI Dataset ...')
+
+        self.subjects = subjects
+        self.tmin = tmin
+        self.tmax = tmax
+        self.preprocess = preprocess
+        self.transforms = transforms
+        self.testSize = testSize
+        self.picks = picks
+        self.baseline = baseline
+        self.seed = seed
+        self.epoArgs = epoArgs
 
         from moabb.datasets import PhysionetMI
         dataset = PhysionetMI()
@@ -353,6 +356,19 @@ class PhysioNet(EEGDataset):
 
         self.load_data()
 
+    def __repr__(self) -> str:
+        s  = f'[Dataset: {self.__class__.__name__}\n'
+        s += f' [Subjects]:\t{self.subjects}\n'
+        s += f' [TMin, TMax]:\t{self.tmin, self.tmax}\n'
+        s += f' [Preprocess]:\n{self.preprocess}\n'
+        s += f' [Transforms]:\n{self.transforms}\n'
+        s += f' [Test Size]:\t{self.testSize}\n'
+        s += f' [Picks]:\t{self.picks}\n'
+        s += f' [Baseline]:\t{self.baseline}\n'
+        s += f' [Seed]:\t{self.seed}\n'
+        s += f' [Epochs Args]:\t{self.epoArgs}\n'
+        return s + ']\n'
+
 
 class BCICIV2A(EEGDataset):
     '''BCI Competition IV Data sets 2a.
@@ -365,15 +381,14 @@ class BCICIV2A(EEGDataset):
         subjects : Optional[List[int]] = None,
         tmin : float = 0,
         tmax : float = 4,
-        preprocess : Optional[Union[List[Preprocess], Preprocess]] = None,
-        transforms : Optional[Union[List[Transforms], Transforms]] = None,
+        preprocess : Optional[Preprocess] = None,
+        transforms : Optional[Transforms] = None,
         testSize : float = .25,
         mode : int = 1,
         picks : Optional[List[str]] = None,
         baseline = None,
         seed : int = DPEEG_SEED,
         verbose : Optional[str] = None,
-        verboseTrans: bool = False,
         **epoArgs
     ) -> None:
         '''BCI Competition IV Data sets 2a.
@@ -386,10 +401,20 @@ class BCICIV2A(EEGDataset):
             If mode = 2, training data and test data will use both session 1 and 2.
             Default is 1.
         '''
-        super().__init__(
-            preprocess, transforms, testSize, seed, verbose, verboseTrans
-        )
+        super().__init__(preprocess, transforms, testSize, seed, verbose)
         loger.info('Reading BCICIV 2A Dataset ...')
+
+        self.subjects = subjects
+        self.tmin = tmin
+        self.tmax = tmax
+        self.preprocess = preprocess
+        self.transforms = transforms
+        self.testSize = testSize
+        self.mode = mode
+        self.picks = picks
+        self.baseline = baseline
+        self.seed = seed
+        self.epoArgs = epoArgs
 
         from moabb.datasets import BNCI2014001
         dataset = BNCI2014001()
@@ -437,11 +462,29 @@ class BCICIV2A(EEGDataset):
         split = True if mode == 1 else False
         self.load_data(split)
 
+    def __repr__(self) -> str:
+        s  = f'[Dataset: {self.__class__.__name__}\n'
+        s += f' [Subjects]:\t{self.subjects}\n'
+        s += f' [TMin, TMax]:\t{self.tmin, self.tmax}\n'
+        s += f' [Preprocess]:\n{self.preprocess}\n'
+        s += f' [Transforms]:\n{self.transforms}\n'
+        s += f' [Test Size]:\t{self.testSize}\n'
+        s += f' [Mode]:\t{self.mode}\n'
+        s += f' [Picks]:\t{self.picks}\n'
+        s += f' [Baseline]:\t{self.baseline}\n'
+        s += f' [Seed]:\t{self.seed}\n'
+        s += f' [Epochs Args]:\t{self.epoArgs}\n'
+        return s + ']\n'
+
 
 class HGD(EEGDataset):
     '''High Gamma Dataset.
     channels=128; subjects=1-14; tasks={0:feet, 1:left hand, 2:rest, 3:right hand};
     duration=4s; freq=500Hz; sessions=1.
+
+    The dataset per subject included approximately 1040 trials over 13 runs. 
+    The first 11 runs (approximately 880 trials) were used for the training 
+    and the last 2 runs (approximately 160 trials) were used for evaluation.
     '''
     @verbose
     def __init__(
@@ -449,22 +492,30 @@ class HGD(EEGDataset):
       subjects : Optional[List[int]] = None,
       tmin : float = 0,
       tmax : float = 4,
-      preprocess : Optional[Union[List[Preprocess], Preprocess]] = None,
-      transforms : Optional[Union[List[Transforms], Transforms]] = None,
+      preprocess : Optional[Preprocess] = None,
+      transforms : Optional[Transforms] = None,
       testSize : float = .25,
       picks : Optional[List[str]] = None,
       baseline = None,
       seed : int = DPEEG_SEED,
       verbose : Optional[str] = None,
-      verboseTrans: bool = False,
       **epoArgs,
     ) -> None:
         '''High Gamma Dataset.
         '''
-        super().__init__(
-            preprocess, transforms, testSize, seed, verbose, verboseTrans
-        )
+        super().__init__(preprocess, transforms, testSize, seed, verbose)
         loger.info('Reading High Gamma Dataset ...')
+
+        self.subjects = subjects
+        self.tmin = tmin
+        self.tmax = tmax
+        self.preprocess = preprocess
+        self.transforms = transforms
+        self.testSize = testSize
+        self.picks = picks
+        self.baseline = baseline
+        self.seed = seed
+        self.epoArgs = epoArgs
 
         from moabb.datasets import Schirrmeister2017
         dataset = Schirrmeister2017()
@@ -490,3 +541,16 @@ class HGD(EEGDataset):
                 self._epochs.setdefault(sub, {})[mode] = epochs
 
         self.load_data(split=True)
+
+    def __repr__(self) -> str:
+        s  = f'[Dataset: {self.__class__.__name__}\n'
+        s += f' [Subjects]:\t{self.subjects}\n'
+        s += f' [TMin, TMax]:\t{self.tmin, self.tmax}\n'
+        s += f' [Preprocess]:\n{self.preprocess}\n'
+        s += f' [Transforms]:\n{self.transforms}\n'
+        s += f' [testSize]:\t{self.testSize}\n'
+        s += f' [Picks]:\t{self.picks}\n'
+        s += f' [Baseline]:\t{self.baseline}\n'
+        s += f' [Seed]:\t{self.seed}\n'
+        s += f' [Epochs Args]:\t{self.epoArgs}\n'
+        return s + ']\n'

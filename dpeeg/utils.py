@@ -52,10 +52,11 @@ def verbose(func : _FuncT) -> _FuncT:
     '''
     @functools.wraps(func)
     def inner(*args, **kwargs) -> _FuncT:
-        kwargs.setdefault('verbose', DPEEG_LOGER_LEVEL)
-        loger._update_sh_level(kwargs['verbose'])
-        # # for debug
-        # print(kwargs, func)
+        level = kwargs.get('verbose', DPEEG_LOGER_LEVEL)
+        if level:
+            loger.update_sh_level(level)
+        # for debug
+        # print(kwargs['verbose'], func)
         return func(*args, **kwargs)
     return inner
 
@@ -81,7 +82,7 @@ def set_log_level(
     The old level. Only returned if `retOldLevel` is True.
     '''
     global DPEEG_LOGER_LEVEL
-    oldLevel = loger._get_sh_level()
+    oldLevel = loger.get_sh_level()
     DPEEG_LOGER_LEVEL = verbose
     mne.set_log_level(verbose)
     if retOldLevel:
@@ -140,4 +141,25 @@ def set_seed(
     _set_torch_seed(seed)
     if retOldSeed:
         return oldSeed
-    
+
+
+def dict_to_str(kwargs : dict, symbol : str = ', ') -> str:
+    '''Convert the dictionary into a string format.
+
+    Parameters
+    ----------
+    kwargs : dict
+        The dictionary to be converted.
+    symbol : str
+        Join all key-value pairs with the specified separator character.
+        Default is ', '.
+    '''
+    s = [f'{k}={v}' for k, v in kwargs.items()]
+    return symbol.join(s)
+
+
+def unpacked(*args) -> list:
+    '''Positional arguments are unpacked as lists.
+    '''
+    result = [X for X in args]
+    return result

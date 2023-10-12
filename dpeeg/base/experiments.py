@@ -47,7 +47,7 @@ class Experiment(abc.ABC):
         outFolder : str, optional
             Store all experimental results in a folder named with the model 
             class name in the specified folder. Default is 
-            '~/dpeeg/out/model_name/'.
+            '~/dpeeg/out/exp_name/model_name/'.
         verbose : int, str
             The log level of console. Default is INFO. Mainly used for debugg-
             ing.
@@ -64,9 +64,10 @@ class Experiment(abc.ABC):
         self.timer = Timer()
 
         # set output folder
-        netName = trainer.net.__class__.__name__
-        self.outFolder = os.path.join(os.path.abspath(outFolder), netName) \
-            if outFolder else os.path.join(DPEEG_DIR, 'out', netName)
+        n = trainer.net.__class__.__name__
+        e = self.__class__.__name__
+        self.outFolder = os.path.join(os.path.abspath(outFolder), n, e) \
+            if outFolder else os.path.join(DPEEG_DIR, 'out', n, e)
         os.makedirs(self.outFolder, exist_ok=True)
         self.loger.info(f'Results will be saved in folder: {self.outFolder}')
 
@@ -147,8 +148,10 @@ class Experiment(abc.ABC):
         os.makedirs(self.dataFolder)
         filer = Filer(os.path.join(self.dataFolder, 'summary.txt'))
         filer.write(f'[Start Time]: {self.timer.ctime()}\n\n')
-        filer.write(f'[ExP Description]: {desc}\n\n')
-        filer.write(str(self.trainer) + '\n\n')
+        filer.write(f'[Description]: {desc}\n')
+        filer.write(str(self) + '\n')
+        filer.write(str(self.trainer) + '\n')
+        filer.write(str(dataset) + '\n')
 
         # save all sub results
         results = {}
@@ -193,6 +196,10 @@ class Experiment(abc.ABC):
 
         return results
 
+    @abc.abstractmethod
+    def __repr__(self) -> str:
+        pass
+
 
 class KFold(Experiment):
     def __init__(
@@ -233,6 +240,8 @@ class KFold(Experiment):
             The best value ('valInacc'/'valLoss') to check while determining 
             the best model which will be used for parameter initialization in
             the second stage of model training. Default is 'valInacc'.
+        shuffle : bool
+            Shuffle before kfold. Default is True.
         seed : int
             Seed of random for review. Default is DPEEG_SEED.
 
@@ -246,9 +255,11 @@ class KFold(Experiment):
         self.noIncreaseEpochs = noIncreaseEpochs
         self.secondStage = secondStage
         self.varCheck = varCheck
+        self.shuffle = shuffle
+        self.seed = seed
 
         # create a stratified k-fold index
-        self.skf = StratifiedKFold(k, shuffle=True, random_state=seed)
+        self.skf = StratifiedKFold(k, shuffle=shuffle, random_state=seed)
 
     def run_sub(
         self,
@@ -330,7 +341,7 @@ class KFold(Experiment):
         testAcc = testAccMetric.compute()
         self.loger.info(f'Acc : train={trainAcc:.4f} | val={valAcc:.4f} | ' +
                         f'test={testAcc:.4f}')
-        
+
         # calculate cohen kappa
         testKappa = cohen_kappa(
             testPredsMetric.compute(), testTargetMetric.compute(),
@@ -342,6 +353,18 @@ class KFold(Experiment):
         filer.write(f'Acc = {testAcc*100:.2f}% | Kappa = {testKappa:.2f}\n')
 
         return testAcc, testKappa, results
+
+    def __repr__(self) -> str:
+        s  = f'[ExP : {self.__class__.__name__}\n'
+        s += f' [K-Fold K]:\t{self.k}\n'
+        s += f' [MaxEpochs 1]:\t{self.maxEpochs_1}\n'
+        s += f' [MaxEpochs 2]:\t{self.maxEpochs_2}\n'
+        s += f' [No Increase Epochs]:\t{self.noIncreaseEpochs}\n'
+        s += f' [Second Stage]:\t{self.secondStage}\n'
+        s += f' [Var Check]:\t{self.varCheck}\n'
+        s += f' [Shuffle]:\t{self.shuffle}\n'
+        s += f' [Seed]:\t{self.seed}\n'
+        return s + ']\n'
 
 
 class Holdout(Experiment):
@@ -460,3 +483,16 @@ class Holdout(Experiment):
                                 task='multiclass', num_classes=len(clsName))
 
         return testAcc, testKappa, result
+
+    def __repr__(self) -> str:
+        s  = f'[ExP : {self.__class__.__name__}\n'
+        s += f' [MaxEpochs 1]:\t{self.maxEpochs_1}\n'
+        s += f' [No Increase Epochs]:\t{self.noIncreaseEpochs}\n'
+        s += f' [Var Check]:\t{self.varCheck}\n'
+        if self.splitVal:
+            s += f' [Split Val]:\t{self.splitVal}\n'
+            s += f' [Test Size]:\t{self.testSize}\n'
+            s += f' [Second Stage]:\t{self.secondStage}\n'
+            s += f' [MaxEpochs 2]:\t{self.maxEpochs_2}\n'
+            s += f' [Seed]:\t{self.seed}\n'
+        return s + ']\n'

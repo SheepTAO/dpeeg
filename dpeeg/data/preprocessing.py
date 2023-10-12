@@ -13,20 +13,7 @@
 import abc
 from typing import Optional, Union, List
 
-
-def dict_to_str(kwargs : dict, symbol : str = ', ') -> str:
-    '''Convert the dictionary into a string format.
-
-    Parameters
-    ----------
-    kwargs : dict
-        The dictionary to be converted.
-    symbol : str
-        Join all key-value pairs with the specified separator character.
-        Default is ', '.
-    '''
-    s = [f'{k}={v}' for k, v in kwargs.items()]
-    return symbol.join(s)
+from ..utils import dict_to_str, unpacked
 
 
 class Preprocess(abc.ABC):
@@ -42,7 +29,7 @@ class Preprocess(abc.ABC):
 class ComposePreprocess(Preprocess):
     def __init__(
         self, 
-        preprocess : Union[List[Preprocess], Preprocess], 
+        *preprocess : Preprocess, 
     ) -> None:
         '''Compose serval preprocess together.
 
@@ -50,51 +37,46 @@ class ComposePreprocess(Preprocess):
 
         Parameters
         ----------
-        preprocess : list of Preprocess, Preprocess
-            Preprocess (list of `Preprocess` objects): list of preprocess to 
-            compose. If is Preprocess, then will be turned into a list contain-
-            ing input.
+        preprocess : sequential container of Preprocess
+            Preprocess (sequential of `Preprocess` objects): sequential of pre-
+            process to compose.
         '''
-        self.pres = []
-        if isinstance(preprocess, Preprocess):
-            if isinstance(preprocess, ComposePreprocess):
-                self.pres.extend(preprocess.get_data())
-            else:
-                self.pres.append(preprocess)
-        else:
-            self.pres = preprocess
+        self.preps : List[Preprocess] = []
+        self.appends(*preprocess)
 
     def __call__(self, input: dict) -> dict:
-        for t in self.pres:
+        for t in self.preps:
             input = t(input)
         return input
 
     def __repr__(self) -> str:
         s = 'ComposePreprocess('
-        if len(self.pres) == 0:
+        if len(self.preps) == 0:
             return s + ')'
         else:
-            for idx, pre in enumerate(self.pres):
+            for idx, pre in enumerate(self.preps):
                 s += f'\n ({idx}): {pre}'
         return s + '\n)'
 
-    def appends(self, preprocess : Union[List[Preprocess], Preprocess]) -> None:
-        '''Append a preprocess or a list of preprocess to the last of composes.
+    def appends(self, *preprocess : Preprocess) -> None:
+        '''Append preprocess to the last of composes.
         '''
-        if isinstance(preprocess, list):
-            self.pres.extend(preprocess)
-        else:
-            self.pres.append(preprocess)
+        preps = unpacked(*preprocess)
+        for prep in preps:
+            if isinstance(prep, ComposePreprocess):
+                self.preps.extend(prep.get_data())
+            else:
+                self.preps.append(prep)
 
     def insert(self, index : int, preprocess : Preprocess) -> None:
         '''Insert a preprocess at index.
         '''
-        self.pres.insert(index, preprocess)
+        self.preps.insert(index, preprocess)
 
     def get_data(self) -> List[Preprocess]:
         '''Return list of Preprocess.
         '''
-        return self.pres
+        return self.preps
 
 
 class Filter(Preprocess):

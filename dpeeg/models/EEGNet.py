@@ -6,7 +6,6 @@
 
 import torch
 from torch import Tensor, nn
-from torchinfo import summary
 
 
 class Conv2dWithNorm(nn.Conv2d):

@@ -8,6 +8,7 @@
 """
 
 import os
+import csv
 
 
 class Filer:
@@ -33,9 +34,6 @@ class Filer:
     def write(self, data : str) -> None:
         with open(self.path, self.mode) as f:
             f.write(data)
-
-
-import csv
 
 
 class CSVer(Filer):

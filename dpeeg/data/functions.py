@@ -17,6 +17,7 @@ from torch import Tensor
 from typing import Optional, Union, Tuple, List
 
 from ..utils import loger, verbose, DPEEG_SEED
+from ..tools.logger import _Level
 
 
 @verbose
@@ -25,7 +26,7 @@ def split_train_test(
     testSize : float = .25, 
     seed : int = DPEEG_SEED, 
     sample : Optional[List[int]] = None, 
-    verbose : Optional[Union[int, str]] = None
+    verbose : _Level = None
 ) -> list:
     '''Split an dataset into training and testing sets. The axis along which
     to split is 0.
@@ -90,7 +91,7 @@ def split_train_test(
 def to_tensor(
     data: Union[Tensor, ndarray],
     label: Union[Tensor, ndarray],
-    verbose : Optional[Union[int, str]] = None
+    verbose : _Level = None
 ) -> Tuple[Tensor, Tensor]:
     '''Convert the numpy data and label into trainable Tensor format.
     '''
@@ -110,7 +111,7 @@ def slide_win(
     win : int, 
     overlap : int = 0,
     label : Optional[ndarray] = None,
-    verbose : Optional[Union[int, str]] = None,
+    verbose : _Level = None,
 ) -> Union[Tuple[ndarray, ndarray], ndarray]:
     '''This transform is only splits the time series (dim = -1) through the sliding 
     window operation on the original dataset. If the time axis is not divisible by 
@@ -167,7 +168,7 @@ def slide_win(
 def save(
     folder : str,
     input : dict,
-    verbose : Optional[Union[int, str]] = None,
+    verbose : _Level = None,
 ) -> None:
     '''Save transformed dataset to a binary file in NumPy `.npy` format.
 
@@ -197,7 +198,7 @@ def load(
     folder : str,
     subjects : Optional[List[int]] = None,
     mode : str = 'all',
-    verbose : Optional[Union[int, str]] = None,
+    verbose : _Level = None,
 ) -> dict:
     '''Load saved transformed dataset from folder.
 
