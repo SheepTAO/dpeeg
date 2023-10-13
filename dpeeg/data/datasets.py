@@ -28,7 +28,7 @@ from typing import Optional, List, Union
 
 from .preprocessing import Preprocess, ComposePreprocess
 from .transforms import Transforms, ComposeTransforms, SplitTrainTest
-from ..utils import loger, verbose, DPEEG_SEED
+from ..utils import loger, verbose, DPEEG_SEED, get_class_init_args
 
 
 class EEGDataset:
@@ -102,6 +102,7 @@ class EEGDataset:
         '''
         mne.set_log_level(verbose)
 
+        self._repr = None
         self._preprocess = preprocess
         self._transforms = transforms
         self._testSize = testSize
@@ -268,7 +269,11 @@ class EEGDataset:
             }
 
     def __repr__(self) -> str:
-        return self.__class__.__name__
+        if self._repr:
+            return self._repr
+        else:
+            raise NotImplementedError(f'{self.__class__.__name__} not implement'
+                                      ' attribute `self._repr`.')
 
     def items(self):
         return self.dataset.items()
@@ -305,16 +310,7 @@ class PhysioNet(EEGDataset):
         super().__init__(preprocess, transforms, testSize, seed, verbose)
         loger.info('Reading PhysionetMI Dataset ...')
 
-        self.subjects = subjects
-        self.tmin = tmin
-        self.tmax = tmax
-        self.preprocess = preprocess
-        self.transforms = transforms
-        self.testSize = testSize
-        self.picks = picks
-        self.baseline = baseline
-        self.seed = seed
-        self.epoArgs = epoArgs
+        self._repr = get_class_init_args(PhysioNet, locals())
 
         from moabb.datasets import PhysionetMI
         dataset = PhysionetMI()
@@ -356,19 +352,6 @@ class PhysioNet(EEGDataset):
 
         self.load_data()
 
-    def __repr__(self) -> str:
-        s  = f'[Dataset: {self.__class__.__name__}\n'
-        s += f' [Subjects]:\t{self.subjects}\n'
-        s += f' [TMin, TMax]:\t{self.tmin, self.tmax}\n'
-        s += f' [Preprocess]:\n{self.preprocess}\n'
-        s += f' [Transforms]:\n{self.transforms}\n'
-        s += f' [Test Size]:\t{self.testSize}\n'
-        s += f' [Picks]:\t{self.picks}\n'
-        s += f' [Baseline]:\t{self.baseline}\n'
-        s += f' [Seed]:\t{self.seed}\n'
-        s += f' [Epochs Args]:\t{self.epoArgs}\n'
-        return s + ']\n'
-
 
 class BCICIV2A(EEGDataset):
     '''BCI Competition IV Data sets 2a.
@@ -404,17 +387,7 @@ class BCICIV2A(EEGDataset):
         super().__init__(preprocess, transforms, testSize, seed, verbose)
         loger.info('Reading BCICIV 2A Dataset ...')
 
-        self.subjects = subjects
-        self.tmin = tmin
-        self.tmax = tmax
-        self.preprocess = preprocess
-        self.transforms = transforms
-        self.testSize = testSize
-        self.mode = mode
-        self.picks = picks
-        self.baseline = baseline
-        self.seed = seed
-        self.epoArgs = epoArgs
+        self._repr = get_class_init_args(BCICIV2A, locals())
 
         from moabb.datasets import BNCI2014001
         dataset = BNCI2014001()
@@ -462,20 +435,6 @@ class BCICIV2A(EEGDataset):
         split = True if mode == 1 else False
         self.load_data(split)
 
-    def __repr__(self) -> str:
-        s  = f'[Dataset: {self.__class__.__name__}\n'
-        s += f' [Subjects]:\t{self.subjects}\n'
-        s += f' [TMin, TMax]:\t{self.tmin, self.tmax}\n'
-        s += f' [Preprocess]:\n{self.preprocess}\n'
-        s += f' [Transforms]:\n{self.transforms}\n'
-        s += f' [Test Size]:\t{self.testSize}\n'
-        s += f' [Mode]:\t{self.mode}\n'
-        s += f' [Picks]:\t{self.picks}\n'
-        s += f' [Baseline]:\t{self.baseline}\n'
-        s += f' [Seed]:\t{self.seed}\n'
-        s += f' [Epochs Args]:\t{self.epoArgs}\n'
-        return s + ']\n'
-
 
 class HGD(EEGDataset):
     '''High Gamma Dataset.
@@ -506,16 +465,7 @@ class HGD(EEGDataset):
         super().__init__(preprocess, transforms, testSize, seed, verbose)
         loger.info('Reading High Gamma Dataset ...')
 
-        self.subjects = subjects
-        self.tmin = tmin
-        self.tmax = tmax
-        self.preprocess = preprocess
-        self.transforms = transforms
-        self.testSize = testSize
-        self.picks = picks
-        self.baseline = baseline
-        self.seed = seed
-        self.epoArgs = epoArgs
+        self._repr = get_class_init_args(HGD, locals())
 
         from moabb.datasets import Schirrmeister2017
         dataset = Schirrmeister2017()
@@ -541,16 +491,3 @@ class HGD(EEGDataset):
                 self._epochs.setdefault(sub, {})[mode] = epochs
 
         self.load_data(split=True)
-
-    def __repr__(self) -> str:
-        s  = f'[Dataset: {self.__class__.__name__}\n'
-        s += f' [Subjects]:\t{self.subjects}\n'
-        s += f' [TMin, TMax]:\t{self.tmin, self.tmax}\n'
-        s += f' [Preprocess]:\n{self.preprocess}\n'
-        s += f' [Transforms]:\n{self.transforms}\n'
-        s += f' [testSize]:\t{self.testSize}\n'
-        s += f' [Picks]:\t{self.picks}\n'
-        s += f' [Baseline]:\t{self.baseline}\n'
-        s += f' [Seed]:\t{self.seed}\n'
-        s += f' [Epochs Args]:\t{self.epoArgs}\n'
-        return s + ']\n'

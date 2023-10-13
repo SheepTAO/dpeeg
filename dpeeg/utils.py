@@ -13,6 +13,7 @@ import os
 import mne
 import torch
 import random
+import inspect
 import functools
 import numpy as np
 from .tools.logger import Logger
@@ -143,6 +144,13 @@ def set_seed(
         return oldSeed
 
 
+def unpacked(*args) -> list:
+    '''Positional arguments are unpacked as lists.
+    '''
+    result = [X for X in args]
+    return result
+
+
 def dict_to_str(kwargs : dict, symbol : str = ', ') -> str:
     '''Convert the dictionary into a string format.
 
@@ -158,8 +166,59 @@ def dict_to_str(kwargs : dict, symbol : str = ', ') -> str:
     return symbol.join(s)
 
 
-def unpacked(*args) -> list:
-    '''Positional arguments are unpacked as lists.
+def align_text(prefix : str, text : str, onlyHead : bool = True) -> str:
+    '''Aligns text, adding a specified prefix to the beginning of line.
+
+    Parameters
+    ----------
+    prefix : str
+        The prefix to be added at the beginning of line.
+    text : str
+        The text to be aligned, including multiple lines.
+    onlyHead : bool
+        If true, prefix will be prepended to each line, otherwise a correspond-
+        ing length of spaces will be added.
+
+    Returns
+    -------
+    str: The aligned text.
     '''
-    result = [X for X in args]
-    return result
+    lines = text.splitlines()
+    alignedLines = [f'{prefix}{line}' if i == 0 and onlyHead else 
+                f'{" " * len(prefix)}{line}' for i, line in enumerate(lines)]
+    return '\n'.join(alignedLines)
+
+
+def get_class_init_args(
+    obj,
+    locals : dict[str, Any],
+    format : str = 'log',
+) -> str:
+    '''Spell the initialization parameters of the class __init__ corresponding 
+    strings in the specified format.
+
+    Parameters
+    ----------
+    obj : class
+        The kind of class.
+    locals : dict
+        Local parameters in class __init__.
+    format : str
+        Parameters splicing format. Default is log.
+    '''
+    sig = inspect.signature(obj).parameters.keys()
+
+    s = str()
+    if format == 'log':
+        s += f'[{obj.__name__}:\n'
+        for key in sig:
+            s += align_text(f'  [{key}]: ', str(locals[key])) + '\n'
+        s += f']'
+    elif format == 'runtime':
+        s += f'{obj.__name__}('
+        kwargs = {key: locals[key] for key in sig}
+        s = s + dict_to_str(kwargs) + ')'
+    else:
+        raise ValueError(f'{format} format is not supported.')
+
+    return s

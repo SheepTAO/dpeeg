@@ -25,7 +25,7 @@ from .train import Train
 from ..data.datasets import EEGDataset
 from ..data.functions import split_train_test
 from ..tools import Timer, Filer, Logger
-from ..utils import DPEEG_SEED, DPEEG_DIR
+from ..utils import DPEEG_SEED, DPEEG_DIR, get_class_init_args
 from .evaluate import save_cm_img
 
 
@@ -57,6 +57,7 @@ class Experiment(abc.ABC):
         The training results of all models for each subject will be saved under
         the outFolder directory.
         '''
+        self._repr = None
         self.trainer = trainer
 
         # create loger and timer
@@ -148,10 +149,9 @@ class Experiment(abc.ABC):
         os.makedirs(self.dataFolder)
         filer = Filer(os.path.join(self.dataFolder, 'summary.txt'))
         filer.write(f'[Start Time]: {self.timer.ctime()}\n\n')
-        filer.write(f'[Description]: {desc}\n')
-        filer.write(str(self) + '\n')
-        filer.write(str(self.trainer) + '\n')
-        filer.write(str(dataset) + '\n')
+        filer.write(f'[Description]: {desc}\n\n')
+        filer.write(str(self) + '\n\n')
+        filer.write(str(dataset) + '\n\n')
 
         # save all sub results
         results = {}
@@ -196,9 +196,12 @@ class Experiment(abc.ABC):
 
         return results
 
-    @abc.abstractmethod
     def __repr__(self) -> str:
-        pass
+        if self._repr:
+            return self._repr
+        else:
+            raise NotImplementedError(f'{self.__class__.__name__} not implement'
+                                      ' attribute `self._repr`.')
 
 
 class KFold(Experiment):
@@ -249,14 +252,12 @@ class KFold(Experiment):
         '''
         super().__init__(trainer, outFolder, verbose)
 
-        self.k = k
+        self._repr = get_class_init_args(KFold, locals())
         self.maxEpochs_1 = maxEpochs_1
         self.maxEpochs_2 = maxEpochs_2
         self.noIncreaseEpochs = noIncreaseEpochs
         self.secondStage = secondStage
         self.varCheck = varCheck
-        self.shuffle = shuffle
-        self.seed = seed
 
         # create a stratified k-fold index
         self.skf = StratifiedKFold(k, shuffle=shuffle, random_state=seed)
@@ -354,18 +355,6 @@ class KFold(Experiment):
 
         return testAcc, testKappa, results
 
-    def __repr__(self) -> str:
-        s  = f'[ExP : {self.__class__.__name__}\n'
-        s += f' [K-Fold K]:\t{self.k}\n'
-        s += f' [MaxEpochs 1]:\t{self.maxEpochs_1}\n'
-        s += f' [MaxEpochs 2]:\t{self.maxEpochs_2}\n'
-        s += f' [No Increase Epochs]:\t{self.noIncreaseEpochs}\n'
-        s += f' [Second Stage]:\t{self.secondStage}\n'
-        s += f' [Var Check]:\t{self.varCheck}\n'
-        s += f' [Shuffle]:\t{self.shuffle}\n'
-        s += f' [Seed]:\t{self.seed}\n'
-        return s + ']\n'
-
 
 class Holdout(Experiment):
     def __init__(
@@ -430,6 +419,7 @@ class Holdout(Experiment):
         '''
         super().__init__(trainer, outFolder, verbose)
 
+        self._repr = get_class_init_args(Holdout, locals())
         self.maxEpochs_1 = maxEpochs_1
         self.noIncreaseEpochs = noIncreaseEpochs
         if varCheck:
@@ -483,16 +473,3 @@ class Holdout(Experiment):
                                 task='multiclass', num_classes=len(clsName))
 
         return testAcc, testKappa, result
-
-    def __repr__(self) -> str:
-        s  = f'[ExP : {self.__class__.__name__}\n'
-        s += f' [MaxEpochs 1]:\t{self.maxEpochs_1}\n'
-        s += f' [No Increase Epochs]:\t{self.noIncreaseEpochs}\n'
-        s += f' [Var Check]:\t{self.varCheck}\n'
-        if self.splitVal:
-            s += f' [Split Val]:\t{self.splitVal}\n'
-            s += f' [Test Size]:\t{self.testSize}\n'
-            s += f' [Second Stage]:\t{self.secondStage}\n'
-            s += f' [MaxEpochs 2]:\t{self.maxEpochs_2}\n'
-            s += f' [Seed]:\t{self.seed}\n'
-        return s + ']\n'

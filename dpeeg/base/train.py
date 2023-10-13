@@ -696,18 +696,18 @@ class Train:
     def __repr__(self) -> str:
         '''Trainer details.
         '''
-        s = '[Network architecture]:\n' + self.netArch
-        s += f'\n[Loss function]:\t{self.lossFnType}\n'
+        s = '[Network architecture]:\n' + self.netArch + '\n'
+        s += f'[Loss function]: {self.lossFnType}\n'
         if self.lossFnArgs:
-            s += f'[LossFn Args]:\t{self.lrSchArgs}\n'
-        s += f'[Optimizer]:\t{self.optimizerType}\n'
-        s += f'[Learning rate]:\t{self.lr}\n'
+            s += f'[LossFn Args]: {self.lrSchArgs}\n'
+        s += f'[Optimizer]: {self.optimizerType}\n'
+        s += f'[Learning rate]: {self.lr}\n'
         if self.optimArgs:
-            s += f'[Optim Args]:\t{self.optimArgs}\n'
+            s += f'[Optim Args]: {self.optimArgs}\n'
         if self.lrSchType:
-            s += f'[Lr scheduler]:\t{self.lrSchType}\n'
+            s += f'[Lr scheduler]: {self.lrSchType}\n'
             if self.lrSchArgs:
-                s += f'[LrSch Args]:\t{self.lrSchArgs}\n'
-        s += f'[Grad Acc]:\t{self.gradAcc}\n'
-        s += f'[Batch Size]:\t{self.batchSize}\n'
+                s += f'[LrSch Args]: {self.lrSchArgs}\n'
+        s += f'[Grad Acc]: {self.gradAcc}\n'
+        s += f'[Batch Size]: {self.batchSize}\n'
         return s
