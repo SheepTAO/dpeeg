@@ -78,16 +78,6 @@ class EEGDataset:
 
         Parameters
         ----------
-        subjects : list of int, optional
-            List of subject number. If None, all subjects will be loaded. 
-            Default is None.
-        tmin, tmax : float
-            Start and end time of the epochs in seconds, relative to the time-
-            locked event. The closest or matching samples corresponding to the
-            start and end time are included. Default is start and end time of 
-            epochs, respectively.
-        picks : list of str, optional
-            Channels to include. If None, pick all channels. Default is None.
         preprocess : Preprocess, optional
             Apply preprocessing on epochs. Default is None.
         transforms : Transforms, optional
@@ -128,7 +118,10 @@ class EEGDataset:
             Whether `self.raw` has been splited. Default is False.
         unitFactor : float
             Unit factor to convert the units of uv to v. Default is 1e6.
-        NOTE: Avoid data leakage when you split data.
+
+        Notes
+        -----
+        Avoid data leakage when you split data.
         '''
         if self._preprocess:
             pres = ComposePreprocess(self._preprocess)
@@ -306,6 +299,28 @@ class PhysioNet(EEGDataset):
         **epoArgs
     ) -> None:
         '''Physionet MI Dataset.
+
+        Parameters
+        ----------
+        subjects : list of int, optional
+            List of subject number. If None, all subjects will be loaded. 
+            Default is None.
+        tmin, tmax : float
+            Start and end time of the epochs in seconds, relative to the time-
+            locked event. The closest or matching samples corresponding to the
+            start and end time are included. Default is start and end time of 
+            epochs, respectively.
+        picks : list of str, optional
+            Channels to include. If None, pick all channels. Default is None.
+        preprocess : Preprocess, optional
+            Apply preprocessing on epochs. Default is None.
+        transforms : Transforms, optional
+            Apply pre-transforms on dataset. Default is None.
+        testSize : float
+            Split the training set and test set proportions. If the dataset is
+            already split, it will be ignored. Default is 0.25.
+        seed : int
+            Random seed when splitting. Default is DPEEG_SEED.
         '''
         super().__init__(preprocess, transforms, testSize, seed, verbose)
         loger.info('Reading PhysionetMI Dataset ...')
@@ -378,11 +393,30 @@ class BCICIV2A(EEGDataset):
 
         Parameters
         ----------
+        subjects : list of int, optional
+            List of subject number. If None, all subjects will be loaded. 
+            Default is None.
+        tmin, tmax : float
+            Start and end time of the epochs in seconds, relative to the time-
+            locked event. The closest or matching samples corresponding to the
+            start and end time are included. Default is start and end time of 
+            epochs, respectively.
+        picks : list of str, optional
+            Channels to include. If None, pick all channels. Default is None.
+        preprocess : Preprocess, optional
+            Apply preprocessing on epochs. Default is None.
+        transforms : Transforms, optional
+            Apply pre-transforms on dataset. Default is None.
         mode: int, optional
             If mode = 0, training data and test data will only use session 1.
             If mode = 1, training data and test data will use session 1 and 2, respectively.
             If mode = 2, training data and test data will use both session 1 and 2.
             Default is 1.
+        testSize : float
+            Split the training set and test set proportions. If the dataset is
+            already split, it will be ignored. Default is 0.25.
+        seed : int
+            Random seed when splitting. Default is DPEEG_SEED.
         '''
         super().__init__(preprocess, transforms, testSize, seed, verbose)
         loger.info('Reading BCICIV 2A Dataset ...')
@@ -461,6 +495,28 @@ class HGD(EEGDataset):
       **epoArgs,
     ) -> None:
         '''High Gamma Dataset.
+
+        Parameters
+        ----------
+        subjects : list of int, optional
+            List of subject number. If None, all subjects will be loaded. 
+            Default is None.
+        tmin, tmax : float
+            Start and end time of the epochs in seconds, relative to the time-
+            locked event. The closest or matching samples corresponding to the
+            start and end time are included. Default is start and end time of 
+            epochs, respectively.
+        picks : list of str, optional
+            Channels to include. If None, pick all channels. Default is None.
+        preprocess : Preprocess, optional
+            Apply preprocessing on epochs. Default is None.
+        transforms : Transforms, optional
+            Apply pre-transforms on dataset. Default is None.
+        testSize : float
+            Split the training set and test set proportions. If the dataset is
+            already split, it will be ignored. Default is 0.25.
+        seed : int
+            Random seed when splitting. Default is DPEEG_SEED.
         '''
         super().__init__(preprocess, transforms, testSize, seed, verbose)
         loger.info('Reading High Gamma Dataset ...')

@@ -352,9 +352,6 @@ class Train:
         trainData : tuple, list
             Dataset used for training. If type is tuple or list, dataset should
             be (data, labels).
-        valData : tuple, list
-            Dataset used for validation. If type is tuple or list, dataset 
-            should be (data, labels).
         testData : tuple, list
             Dataset used to evaluate the model. If type is tuple or list, 
             dataset should be (data, labels).

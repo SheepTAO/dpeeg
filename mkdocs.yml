@@ -1,0 +1,53 @@
+site_name: DPEEG
+site_author: SheepTAO
+repo_url: https://github.com/SheepTAO/dpeeg
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.top
+    - toc.integrate
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"  
+      scheme: slate
+      toggle:
+        icon: material/weather-night
+        name: Switch to light mode
+
+plugins:
+  - search
+  - gen-files:
+      scripts:
+        - docs/gen_api_pages.py
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: numpy
+            docstring_section_style: list
+            show_root_heading: true
+            show_symbol_type_heading: true
+
+nav:
+  - 🏠 HOME: index.md
+  - 👋 INSTALL: install.md
+  - 😎 TUTORIALS: tutorials.md
+  - 🔎 API: api/
+  - 🔧 ABOUT: about.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/SheepTAO
+    - icon: fontawesome/solid/paper-plane
+      link: sheeptao@outlook.com

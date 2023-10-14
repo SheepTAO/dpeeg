@@ -8,3 +8,6 @@ dist/
 
 # Out for test
 tests/out/
+
+# MkDocs
+site/
