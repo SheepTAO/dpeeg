@@ -1,22 +1,24 @@
 site_name: DPEEG
 site_author: SheepTAO
 repo_url: https://github.com/SheepTAO/dpeeg
+repo_name: SheepTAO/dpeeg
 
 theme:
   name: material
+  icon:
+    repo: fontawesome/brands/github-alt
   features:
     - navigation.tabs
     - navigation.top
-    - toc.integrate
+    - header.autohide
+    - navigation.footer
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: indigo
-      accent: indigo
       toggle:
         icon: material/weather-sunny
         name: Switch to dark mode
-    - media: "(prefers-color-scheme: dark)"  
+    - media: "(prefers-color-scheme: dark)"
       scheme: slate
       toggle:
         icon: material/weather-night
@@ -46,8 +48,11 @@ nav:
   - 🔧 ABOUT: about.md
 
 extra:
+  generator: false
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/SheepTAO
     - icon: fontawesome/solid/paper-plane
       link: sheeptao@outlook.com
+
+copyright: Copyright &copy; 2022 - 2023 SheepTAO

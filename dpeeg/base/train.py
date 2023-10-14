@@ -372,11 +372,12 @@ class Train:
 
         Returns
         -------
-        Return train, validation and test results dict.
-        {
-            'train' : {'preds': Tensor, 'target': Tensor, 'acc': Tensor},
-            'test'  : ...
-        }
+        dict
+            Return train and test results dict.
+            {
+                'train' : {'preds': Tensor, 'target': Tensor, 'acc': Tensor},
+                'test'  : ...
+            }
         '''
         logDir, writer, loger = self.reset_fitter(logDir)
 
@@ -532,12 +533,13 @@ class Train:
 
         Returns
         -------
-        Return train, validation and test results dict.
-        {
-            'train' : {'preds': Tensor, 'target': Tensor, 'acc': Tensor},
-            'test'  : ...,
-            'val'   : ...
-        }
+        dict
+            Return train, validation and test results dict.
+            {
+                'train' : {'preds': Tensor, 'target': Tensor, 'acc': Tensor},
+                'test'  : ...,
+                'val'   : ...
+            }
         '''
         logDir, writer, loger = self.reset_fitter(logDir)
 
