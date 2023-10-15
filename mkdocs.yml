@@ -45,14 +45,14 @@ nav:
   - 👋 INSTALL: install.md
   - 😎 TUTORIALS: tutorials.md
   - 🔎 API: api/
-  - 🔧 ABOUT: about.md
+  - 🔧 ABOUT: about/
 
 extra:
-  generator: false
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/SheepTAO
     - icon: fontawesome/solid/paper-plane
-      link: sheeptao@outlook.com
+      link: mailto:sheeptao@outlook.com
+      name: Contact me
 
-copyright: Copyright &copy; 2022 - 2023 SheepTAO
+copyright: Copyright &copy; 2023 SheepTAO
