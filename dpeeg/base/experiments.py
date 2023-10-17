@@ -25,7 +25,7 @@ from .train import Train
 from ..data.datasets import EEGDataset
 from ..data.functions import split_train_test
 from ..tools import Timer, Filer, Logger
-from ..utils import DPEEG_SEED, DPEEG_DIR, get_class_init_args
+from ..utils import DPEEG_SEED, DPEEG_DIR, get_init_args
 from .evaluate import save_cm_img
 
 
@@ -252,7 +252,7 @@ class KFold(Experiment):
         '''
         super().__init__(trainer, outFolder, verbose)
 
-        self._repr = get_class_init_args(KFold, locals())
+        self._repr = get_init_args(KFold, locals())
         self.maxEpochs_1 = maxEpochs_1
         self.maxEpochs_2 = maxEpochs_2
         self.noIncreaseEpochs = noIncreaseEpochs
@@ -399,8 +399,8 @@ class Holdout(Experiment):
             improvement. Default is 200. If set to the same as maxEpochs_1, 
             early stopping will not be performed.
         varCheck : str
-            The best value (trainInacc/trainLoss if splitVal is True; valInacc/
-            valLoss if splitVal is False) to check while determining the best 
+            The best value (trainInacc/trainLoss if splitVal is False; valInacc
+            /valLoss if splitVal is True) to check while determining the best 
             model which will be used to evaluate its performance on the test 
             set. Default is 'valInacc' (if splitVal is True) or 'trainLoss' (if
             splitVal is False).
@@ -419,7 +419,7 @@ class Holdout(Experiment):
         '''
         super().__init__(trainer, outFolder, verbose)
 
-        self._repr = get_class_init_args(Holdout, locals())
+        self._repr = get_init_args(Holdout, locals())
         self.maxEpochs_1 = maxEpochs_1
         self.noIncreaseEpochs = noIncreaseEpochs
         if varCheck:

@@ -17,8 +17,9 @@ import numpy as np
 import pandas as pd
 from typing import Optional, Callable, Union, List
 
-from ..utils import loger, verbose, DPEEG_SEED, unpacked, DPEEG_LOGER_LEVEL
+from ..utils import loger, verbose, DPEEG_SEED, unpacked, get_init_args
 from ..tools.logger import _Level
+import dpeeg.data.functions as F
 from .functions import (
     split_train_test,
     to_tensor,
@@ -53,6 +54,21 @@ class ComposeTransforms(Transforms):
         transforms : sequential container of Transforms
             Transforms (sequential of `Transform` objects): sequential of tran-
             sforms to compose. 
+
+        Examples
+        --------
+        If you have multiple transforms that are processed sequentiallt, you 
+        can do like:
+        >>> from dpeeg.data import transforms
+        >>> trans = transforms.ComposeTransforms(
+        ...     transforms.Normalization(),
+        ...     transforms.Unsqueeze(),
+        ... )
+        >>> trans
+        ComposeTransforms(
+            (0): Normalization(mode=z-score)
+            (1): Unsqueeze(dim=1)
+        )
         '''
         super().__init__()
         self.trans : List[Transforms] = []
@@ -154,9 +170,7 @@ class ToTensor(Transforms):
         loger.info(f'[{self} starting] ...')
         for sub in input.values():
             for mode in ['train', 'test']:
-                sub[mode][0], sub[mode][1] = to_tensor(
-                    sub[mode][0], sub[mode][1], verbose=verbose
-                )
+                sub[mode] = list(to_tensor(*sub[mode], verbose=verbose))
         return input
 
     def __repr__(self) -> str:
@@ -315,7 +329,8 @@ class Unsqueeze(Transforms):
         self,
         dim : int = 1,
     ) -> None:
-        '''This function is usually used to insert a feature dimension on EEG data.
+        '''This transform is usually used to insert a feature dimension on EEG
+        data.
 
         Parameters
         ----------
@@ -337,12 +352,57 @@ class Unsqueeze(Transforms):
         return f'Unsqueeze(dim={self.dim})'
 
 
+class Augmentation(Transforms):
+    '''Training set data augmentation.
+    '''
+    def __init__(
+        self,
+        method : str,
+        onlyTrain : bool = True,
+        **kwargs
+    ) -> None:
+        '''This transform is mainly used for data augmentation of the data set.
+
+        Parameters
+        ----------
+        method : str
+            Specified data augmentation method.
+        onlyTrain : bool
+            If True, data augmentation is performed only on the training set.
+        kwargs : dict
+            Parameters of the corresponding augmentation method.
+
+        See Also
+        --------
+        dpeeg.data.functions : 
+            Get detailed data augmentation method parameters.
+        '''
+        super().__init__()
+        self._repr = get_init_args(Augmentation, locals(), 'runtime')
+        self.aug = getattr(F, method)
+        self.onlyTrain = onlyTrain
+        self.kwargs = kwargs
+
+    @verbose
+    def __call__(self, input : dict, verbose : _Level = None) -> dict:
+        loger.info(f'[{self} starting] ...')
+        for sub in input.values():
+            for mode in ['train', 'test']:
+                if mode == 'test' and self.onlyTrain:
+                    continue
+                sub[mode] = list(self.aug(*sub[mode], **self.kwargs))
+        return input
+        
+    def __repr__(self) -> str:
+        return self._repr
+
+
 class ApplyFunc(Transforms):
     '''Apply a function on data.
     '''
     def __init__(
         self, 
-        func : Callable, 
+        func : Callable[[np.ndarray], np.ndarray], 
     ) -> None:
         '''This transform can be used to change the data shape and so on.
 

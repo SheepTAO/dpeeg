@@ -142,3 +142,9 @@ class EEGConformer(nn.Sequential):
             TransformerEncoder(depth, emb_size),
             ClassificationHead(emb_size, n_classes)
         )
+
+
+if __name__ == '__main__':
+    from torchinfo import summary
+    net = EEGConformer()
+    summary(net, (1, 1, 22, 1000), device='cpu')

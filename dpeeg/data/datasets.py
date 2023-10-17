@@ -28,7 +28,7 @@ from typing import Optional, List, Union
 
 from .preprocessing import Preprocess, ComposePreprocess
 from .transforms import Transforms, ComposeTransforms, SplitTrainTest
-from ..utils import loger, verbose, DPEEG_SEED, get_class_init_args
+from ..utils import loger, verbose, DPEEG_SEED, get_init_args
 
 
 class EEGDataset:
@@ -325,7 +325,7 @@ class PhysioNet(EEGDataset):
         super().__init__(preprocess, transforms, testSize, seed, verbose)
         loger.info('Reading PhysionetMI Dataset ...')
 
-        self._repr = get_class_init_args(PhysioNet, locals())
+        self._repr = get_init_args(PhysioNet, locals())
 
         from moabb.datasets import PhysionetMI
         dataset = PhysionetMI()
@@ -421,7 +421,7 @@ class BCICIV2A(EEGDataset):
         super().__init__(preprocess, transforms, testSize, seed, verbose)
         loger.info('Reading BCICIV 2A Dataset ...')
 
-        self._repr = get_class_init_args(BCICIV2A, locals())
+        self._repr = get_init_args(BCICIV2A, locals())
 
         from moabb.datasets import BNCI2014001
         dataset = BNCI2014001()
@@ -521,7 +521,7 @@ class HGD(EEGDataset):
         super().__init__(preprocess, transforms, testSize, seed, verbose)
         loger.info('Reading High Gamma Dataset ...')
 
-        self._repr = get_class_init_args(HGD, locals())
+        self._repr = get_init_args(HGD, locals())
 
         from moabb.datasets import Schirrmeister2017
         dataset = Schirrmeister2017()

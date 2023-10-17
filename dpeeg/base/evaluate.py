@@ -38,10 +38,12 @@ def save_cm_img(
         Path to store the figure.
     '''
     cm = confusion_matrix(preds, target, 'multiclass', num_classes=len(clsName))
-    fig = sns.heatmap(cm / cm.sum(1, keepdim=True), annot=True, cmap='Blues',
+    ax = sns.heatmap(cm / cm.sum(1, keepdim=True), annot=True, cmap='Blues',
                       xticklabels=clsName, yticklabels=clsName) # type: ignore
+    ax.set_ylabel('Actual')
+    ax.set_xlabel('Predicted')
     plt.savefig(figPath)
-    # !!! Clear the current figure
+    # !!! Clear the current Axes
     plt.clf()
 
 def ttest_corrected(

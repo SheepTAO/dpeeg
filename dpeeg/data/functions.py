@@ -95,9 +95,10 @@ def to_tensor(
 ) -> Tuple[Tensor, Tensor]:
     '''Convert the numpy data and label into trainable Tensor format.
     '''
-    dataT = torch.from_numpy(data).float() \
+    # https://discuss.pytorch.org/t/torch-from-numpy-not-support-negative-strides/3663
+    dataT = torch.from_numpy(np.ascontiguousarray(data)).float() \
         if isinstance(data, ndarray) else data.float()
-    labelT = torch.from_numpy(label).long() \
+    labelT = torch.from_numpy(np.ascontiguousarray(data)).long() \
         if isinstance(label, ndarray) else label.long()
     if dataT.size(0) != labelT.size(0):
         loger.warning('Data and label do not match in the first dimension: '
@@ -112,10 +113,11 @@ def slide_win(
     overlap : int = 0,
     label : Optional[ndarray] = None,
     verbose : _Level = None,
-) -> Union[Tuple[ndarray, ndarray], ndarray]:
-    '''This transform is only splits the time series (dim = -1) through the sliding 
-    window operation on the original dataset. If the time axis is not divisible by 
-    the sliding window, the last remaining time data will be discarded.
+) -> Tuple[ndarray, Optional[ndarray]]:
+    '''This transform is only splits the time series (dim = -1) through the 
+    sliding window operation on the original dataset. If the time axis is not
+    divisible by the sliding window, the last remaining time data will be 
+    discarded.
 
     Parameters
     ----------
@@ -131,7 +133,10 @@ def slide_win(
 
     Returns
     -------
-    If label is not None, (data, label) will be returned, or data will be returned.
+    data : ndarray
+        Data after sliding window.
+    label : ndarray, None
+        If label is None, return None. The label corresponding to each window.
     '''
     if win < 0 or overlap < 0:
         raise ValueError('win and overlap only allow positive numbers, '
@@ -147,7 +152,7 @@ def slide_win(
         loger.warning('The window is larger than the times to be split.')
         if isinstance(label, ndarray):
             return data, label
-        return data
+        return data, None
 
     sldNum = 0
     dataList = []
@@ -161,7 +166,83 @@ def slide_win(
     if isinstance(label, ndarray):
         label = np.repeat(label, sldNum)
         return data, label
-    return data
+    return data, None
+
+
+@verbose
+def segmentation_and_reconstruction(
+    data : ndarray,
+    label : ndarray,
+    multiply : int = 1,
+    n : int = 8,
+) -> Tuple[ndarray, ndarray]:
+    '''Signal Segmentation and Recombination in Time Domain.
+
+    This approach is to first divide each training EEG trial into several 
+    segments and then generate new artificial trials as a concatenation of 
+    segments coming from different and randomly selected training trials from
+    the same class while maintaining the original time order.
+
+    Parameters
+    ----------
+    data : ndarray
+        Data that will be segmented and randomly recombined. Shape as `(N, ..., 
+        T)`, with `N` the number of data and `T` the number of samples.
+    label : ndarray
+        The label corresponding to the data. Shape as `(N)`.
+    multiply : int
+        The data will be enhanced several times. Default is 1.
+    n : int
+        The data will be segmented into n parts in time domain. And n should be
+        evenly divisible by the time length of the data. Default is 8. For 
+        example, 250Hz data has 1,000 sampling points, and cutting it into 8 
+        parts means that each segment is 0.5s of data.
+
+    Notes
+    -----
+    The function does not judge the multiples or the number of segmentation.
+
+    References
+    ----------
+    [1] F. Lotte, “Signal Processing Approaches to Minimize or Suppress 
+    Calibration Time in Oscillatory Activity-Based Brain–Computer Interfaces,
+    ” Proc. IEEE, vol. 103, no. 6, pp. 871–890, Jun. 2015, 
+    doi: 10.1109/JPROC.2015.2404941.
+    '''
+    if n == 0:
+        raise ValueError('Parameter n must be at least 1.')
+    
+    if data.shape[-1] % n:
+        raise ValueError(f'The data time length ({data.shape[-1]}) should be '
+                         f'a multiple of n={n}.')
+
+    win = data.shape[-1] // n
+    augData, augLabel = [], []
+
+    for lb in np.unique(label):
+        idx = np.where(label == lb)
+        tmpData, tmpLabel = data[idx], label[idx]
+        m = tmpData.shape[0] * multiply
+
+        tmpAugData = np.empty((m, *data.shape[1:]))
+        for i in range(m):
+            for j in range(n):
+                randIdx = np.random.randint(0, tmpData.shape[0], n)
+                tmpAugData[i, ..., j * win : (j + 1) * win] = \
+                    tmpData[randIdx[j] , ..., j * win : (j + 1) * win]
+
+        augData.append(tmpAugData)
+        augLabel.append(np.repeat(lb, m))
+        augData.append(tmpData)
+        augLabel.append(tmpLabel)
+
+    augData = np.concatenate(augData)
+    augLabel = np.concatenate(augLabel)
+    shuffle = np.random.permutation(augData.shape[0])
+    augData = augData[shuffle]
+    augLabel = augLabel[shuffle]
+
+    return augData, augLabel
 
 
 @verbose

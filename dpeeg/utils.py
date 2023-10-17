@@ -80,7 +80,8 @@ def set_log_level(
 
     Returns
     -------
-    The old level. Only returned if `retOldLevel` is True.
+    oldLevel : str, None
+        The old level. Only returned if `retOldLevel` is True.
     '''
     global DPEEG_LOGER_LEVEL
     oldLevel = loger.get_sh_level()
@@ -176,8 +177,8 @@ def align_text(prefix : str, text : str, onlyHead : bool = True) -> str:
     text : str
         The text to be aligned, including multiple lines.
     onlyHead : bool
-        If true, prefix will be prepended to each line, otherwise a correspond-
-        ing length of spaces will be added.
+        If false, prefix will be prepended to each line. Otherwise, spaces with
+        a length of prefix will be added to other lines except the first line.
 
     Returns
     -------
@@ -189,22 +190,29 @@ def align_text(prefix : str, text : str, onlyHead : bool = True) -> str:
     return '\n'.join(alignedLines)
 
 
-def get_class_init_args(
+def get_init_args(
     obj,
     locals : dict[str, Any],
     format : str = 'log',
 ) -> str:
-    '''Spell the initialization parameters of the class __init__ corresponding 
-    strings in the specified format.
+    '''Get object initialization parameters.
+
+    Assemble the parameters passed in by class initialization or function 
+    according to the specified format.
 
     Parameters
     ----------
-    obj : class
-        The kind of class.
+    obj : class, function
+        The kind of class or function.
     locals : dict
         Local parameters in class __init__.
     format : str
         Parameters splicing format. Default is log.
+
+    Returns
+    -------
+    str : 
+        A string specifying the format.
     '''
     sig = inspect.signature(obj).parameters.keys()
 

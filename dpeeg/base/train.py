@@ -323,7 +323,7 @@ class Train:
             raise ValueError('One dataset corresponds to one label set, but the '
                              f'total number of data got is {nDataset}.')
         if nDataset == 0:
-            raise ValueError('At least one dataset required ad input.')
+            raise ValueError('At least one dataset required as input.')
 
         # dataset wrapping tensors
         td = []
