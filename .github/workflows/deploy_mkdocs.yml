@@ -1,0 +1,37 @@
+# name字段是 workflow 的名称。如果省略该字段，默认为当前 workflow 的文件名。
+name: deploy_mkdocs.yml
+
+# on字段指定触发 workflow 的条件，通常是某些事件。
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+# workflow 文件的主体是jobs字段，表示要执行的一项或多项任务。
+# runs-on字段指定运行所需要的虚拟机环境。它是必填字段。
+# steps字段指定每个 Job 的运行步骤，可以包含一个或多个步骤。steps.run：该步骤运行的命令或者 action
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: 3.x
+      - run: echo "cache_id=$(date --utc '+%V')" >> $GITHUB_ENV
+      - uses: actions/cache@v3
+        with:
+          key: mkdocs-material-${{ env.cache_id }}
+          path: .cache
+          restore-keys: |
+            mkdocs-material-
+      - run: pip install \
+              mkdocs-material \
+              mkdocs \
+              "mkdocstrings[python]" \
+              mkdocs-gen-files \
+              pip install mkdocs-literate-nav
+      - run: mkdocs gh-deploy --force

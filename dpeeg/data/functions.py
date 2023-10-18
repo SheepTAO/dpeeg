@@ -98,7 +98,7 @@ def to_tensor(
     # https://discuss.pytorch.org/t/torch-from-numpy-not-support-negative-strides/3663
     dataT = torch.from_numpy(np.ascontiguousarray(data)).float() \
         if isinstance(data, ndarray) else data.float()
-    labelT = torch.from_numpy(np.ascontiguousarray(data)).long() \
+    labelT = torch.from_numpy(np.ascontiguousarray(label)).long() \
         if isinstance(label, ndarray) else label.long()
     if dataT.size(0) != labelT.size(0):
         loger.warning('Data and label do not match in the first dimension: '
