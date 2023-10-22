@@ -21,6 +21,7 @@ from sklearn.model_selection import StratifiedKFold
 from torchmetrics.functional.classification.cohen_kappa import cohen_kappa
 from torchmetrics.aggregation import MeanMetric, CatMetric
 
+import dpeeg
 from .train import Train
 from ..data.datasets import EEGDataset
 from ..data.functions import split_train_test
@@ -148,10 +149,14 @@ class Experiment(abc.ABC):
             if not datasetName else os.path.join(self.outFolder, datasetName)
         os.makedirs(self.dataFolder)
         filer = Filer(os.path.join(self.dataFolder, 'summary.txt'))
-        filer.write(f'[Start Time]: {self.timer.ctime()}\n\n')
-        filer.write(f'[Description]: {desc}\n\n')
-        filer.write(str(self) + '\n\n')
-        filer.write(str(dataset) + '\n\n')
+        filer.write(f'[Start Time]: {self.timer.ctime()}\n')
+        filer.write(f'[DPEEG Version]: {dpeeg.__version__}\n')
+        filer.write(f'[Description]: {desc}\n')
+        filer.write(str(self) + '\n')
+        if isinstance(dataset, EEGDataset):
+            filer.write(str(dataset) + '\n')
+        else:
+            filer.write('[Custom dataset]\n')
 
         # save all sub results
         results = {}

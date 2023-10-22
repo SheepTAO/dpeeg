@@ -60,7 +60,7 @@ class Train:
         seed : int = DPEEG_SEED,
         lossFn : Union[str, nn.Module] = 'NLLLoss',
         lossFnArgs : Optional[dict] = None,
-        optimizer : str = 'AdamW',
+        optimizer : str = 'Adam',
         optimArgs : Optional[dict] = None,
         lr : float = 1e-3,
         lrSch : Optional[str] = None,
@@ -92,7 +92,7 @@ class Train:
             None.
         optimizer : str
             Name of the optimization function from torch.optim which will be
-            used for training. Default is AdamW.
+            used for training. Default is Adam.
         optimArgs : dict, optional
             Additional arguments to be passed to the optimization function.
             Default is None.
@@ -246,8 +246,9 @@ class Train:
 
         Returns
         -------
-        Return the absolute file path and a new SummaryWriter object and logger
-        manager for the fitter.
+        str, SummaryWriter, Logger:
+            Return the absolute file path and a new SummaryWriter object and 
+            logger manager for the fitter.
         '''
         # reset parameters of nn.Moudle and lr_scheduler
         self.net.load_state_dict(self.expDetails['origNetParam'])
