@@ -2,7 +2,7 @@ from .experiments import (
     KFold,
     Holdout,
 )
-from .train import (
+from .classification import (
     Train,
 )
 from .stopcriteria import (

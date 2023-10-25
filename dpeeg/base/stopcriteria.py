@@ -108,7 +108,8 @@ class Or(Criteria):
 
         Notes
         -----
-        If you wish to do and on multiple cases then do like: And(And(A, B), C)...
+        If you wish to do and on multiple cases then do like: 
+        And(And(A, B), C)...
         '''
         self.cri1 : Criteria = CURRENT_MODULE.__dict__[list(cri1.keys())[0]] \
             (**cri1[list(cri1.keys())[0]])
@@ -127,102 +128,103 @@ class Or(Criteria):
 
 
 class MaxEpoch(Criteria):
-    def __init__(self, maxEpochs : int, varName : str) -> None:
+    def __init__(self, max_epochs : int, var_name : str) -> None:
         '''Stop when given number of epochs reached.
 
         Parameters
         ----------
-        maxEpochs : int
+        max_epochs : int
             Maximum epochs to watch. 
-        varName : str
+        var_name : str
             Key name to compare with in the variables dictionary.
         '''
-        self.maxEpochs = maxEpochs
-        self.varName = varName
+        self.max_epochs = max_epochs
+        self.var_name = var_name
 
     def __call__(self, variables : dict) -> bool:
-        return variables[self.varName] >= self.maxEpochs
+        return variables[self.var_name] >= self.max_epochs
 
     def __repr__(self) -> str:
-        return (f'{self.__class__.__name__}(maxEpochs={self.maxEpochs}'
-                f', varName={self.varName})')
+        return (f'{self.__class__.__name__}(max_epochs={self.max_epochs}'
+                f', var_name={self.var_name})')
 
 
 class NoDecrease(Criteria):
-    def __init__(self, numEpochs : int, varName : str, minChange = 1e-6) -> None:
+    def __init__(self, num_epochs : int, var_name : str, min_change = 1e-6):
         '''Stop if there is no decrease on a given monitor channel for given 
         number of epochs.
 
         Parameters
         ----------
-        numEpochs : int
+        num_epochs : int
             Number of epochs to wait while there is no decrease in the value.
-        varName : str
+        var_name : str
             Key name to compare with in the variables dictionary.
-        minChange : float
-            Minimum relative decrease which resets the numEpochs. Default is 1e-6.
+        min_change : float
+            Minimum relative decrease which resets the num_epochs. 
+            Default is 1e-6.
         '''
-        self.numEpochs = numEpochs
-        self.varName = varName
-        self.minChange = minChange
-        self.minValue = float('inf')
-        self.currentEpoch = 0
+        self.num_epochs = num_epochs
+        self.var_name = var_name
+        self.min_change = min_change
+        self.min_value = float('inf')
+        self.current_epoch = 0
 
     def __call__(self, variables : dict) -> bool:
-        if variables[self.varName] <= (1 - self.minChange) * self.minValue:
-            self.minValue= variables[self.varName]
-            self.currentEpoch = 1
+        if variables[self.var_name] <= (1 - self.min_change) * self.min_value:
+            self.min_value= variables[self.var_name]
+            self.current_epoch = 1
         else:
-            self.currentEpoch += 1
+            self.current_epoch += 1
 
-        return self.currentEpoch >= self.numEpochs
+        return self.current_epoch >= self.num_epochs
 
     def __repr__(self) -> str:
-        return (f'{self.__class__.__name__}(numEpochs={self.numEpochs}'
-                f', varName={self.varName}, minChange={self.minChange})')
+        return (f'{self.__class__.__name__}(num_epochs={self.num_epochs}'
+                f', var_name={self.var_name}, min_change={self.min_change})')
 
     def reset_parameters(self) -> None:
-        self.minValue = float('inf')
-        self.currentEpoch = 0
+        self.min_value = float('inf')
+        self.current_epoch = 0
 
 
 class Bigger(Criteria):
-    def __init__(self, var : float, varName : str) -> None:
+    def __init__(self, var : float, var_name : str) -> None:
         '''Stop when greater than the specified value.
 
         Parameters
         ----------
         var : float
             Maximum value to watch.
-        varName : str
+        var_name : str
             Key name to compare with in the variables dictionary.
         '''
         self.var = var
-        self.varName = varName
+        self.var_name = var_name
 
     def __call__(self, variables: dict) -> bool:
-        return variables[self.varName] > self.var
+        return variables[self.var_name] > self.var
 
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}(var={self.var})'
 
 
 class Smaller(Criteria):
-    def __init__(self, var : float, varName : str) -> None:
+    def __init__(self, var : float, var_name : str) -> None:
         '''Stop when less than the specified value.
 
         Parameters
         ----------
         var : float
             Minimum value to watch.
-        varName : str
+        var_name : str
             Key name to compare with in the variables dictionary.
         '''
         self.var = var
-        self.varName = varName
+        self.var_name = var_name
 
     def __call__(self, variables: dict) -> bool:
-        return variables[self.varName] < self.var
+        return variables[self.var_name] < self.var
 
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}(var={self.var})'

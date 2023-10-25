@@ -13,7 +13,7 @@
         which saves time for multiple rounds of training.
 
     NOTE: If you want to build your own data set, you can refer to the sample 
-        dataset to build it. Please reassign the `_eventId` and `_epochs` 
+        dataset to build it. Please reassign the `_event_id` and `_epochs` 
         attributes. In the final stage of initialization, please call the 
         `self.load_data()` to completely initialize your dataset.
 
@@ -24,7 +24,7 @@
 
 
 import mne
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Literal
 
 from .preprocessing import Preprocess, ComposePreprocess
 from .transforms import Transforms, ComposeTransforms, SplitTrainTest
@@ -47,14 +47,14 @@ class EEGDataset:
         return (1, *sub['train'][0].shape[1:])
 
     @property
-    def eventId(self) -> dict:
+    def event_id(self) -> dict:
         '''Return the event label of the dataset and its corresponding id.'''
-        return self._check_attr('_eventId')
+        return self._check_attr('_event_id')
 
     @property
-    def clsName(self) -> tuple:
+    def cls_name(self) -> tuple:
         '''Return the event label of the dataset.'''
-        return tuple(self.eventId.keys())
+        return tuple(self.event_id.keys())
 
     @property
     def epochs(self) -> dict:
@@ -70,7 +70,7 @@ class EEGDataset:
         self,
         preprocess : Optional[Preprocess] = None,
         transforms : Optional[Transforms] = None,
-        testSize : float = .25, 
+        test_size : float = .25, 
         seed : int = DPEEG_SEED,
         verbose : Optional[Union[str, int]] = None, 
     ) -> None:
@@ -82,7 +82,7 @@ class EEGDataset:
             Apply preprocessing on epochs. Default is None.
         transforms : Transforms, optional
             Apply pre-transforms on dataset. Default is None.
-        testSize : float
+        test_size : float
             Split the training set and test set proportions. If the dataset is
             already split, it will be ignored. Default is 0.25.
         seed : int
@@ -95,20 +95,20 @@ class EEGDataset:
         self._repr = None
         self._preprocess = preprocess
         self._transforms = transforms
-        self._testSize = testSize
+        self._testSize = test_size
         self._seed = seed
         self._dataset = None
         self._verbose = verbose
 
         # NOTE
         # Please make sure the following attributes are correctly overridden
-        self._eventId = None        # task name and its corresponding label
+        self._event_id = None        # task name and its corresponding label
         self._epochs = None         # each subject and its corresponding Epochs
 
     def load_data(
         self, 
         split : bool = False,
-        unitFactor : float = 1e6
+        unit_factor : float = 1e6
     ) -> None:
         '''Extract data from Epochs and split.
 
@@ -116,7 +116,7 @@ class EEGDataset:
         ----------
         split : bool
             Whether `self.raw` has been splited. Default is False.
-        unitFactor : float
+        unit_factor : float
             Unit factor to convert the units of uv to v. Default is 1e6.
 
         Notes
@@ -132,13 +132,13 @@ class EEGDataset:
             if not split:
                 data = sEpochs.crop(include_tmax=False).get_data()
                 label = sEpochs.events[:, -1]
-                dataset[sub] = [data * unitFactor, label]
+                dataset[sub] = [data * unit_factor, label]
             else:
                 dataset[sub] = {}
                 for mode, mEpochs in sEpochs.items():
                     data = mEpochs.crop(include_tmax=False).get_data()
                     label = mEpochs.events[:, -1]
-                    dataset[sub][mode] = [data * unitFactor, label]
+                    dataset[sub][mode] = [data * unit_factor, label]
 
         # split the dataset before transforms
         if self._transforms:
@@ -291,12 +291,11 @@ class PhysioNet(EEGDataset):
         tmax : float = 1,
         preprocess : Optional[Preprocess] = None,
         transforms : Optional[Transforms] = None,
-        testSize : float = .25,
+        test_size : float = .25,
         picks : Optional[List[str]] = None,
         baseline = None,
         seed : int = DPEEG_SEED,
-        verbose : Optional[str] = None,
-        **epoArgs
+        verbose : Optional[str] = None
     ) -> None:
         '''Physionet MI Dataset.
 
@@ -316,13 +315,13 @@ class PhysioNet(EEGDataset):
             Apply preprocessing on epochs. Default is None.
         transforms : Transforms, optional
             Apply pre-transforms on dataset. Default is None.
-        testSize : float
+        test_size : float
             Split the training set and test set proportions. If the dataset is
             already split, it will be ignored. Default is 0.25.
         seed : int
             Random seed when splitting. Default is DPEEG_SEED.
         '''
-        super().__init__(preprocess, transforms, testSize, seed, verbose)
+        super().__init__(preprocess, transforms, test_size, seed, verbose)
         loger.info('Reading PhysionetMI Dataset ...')
 
         self._repr = get_init_args(PhysioNet, locals())
@@ -331,9 +330,9 @@ class PhysioNet(EEGDataset):
         dataset = PhysionetMI()
         tmin, tmax, baseline = \
             self.process_interval(tmin, tmax, dataset.interval, baseline)
-        self._baseRaw = dataset.get_data(subjects)
-        self._badSub = [88, 92, 100, 104]
-        self._eventId = {
+        self._base_raw = dataset.get_data(subjects)
+        self.bad_sub = [88, 92, 100, 104]
+        self._event_id = {
             'left_hand': 0,
             'right_hand': 1,
             'hands': 2,
@@ -341,12 +340,11 @@ class PhysioNet(EEGDataset):
         }
 
         self._epochs = {}
-        for sub, sess in self._baseRaw.copy().items():
+        for sub, sess in self._base_raw.copy().items():
             loger.info(f'\nCreate sub{sub} Epochs ...')
-            if sub in self._badSub:
+            if sub in self.bad_sub:
                 continue
-
-            epochsSes = []
+            epochs_ses = []
             for raw in sess['session_0'].values():
 
                 ann = mne.events_from_annotations(raw, regexp='^(?!rest$).*$')
@@ -355,15 +353,15 @@ class PhysioNet(EEGDataset):
                     else ann[0][:, -1]+1
                 # update event_id
                 for key in ann[1].keys():
-                    ann[1][key] = self._eventId[key]
+                    ann[1][key] = self._event_id[key]
 
                 events = ann[0][:-1]
-                epochsSes.append(
-                    mne.Epochs(raw, events, ann[1], tmin, tmax, baseline, picks,
-                               preload=True, **epoArgs)
+                epochs_ses.append(
+                    mne.Epochs(raw, events, ann[1], tmin, tmax, baseline, picks, 
+                               preload=True)
                 )
 
-            self._epochs[sub] = mne.concatenate_epochs(epochsSes, verbose='ERROR')
+            self._epochs[sub] = mne.concatenate_epochs(epochs_ses, verbose='ERROR')
 
         self.load_data()
 
@@ -381,13 +379,12 @@ class BCICIV2A(EEGDataset):
         tmax : float = 4,
         preprocess : Optional[Preprocess] = None,
         transforms : Optional[Transforms] = None,
-        testSize : float = .25,
-        mode : int = 1,
+        test_size : float = .25,
+        mode : Literal['single_ses', 'cross_ses', 'mixed_ses'] = 'cross_ses',
         picks : Optional[List[str]] = None,
         baseline = None,
         seed : int = DPEEG_SEED,
-        verbose : Optional[str] = None,
-        **epoArgs
+        verbose : Optional[str] = None
     ) -> None:
         '''BCI Competition IV Data sets 2a.
 
@@ -407,18 +404,19 @@ class BCICIV2A(EEGDataset):
             Apply preprocessing on epochs. Default is None.
         transforms : Transforms, optional
             Apply pre-transforms on dataset. Default is None.
-        mode: int, optional
-            If mode = 0, training data and test data will only use session 1.
-            If mode = 1, training data and test data will use session 1 and 2, respectively.
-            If mode = 2, training data and test data will use both session 1 and 2.
-            Default is 1.
-        testSize : float
+        mode : str, optional
+            If mode = 'single_ses', training data and test data will only use
+            session 1. If mode = 'cross_ses', training data and test data will
+            use session 1 and 2, respectively. If mode = 'mixed_ses', training
+            data and test data will use both session 1 and 2.
+            Default is 'cross_ses'.
+        test_size : float
             Split the training set and test set proportions. If the dataset is
             already split, it will be ignored. Default is 0.25.
         seed : int
             Random seed when splitting. Default is DPEEG_SEED.
         '''
-        super().__init__(preprocess, transforms, testSize, seed, verbose)
+        super().__init__(preprocess, transforms, test_size, seed, verbose)
         loger.info('Reading BCICIV 2A Dataset ...')
 
         self._repr = get_init_args(BCICIV2A, locals())
@@ -427,8 +425,8 @@ class BCICIV2A(EEGDataset):
         dataset = BNCI2014001()
         tmin, tmax, baseline = \
             self.process_interval(tmin, tmax, dataset.interval, baseline)
-        self._baseRaw = dataset.get_data(subjects)
-        self._eventId = {
+        self._base_raw = dataset.get_data(subjects)
+        self._event_id = {
             'left_hand': 0,
             'right_hand': 1,
             'feet': 2,
@@ -436,38 +434,145 @@ class BCICIV2A(EEGDataset):
         }
 
         self._epochs = {}
-        for sub, sessions in self._baseRaw.copy().items():
+        for sub, sessions in self._base_raw.copy().items():
             loger.info(f'Create sub{sub} Epochs ...')
-
-            epochsSesOne, epochsSesTwo = [], []
+            epochs_ses_one, epochs_ses_two = [], []
             for session, runs in sessions.items():
-
                 for raw in runs.values():
 
                     events = mne.find_events(raw, 'stim')
                     events[:, -1] -= 1
-                    epochs = mne.Epochs(raw, events, self._eventId, tmin, tmax,
-                                        baseline, picks, preload=True, **epoArgs)
+                    epochs = mne.Epochs(raw, events, self._event_id, tmin, 
+                                        tmax, baseline, picks, preload=True)
                     epochs.drop_channels(['stim', 'EOG1', 'EOG2', 'EOG3'])
 
                     if session == 'session_T':
-                        epochsSesOne.append(epochs)
+                        epochs_ses_one.append(epochs)
                     else:
-                        epochsSesTwo.append(epochs)
+                        epochs_ses_two.append(epochs)
 
-            if mode == 0:
-                self._epochs[sub] = mne.concatenate_epochs(epochsSesOne)
-            elif mode == 1:
+            if mode == 'single_ses':
+                self._epochs[sub] = mne.concatenate_epochs(epochs_ses_one)
+            elif mode == 'cross_ses':
                 self._epochs[sub] = {}
-                self._epochs[sub]['train'] = mne.concatenate_epochs(epochsSesOne)
-                self._epochs[sub]['test'] = mne.concatenate_epochs(epochsSesTwo)
-            elif mode == 2:
-                self._epochs[sub] = mne.concatenate_epochs(epochsSesOne + epochsSesTwo)
+                self._epochs[sub]['train'] = mne.concatenate_epochs(epochs_ses_one)
+                self._epochs[sub]['test'] = mne.concatenate_epochs(epochs_ses_two)
+            elif mode == 'mixed_ses':
+                self._epochs[sub] = mne.concatenate_epochs(
+                    epochs_ses_one + epochs_ses_two
+                )
             else:
-                raise ValueError(f'Mode can only be 0, 1 and 2, but got {mode}.')
+                raise ValueError(f'Mode does not support {mode}.')
 
-        split = True if mode == 1 else False
+        split = True if mode == 'cross_ses' else False
         self.load_data(split)
+
+
+class BCICIV2B(EEGDataset):
+    '''BCI Competition IV Data sets 2b.
+    channels=3; subjects=1-9; tasks={0:left hand, 1:right hand}; duration=4s; 
+    freq=250Hz; sessions=5.
+    '''
+    @verbose
+    def __init__(
+        self,
+        subjects : Optional[List[int]] = None,
+        tmin : float = 0,
+        tmax : float = 4,
+        preprocess : Optional[Preprocess] = None,
+        transforms : Optional[Transforms] = None,
+        test_size : float = .25,
+        mode : Literal['cross_ses', 'mixed_ses'] = 'cross_ses',
+        test_sessions : Optional[List[int]] = None,
+        picks : Optional[List[str]] = None,
+        baseline = None,
+        seed : int = DPEEG_SEED,
+        verbose : Optional[str] = None,
+    ) -> None:
+        '''BCI Competition IV Data sets 2b.
+
+        Parameters
+        ----------
+        subjects : list of int, optional
+            List of subject number. If None, all subjects will be loaded. 
+            Default is None.
+        tmin, tmax : float
+            Start and end time of the epochs in seconds, relative to the time-
+            locked event. The closest or matching samples corresponding to the
+            start and end time are included. Default is start and end time of 
+            epochs, respectively.
+        picks : list of str, optional
+            Channels to include. If None, pick all channels. Default is None.
+        preprocess : Preprocess, optional
+            Apply preprocessing on epochs. Default is None.
+        transforms : Transforms, optional
+            Apply pre-transforms on dataset. Default is None.
+        mode : str, optional
+            If mode = 'cross_ses', training data and test data will use differ-
+            ent sessions respectively. At this time, you need to specify `test_
+            ses` to select which sessions are used as the test set. If mode = 
+            'mixed_ses', training data and test data will use all sessions.
+            Default is 'cross_ses'.
+        test_sessions : list, optional
+            Specify the selected session as the test set. Default is None.
+        test_size : float
+            Split the training set and test set proportions. If the dataset is
+            already split, it will be ignored. Default is 0.25.
+        seed : int
+            Random seed when splitting. Default is DPEEG_SEED.
+        '''
+        super().__init__(preprocess, transforms, test_size, seed, verbose)
+        loger.info('Reading BCICIV 2B Dataset ...')
+
+        self._repr = get_init_args(BCICIV2B, locals())
+
+        from moabb.datasets import BNCI2014004
+        dataset = BNCI2014004()
+        tmin, tmax, baseline = \
+            self.process_interval(tmin, tmax, dataset.interval, baseline)
+        self._base_raw = dataset.get_data(subjects)
+        self._event_id ={'left_hand': 0, 'right_hand': 1}
+
+        test_ses = None
+        if test_sessions:
+            test_ses = [f'session_{ses}' for ses in test_sessions]
+
+        self._epochs = {}
+        for sub, sessions in self._base_raw.copy().items():
+            loger.info(f'Create sub{sub} Epochs ...')
+            epochs_ses_train, epochs_ses_test = [], []
+            for session, runs in sessions.items():
+                for run, raw in runs.items():
+
+                    events = mne.find_events(raw)
+                    events[:, -1] -= 1
+
+                    epochs = mne.Epochs(raw, events, self._event_id, tmin, 
+                                        tmax, baseline, picks, preload=True)
+                    epochs.drop_channels(['stim', 'EOG1', 'EOG2', 'EOG3'])
+                    print(f'sub{sub}-{session}-{run}: {len(events)}')
+
+                    if mode == 'cross_ses':
+                        assert test_ses, 'In cross_ses mode, test_sessions cannot be None.'
+                        if session in test_ses:
+                            epochs_ses_test.append(epochs)
+                        else:
+                            epochs_ses_train.append(epochs)
+
+            if mode == 'cross_ses':
+                self._epochs[sub] = {
+                    'train': mne.concatenate_epochs(epochs_ses_train),
+                    'test': mne.concatenate_epochs(epochs_ses_test)
+                }
+            elif mode == 'mixed_ses':
+                self._epochs[sub] = mne.concatenate_epochs(
+                    epochs_ses_test + epochs_ses_train
+                )
+            else:
+                raise ValueError(f'Mode does not support {mode}.')
+
+        split = True if mode == 'cross_ses' else False
+        self.load_data(split=split)
 
 
 class HGD(EEGDataset):
@@ -487,12 +592,11 @@ class HGD(EEGDataset):
       tmax : float = 4,
       preprocess : Optional[Preprocess] = None,
       transforms : Optional[Transforms] = None,
-      testSize : float = .25,
+      test_size : float = .25,
       picks : Optional[List[str]] = None,
       baseline = None,
       seed : int = DPEEG_SEED,
       verbose : Optional[str] = None,
-      **epoArgs,
     ) -> None:
         '''High Gamma Dataset.
 
@@ -512,13 +616,13 @@ class HGD(EEGDataset):
             Apply preprocessing on epochs. Default is None.
         transforms : Transforms, optional
             Apply pre-transforms on dataset. Default is None.
-        testSize : float
+        test_size : float
             Split the training set and test set proportions. If the dataset is
             already split, it will be ignored. Default is 0.25.
         seed : int
             Random seed when splitting. Default is DPEEG_SEED.
         '''
-        super().__init__(preprocess, transforms, testSize, seed, verbose)
+        super().__init__(preprocess, transforms, test_size, seed, verbose)
         loger.info('Reading High Gamma Dataset ...')
 
         self._repr = get_init_args(HGD, locals())
@@ -527,8 +631,8 @@ class HGD(EEGDataset):
         dataset = Schirrmeister2017()
         tmin, tmax, baseline = \
             self.process_interval(tmin, tmax, dataset.interval, baseline)
-        self._baseRaw = dataset.get_data(subjects)
-        self._eventId = {
+        self._base_raw = dataset.get_data(subjects)
+        self._event_id = {
             'feet': 0, 
             'left_hand': 1, 
             'rest': 2, 
@@ -536,14 +640,14 @@ class HGD(EEGDataset):
         }
 
         self._epochs = {}
-        for sub, sess in self._baseRaw.items():
+        for sub, sess in self._base_raw.items():
             loger.info(f'Create sub{sub} Epochs ...')
             for mode, run in sess['session_0'].items():
                 events, _ = mne.events_from_annotations(run)
                 # update events
                 events[:, -1] -= 1
-                epochs = mne.Epochs(run, events, self._eventId, tmin, tmax,
-                                    baseline, picks, preload=True, **epoArgs)
+                epochs = mne.Epochs(run, events, self._event_id, tmin, tmax,
+                                    baseline, picks, preload=True)
                 self._epochs.setdefault(sub, {})[mode] = epochs
 
         self.load_data(split=True)

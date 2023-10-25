@@ -15,7 +15,7 @@
 import abc
 import numpy as np
 import pandas as pd
-from typing import Optional, Callable, Union, List
+from typing import Optional, Callable, List
 
 from ..utils import loger, verbose, DPEEG_SEED, unpacked, get_init_args
 from ..tools.logger import _Level
@@ -115,7 +115,7 @@ class SplitTrainTest(Transforms):
     '''
     def __init__(
         self, 
-        testSize : float = .25, 
+        test_size : float = .25, 
         seed : int = DPEEG_SEED, 
         sample : Optional[List[int]] = None,
     ) -> None:
@@ -123,18 +123,18 @@ class SplitTrainTest(Transforms):
 
         Parameters
         ----------
-        testSize : float
+        test_size : float
             The proportion of the test set. Default is 0.25. If index is not 
-            None, testSize will be ignored. Default use stratified fashion and 
+            None, test_size will be ignored. Default use stratified fashion and 
             the last arr serves as the class labels.
         seed : int
             Random seed when splitting. Default is DPEEG_SEED.
         sample : list of int, optional
             A list of integers, the entries indicate which data were selected
-            as the test set. If None, testSize will be used. Default is None.
+            as the test set. If None, test_size will be used. Default is None.
         '''
         super().__init__()
-        self.testSize = testSize
+        self.test_size = test_size
         self.seed = seed
         self.sample = sample
 
@@ -143,7 +143,7 @@ class SplitTrainTest(Transforms):
         loger.info(f'[{self} starting] ...')
         for sub, data in input.items():
             trainX, testX, trainy, testy = split_train_test(
-                data[0], data[1], testSize=self.testSize, seed=self.seed,
+                data[0], data[1], test_size=self.test_size, seed=self.seed,
                 sample=self.sample, verbose=verbose
             )
             input[sub] = {}
@@ -156,7 +156,7 @@ class SplitTrainTest(Transforms):
         if self.sample:
             s += 'sample'
         else:
-            s += f'testSize={self.testSize}'
+            s += f'test_size={self.test_size}'
             if self.seed:
                 s += f', seed={self.seed}'
         return s + ')'
@@ -183,7 +183,7 @@ class Normalization(Transforms):
     def __init__(
         self, 
         mode : str = 'z-score', 
-        factorNew : float = 1e-3,
+        factor_new : float = 1e-3,
         verbose : _Level = None
     ) -> None:
         '''Normalize data in the given way in the given dimension.
@@ -213,7 +213,7 @@ class Normalization(Transforms):
 
             Default is z-score.
             
-        factorNew : float
+        factor_new : float
             Smoothing factor of exponential moving standardize. Default is 1e-3.
 
         Notes
@@ -221,15 +221,15 @@ class Normalization(Transforms):
         heavy development
         '''
         super().__init__()
-        self.modeList = ['z-score', 'ems', 'ea']
+        self.mode_list = ['z-score', 'ems', 'ea']
         self.mode = mode
-        self.factorNew = factorNew
+        self.factor_new = factor_new
 
     @verbose
     def __call__(self, input : dict, verbose : _Level = None) -> dict:
-        if self.mode not in self.modeList:
+        if self.mode not in self.mode_list:
             raise ValueError('Only the following normalization methods are '+
-                             f'supported: {self.modeList}')
+                             f'supported: {self.mode_list}')
 
         loger.info(f'[{self} starting] ...')
         R = np.empty(0)
@@ -256,12 +256,12 @@ class Normalization(Transforms):
             # BUG
             elif self.mode == 'ems':
                 df = pd.DataFrame(sub['train'][0].T)
-                meaned = df.ewm(alpha=self.factorNew).mean()
+                meaned = df.ewm(alpha=self.factor_new).mean()
                 for mode in ['train', 'test']:
                     df = pd.DataFrame(sub[mode][0].T)
                     demeaned = df - meaned
                     squared = demeaned * demeaned
-                    squareEwmed = squared.ewm(alpha=self.factorNew).mean()
+                    squareEwmed = squared.ewm(alpha=self.factor_new).mean()
                     standardized = demeaned / np.sqrt(np.array(squareEwmed))
                     standardized = np.array(standardized)
                     sub[mode][0] = standardized.T
@@ -276,7 +276,7 @@ class Normalization(Transforms):
     def __repr__(self) -> str:
         s = f'Normalization(mode={self.mode}'
         if self.mode == 'ems':
-            s += f', factorNew={self.factorNew})'
+            s += f', factor_new={self.factor_new})'
         return s + ')'
 
 
@@ -358,7 +358,7 @@ class Augmentation(Transforms):
     def __init__(
         self,
         method : str,
-        onlyTrain : bool = True,
+        only_train : bool = True,
         **kwargs
     ) -> None:
         '''This transform is mainly used for data augmentation of the data set.
@@ -367,7 +367,7 @@ class Augmentation(Transforms):
         ----------
         method : str
             Specified data augmentation method.
-        onlyTrain : bool
+        only_train : bool
             If True, data augmentation is performed only on the training set.
         kwargs : dict
             Parameters of the corresponding augmentation method.
@@ -380,7 +380,7 @@ class Augmentation(Transforms):
         super().__init__()
         self._repr = get_init_args(Augmentation, locals(), 'runtime')
         self.aug = getattr(F, method)
-        self.onlyTrain = onlyTrain
+        self.only_train = only_train
         self.kwargs = kwargs
 
     @verbose
@@ -388,7 +388,7 @@ class Augmentation(Transforms):
         loger.info(f'[{self} starting] ...')
         for sub in input.values():
             for mode in ['train', 'test']:
-                if mode == 'test' and self.onlyTrain:
+                if mode == 'test' and self.only_train:
                     continue
                 sub[mode] = list(self.aug(*sub[mode], **self.kwargs))
         return input

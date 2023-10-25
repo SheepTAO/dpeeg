@@ -23,7 +23,7 @@ from ..tools.logger import _Level
 @verbose
 def split_train_test(
     *arrs, 
-    testSize : float = .25, 
+    test_size : float = .25, 
     seed : int = DPEEG_SEED, 
     sample : Optional[List[int]] = None, 
     verbose : _Level = None
@@ -35,27 +35,27 @@ def split_train_test(
     ----------
     *arrs : sequence of indexables with same length / shape[0]
         Allowed inputs are lists and numpy arrays.
-    testSize : float
+    test_size : float
         The proportion of the test set. Default is 0.25. If index is not None,
-        testSize will be ignored. Default use stratified fashion and the last
+        test_size will be ignored. Default use stratified fashion and the last
         arr serves as the class labels.
     seed : int
         Random seed when splitting. Default is DPEEG_SEED.
     sample : list of int, optional
         A list of integers, the entries indicate which data were selected
-        as the test set. If None, testSize will be used. Default is None.
+        as the test set. If None, test_size will be used. Default is None.
 
     Returns
     -------
     splitting : list, length=2 * len(arrays)
         List containing train-test split of inputs.
     '''
-    nArrs = len(arrs)
-    if nArrs == 0:
+    num_arrs = len(arrs)
+    if num_arrs == 0:
         raise ValueError('At least one array required as input.')
 
-    arrList = [np.array(arr) for arr in arrs]
-    lengths = [len(arr) for arr in arrList]
+    arr_list = [np.array(arr) for arr in arrs]
+    lengths = [len(arr) for arr in arr_list]
     uniques = np.unique(lengths)
     if len(uniques) > 1:
         raise ValueError(
@@ -78,13 +78,15 @@ def split_train_test(
 
         testSample, trainSample = smparr, np.setdiff1d(np.arange(length), smparr)
         res = []
-        for arr in arrList:
+        for arr in arr_list:
             res.extend([arr[trainSample], arr[testSample]])
         return res
     else:
         from sklearn.model_selection import train_test_split
-        return train_test_split(*arrList, test_size=testSize, random_state=seed,
-                                stratify=arrList[-1])
+        return train_test_split(
+            *arr_list, test_size=test_size, random_state=seed, 
+            stratify=arr_list[-1]
+        )
 
 
 @verbose
@@ -154,17 +156,17 @@ def slide_win(
             return data, label
         return data, None
 
-    sldNum = 0
-    dataList = []
+    sld_num = 0
+    data_list = []
     while end <= times:
-        dataList.append(data[..., end-win:end])
+        data_list.append(data[..., end-win:end])
         loger.info(f' Intercept data from {end-win} to {end}.')
-        sldNum += 1
+        sld_num += 1
         end += win - overlap
 
-    data = np.concatenate(dataList)
+    data = np.concatenate(data_list)
     if isinstance(label, ndarray):
-        label = np.repeat(label, sldNum)
+        label = np.repeat(label, sld_num)
         return data, label
     return data, None
 
@@ -204,7 +206,7 @@ def segmentation_and_reconstruction(
 
     References
     ----------
-    [1] F. Lotte, “Signal Processing Approaches to Minimize or Suppress 
+    F. Lotte, “Signal Processing Approaches to Minimize or Suppress 
     Calibration Time in Oscillatory Activity-Based Brain–Computer Interfaces,
     ” Proc. IEEE, vol. 103, no. 6, pp. 871–890, Jun. 2015, 
     doi: 10.1109/JPROC.2015.2404941.
@@ -217,32 +219,32 @@ def segmentation_and_reconstruction(
                          f'a multiple of n={n}.')
 
     win = data.shape[-1] // n
-    augData, augLabel = [], []
+    aug_data, aug_label = [], []
 
     for lb in np.unique(label):
         idx = np.where(label == lb)
-        tmpData, tmpLabel = data[idx], label[idx]
-        m = tmpData.shape[0] * multiply
+        tmp_data, tmp_label = data[idx], label[idx]
+        m = tmp_data.shape[0] * multiply
 
-        tmpAugData = np.empty((m, *data.shape[1:]))
+        tmp_aug_data = np.empty((m, *data.shape[1:]))
         for i in range(m):
             for j in range(n):
-                randIdx = np.random.randint(0, tmpData.shape[0], n)
-                tmpAugData[i, ..., j * win : (j + 1) * win] = \
-                    tmpData[randIdx[j] , ..., j * win : (j + 1) * win]
+                randIdx = np.random.randint(0, tmp_data.shape[0], n)
+                tmp_aug_data[i, ..., j * win : (j + 1) * win] = \
+                    tmp_data[randIdx[j] , ..., j * win : (j + 1) * win]
 
-        augData.append(tmpAugData)
-        augLabel.append(np.repeat(lb, m))
-        augData.append(tmpData)
-        augLabel.append(tmpLabel)
+        aug_data.append(tmp_aug_data)
+        aug_label.append(np.repeat(lb, m))
+        aug_data.append(tmp_data)
+        aug_label.append(tmp_label)
 
-    augData = np.concatenate(augData)
-    augLabel = np.concatenate(augLabel)
-    shuffle = np.random.permutation(augData.shape[0])
-    augData = augData[shuffle]
-    augLabel = augLabel[shuffle]
+    aug_data = np.concatenate(aug_data)
+    aug_label = np.concatenate(aug_label)
+    shuffle = np.random.permutation(aug_data.shape[0])
+    aug_data = aug_data[shuffle]
+    aug_label = aug_label[shuffle]
 
-    return augData, augLabel
+    return aug_data, aug_label
 
 
 @verbose
@@ -269,9 +271,9 @@ def save(
     for sub, data in input.items():
         loger.info(f'Save transformed data of sub_{sub}.')
         for mode in ['train', 'test']:
-            fileName = os.path.join(folder, f'{sub}_{mode}')
-            np.save(fileName + '_data', data[mode][0])
-            np.save(fileName + '_label', data[mode][1])
+            file_name = os.path.join(folder, f'{sub}_{mode}')
+            np.save(file_name + '_data', data[mode][0])
+            np.save(file_name + '_label', data[mode][1])
 
 
 @verbose
@@ -296,30 +298,30 @@ def load(
     path = os.path.abspath(folder)
     loger.info(f'Loading dataset from \'{path}\'')
 
-    pathList = os.listdir(path)
-    subList = list(set([int(p.split('_')[0]) for p in pathList]))
-    subList.sort()
+    path_list = os.listdir(path)
+    sub_list = list(set([int(p.split('_')[0]) for p in path_list]))
+    sub_list.sort()
     if subjects:
-        intersection = set(subjects) & set(subList)
-        exclude = set(subjects) - set(subList)
+        intersection = set(subjects) & set(sub_list)
+        exclude = set(subjects) - set(sub_list)
         if exclude:
             loger.warning(f'Could not find subjects: {exclude}, ' +
                           f'only load subjects: {intersection}')
-        subList = list(intersection)
+        sub_list = list(intersection)
 
     dataset = {}
-    for sub in subList:
+    for sub in sub_list:
         loger.info(f'Loading subject {sub}')
-        fileName = os.path.join(path, str(sub))
+        file_name = os.path.join(path, str(sub))
 
         if mode.lower() == 'train' or mode.lower() == 'all':
-            data = np.load(fileName + '_train_data.npy', allow_pickle=True)
-            label = np.load(fileName + '_train_label.npy', allow_pickle=True)
+            data = np.load(file_name + '_train_data.npy', allow_pickle=True)
+            label = np.load(file_name + '_train_label.npy', allow_pickle=True)
             dataset.setdefault(sub, {})['train'] = [data, label]
 
         if mode.lower() == 'test' or mode.lower() == 'all':
-            data = np.load(fileName + '_test_data.npy', allow_pickle=True)
-            label = np.load(fileName + '_test_label.npy', allow_pickle=True)
+            data = np.load(file_name + '_test_data.npy', allow_pickle=True)
+            label = np.load(file_name + '_test_label.npy', allow_pickle=True)
             dataset.setdefault(sub, {})['test'] = [data, label]
 
         if mode not in ['train', 'test', 'all']:

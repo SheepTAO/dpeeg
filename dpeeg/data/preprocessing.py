@@ -84,7 +84,7 @@ class Filter(Preprocess):
         self, 
         lfreq : Optional[float] = None,
         hfreq : Optional[float] = None,
-        **mneFilterKwargs,
+        **mne_filter_kwargs,
     ) -> None:
         '''Applies filter to the signals in epochs. The epoch will be modified 
         in-place.
@@ -97,27 +97,29 @@ class Filter(Preprocess):
         hfreq : float, optional
             For FIR filters, the upper pass-band edge; for IIR filters, the up-
             per cutoff frequency. If None the data are only high-passed.
-        mneFilterKwargs : dict
+        mne_filter_kwargs : dict
             Keyword arguments for filtering supported by `mne.io.Epochs.filter`
             Please refer to mne for a detailed explanation.
         '''
         self.lfreq = lfreq
         self.hfreq = hfreq
-        self.mneFilterKwargs = mneFilterKwargs
+        self.mne_filter_kwargs = mne_filter_kwargs
 
     def __call__(self, input: dict) -> dict:
         for sub in input.values():
             if isinstance(sub, dict):
                 for epoch in sub.values():
-                    epoch.filter(self.lfreq, self.hfreq, **self.mneFilterKwargs)
+                    epoch.filter(
+                        self.lfreq, self.hfreq, **self.mne_filter_kwargs
+                    )
             else:
-                sub.filter(self.lfreq, self.hfreq, **self.mneFilterKwargs)
+                sub.filter(self.lfreq, self.hfreq, **self.mne_filter_kwargs)
         return input
 
     def __repr__(self) -> str:
         s = f'Filter(lFreq={self.lfreq}, hFreq={self.hfreq}'
-        if self.mneFilterKwargs:
-            s += f', {dict_to_str(self.mneFilterKwargs)}'
+        if self.mne_filter_kwargs:
+            s += f', {dict_to_str(self.mne_filter_kwargs)}'
         return s + ')'
 
 
@@ -125,7 +127,7 @@ class Resample(Preprocess):
     def __init__(
         self,
         sfreq : float,
-        **mneResampleKwargs 
+        **mne_resample_kwargs 
     ) -> None:
         '''Resample data in epochs. The epoch will be modified in-place.
 
@@ -133,24 +135,24 @@ class Resample(Preprocess):
         ----------
         sfreq : float
             New sample rate to use.
-        mneResampleKwargs : dict
+        mne_resample_kwargs : dict
             Keyword arguments for resample supported by `mne.io.Epochs.resample`
             Please refer to mne for a detailed explanation.
         '''
         self.sfreq = sfreq
-        self.mneResampleKwargs = mneResampleKwargs
+        self.mne_resample_kwargs = mne_resample_kwargs
 
     def __call__(self, input: dict) -> dict:
         for sub in input.values():
             if isinstance(sub, dict):
                 for epoch in sub.values():
-                    epoch.resample(self.sfreq, **self.mneResampleKwargs)
+                    epoch.resample(self.sfreq, **self.mne_resample_kwargs)
             else:
-                sub.resample(self.sfreq, **self.mneResampleKwargs)
+                sub.resample(self.sfreq, **self.mne_resample_kwargs)
         return input
 
     def __repr__(self) -> str:
         s = f'Resample(sfreq={self.sfreq}'
-        if self.mneResampleKwargs:
-            s += f', {dict_to_str(self.mneResampleKwargs)}'
+        if self.mne_resample_kwargs:
+            s += f', {dict_to_str(self.mne_resample_kwargs)}'
         return s + ')'

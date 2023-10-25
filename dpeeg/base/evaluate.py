@@ -20,8 +20,8 @@ from torchmetrics.functional.classification.confusion_matrix import confusion_ma
 def save_cm_img(
     preds : Tensor,
     target : Tensor,
-    clsName : Union[list, tuple],
-    figPath : str,
+    cls_name : Union[list, tuple],
+    fig_path : str,
 ) -> None:
     '''Calculate and save the corresponding confusion matrix figure to the given
     img path.
@@ -32,17 +32,17 @@ def save_cm_img(
         Predicted labels, as returned by a classifier.
     target : Tensor
         Ground truth (correct) labels.
-    clsName : list, tuple
+    cls_name : list, tuple
         The name of dataset labels.
-    figPath : str
+    fig_path : str
         Path to store the figure.
     '''
-    cm = confusion_matrix(preds, target, 'multiclass', num_classes=len(clsName))
+    cm = confusion_matrix(preds, target, 'multiclass', num_classes=len(cls_name))
     ax = sns.heatmap(cm / cm.sum(1, keepdim=True), annot=True, cmap='Blues',
-                      xticklabels=clsName, yticklabels=clsName) # type: ignore
+                      xticklabels=cls_name, yticklabels=cls_name) # type: ignore
     ax.set_ylabel('Actual')
     ax.set_xlabel('Predicted')
-    plt.savefig(figPath)
+    plt.savefig(fig_path)
     # !!! Clear the current Axes
     plt.clf()
 

@@ -12,7 +12,12 @@ import csv
 
 
 class Filer:
-    def __init__(self, path : str, mode : str = 'a', exist_ok : bool = False) -> None:
+    def __init__(
+        self, 
+        path : str, 
+        mode : str = 'a', 
+        exist_ok : bool = False
+    ) -> None:
         '''A simple file handler to write in realtime.
 
         Parameters

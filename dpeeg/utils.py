@@ -64,7 +64,7 @@ def verbose(func : _FuncT) -> _FuncT:
 
 def set_log_level(
     verbose : Union[int, str] = DPEEG_LOGER_LEVEL,
-    retOldLevel : bool = False
+    ret_old_level : bool = False
 ) -> Union[None, str]:
     '''Set the global logging level.
     
@@ -75,19 +75,19 @@ def set_log_level(
         INFO, WARNING, ERROR, or CRITICAL. Note that these are for convenience
         and are equivalent to passing in logging.DEBUG, etc. If None, the 
         environment variable `DPEEG_LOGER_LEVEL` is read, defaults to INFO.
-    retOldLevel : bool, optional
+    ret_old_level : bool, optional
         If True, return the old verbosity level. Default is False.
 
     Returns
     -------
     oldLevel : str, None
-        The old level. Only returned if `retOldLevel` is True.
+        The old level. Only returned if `ret_old_level` is True.
     '''
     global DPEEG_LOGER_LEVEL
     oldLevel = loger.get_sh_level()
     DPEEG_LOGER_LEVEL = verbose
     mne.set_log_level(verbose)
-    if retOldLevel:
+    if ret_old_level:
         return oldLevel
 
 
@@ -120,7 +120,7 @@ def _set_torch_seed(seed : int) -> None:
 
 def set_seed(
     seed : int = DPEEG_SEED, 
-    retOldSeed : bool = False
+    ret_old_seed : bool = False
 ) -> Union[None, int]:
     '''Set the seed for random, numpy and PyTorch.
 
@@ -129,19 +129,19 @@ def set_seed(
     seed : int, optional
         The random seed to use. If None, the environment variable `DPEEG_SEED` 
         is read, defaults to 42.
-    retOldSeed : bool, optional
+    ret_old_seed : bool, optional
         If True, return the old seed. Default is False.
 
     Returns
     -------
-    The old seed. Only returned if `retOldSeed` is True.
+    The old seed. Only returned if `ret_old_seed` is True.
     '''
     global DPEEG_SEED
     oldSeed = DPEEG_SEED
     DPEEG_SEED = seed
     _set_random_seed(seed)
     _set_torch_seed(seed)
-    if retOldSeed:
+    if ret_old_seed:
         return oldSeed
 
 
@@ -167,7 +167,7 @@ def dict_to_str(kwargs : dict, symbol : str = ', ') -> str:
     return symbol.join(s)
 
 
-def align_text(prefix : str, text : str, onlyHead : bool = True) -> str:
+def align_text(prefix : str, text : str, only_head : bool = True) -> str:
     '''Aligns text, adding a specified prefix to the beginning of line.
 
     Parameters
@@ -176,7 +176,7 @@ def align_text(prefix : str, text : str, onlyHead : bool = True) -> str:
         The prefix to be added at the beginning of line.
     text : str
         The text to be aligned, including multiple lines.
-    onlyHead : bool
+    only_head : bool
         If false, prefix will be prepended to each line. Otherwise, spaces with
         a length of prefix will be added to other lines except the first line.
 
@@ -185,9 +185,9 @@ def align_text(prefix : str, text : str, onlyHead : bool = True) -> str:
     str: The aligned text.
     '''
     lines = text.splitlines()
-    alignedLines = [f'{prefix}{line}' if i == 0 and onlyHead else 
+    aligned_lines = [f'{prefix}{line}' if i == 0 and only_head else 
                 f'{" " * len(prefix)}{line}' for i, line in enumerate(lines)]
-    return '\n'.join(alignedLines)
+    return '\n'.join(aligned_lines)
 
 
 def get_init_args(
