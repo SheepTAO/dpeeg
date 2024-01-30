@@ -3,40 +3,14 @@ References
 ----------
 R. T. Schirrmeister et al., “Deep learning with convolutional neural networks 
 for EEG decoding and visualization,” Human Brain Mapping, vol. 38, no. 11, pp.
-5391–5420, 2017, doi: 10.1002/hbm.23730.
+5391-5420, 2017, doi: 10.1002/hbm.23730.
 '''
 
 
 import torch
 import torch.nn as nn
 
-
-class Conv2dWithNorm(nn.Conv2d):
-    def __init__(self, *args, do_weight_norm=True, max_norm=1., **kwargs):
-        super().__init__(*args, **kwargs)
-        self.max_norm = max_norm
-        self.do_weight_norm = do_weight_norm
-
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        if self.do_weight_norm:
-            self.weight.data = torch.renorm(
-                self.weight.data, 2, 0, self.max_norm
-            )
-        return super().forward(input)
-
-
-class LinearWithNorm(nn.Linear):
-    def __init__(self, *args, do_weight_norm=True, max_norm=1., **kwargs):
-        super().__init__(*args, **kwargs)
-        self.max_norm = max_norm
-        self.do_weight_norm = do_weight_norm
-
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        if self.do_weight_norm:
-            self.weight.data = torch.renorm(
-                self.weight.data, 2, 0, self.max_norm
-            )
-        return super().forward(input)
+from .utils import Conv2dWithNorm, LinearWithNorm
 
 
 class DeepConvNet(nn.Module):

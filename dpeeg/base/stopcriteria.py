@@ -44,6 +44,7 @@ class ComposeStopCriteria(Criteria):
         
         Returns
         -------
+        bool :
             Whether the stopping condition is reached.
         '''
         if isinstance(stopcri, str):
@@ -162,7 +163,6 @@ class NoDecrease(Criteria):
             Key name to compare with in the variables dictionary.
         min_change : float
             Minimum relative decrease which resets the num_epochs. 
-            Default is 1e-6.
         '''
         self.num_epochs = num_epochs
         self.var_name = var_name
@@ -171,7 +171,10 @@ class NoDecrease(Criteria):
         self.current_epoch = 0
 
     def __call__(self, variables : dict) -> bool:
-        if variables[self.var_name] <= (1 - self.min_change) * self.min_value:
+        var = variables[self.var_name]
+        devar = (1 - self.min_change) * self.min_value if self.min_value > 0 \
+            else (1 + self.min_change) * self.min_value
+        if var <= devar and var != 0:
             self.min_value= variables[self.var_name]
             self.current_epoch = 1
         else:

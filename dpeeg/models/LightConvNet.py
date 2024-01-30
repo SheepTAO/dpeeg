@@ -81,8 +81,8 @@ class LightweightConv1d(nn.Module):
 
 
 class LightConvNet(nn.Module):
-    def __init__(self, nCh=22, nTime=1000, cls=4, bands=9, embed_dim=32, 
-                 win_len=250, heads=4, weight_softmax=True, bias=False):
+    def __init__(self, nCh=22, nTime=1000, cls=4, bands=9, embed_dim=64, 
+                 win_len=250, heads=8, weight_softmax=True, bias=False):
         super().__init__()
 
         self.win_len = win_len
@@ -100,7 +100,10 @@ class LightConvNet(nn.Module):
             weight_softmax=weight_softmax, bias=bias
         )
 
-        self.classify = nn.Linear(embed_dim, cls)
+        self.classify = nn.Sequential(
+            nn.Linear(embed_dim, cls),
+            nn.LogSoftmax(dim=1)
+        )
 
     def forward(self, x):
         out = self.spacial_block(x)

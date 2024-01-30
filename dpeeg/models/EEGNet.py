@@ -12,38 +12,12 @@ J. Neural Eng., vol. 15, no. 5, p. 056013, Jul. 2018, doi: 10.1088/1741-2552/aac
 import torch
 import torch.nn as nn
 
-
-class Conv2dWithNorm(nn.Conv2d):
-    def __init__(self, *args, do_weight_norm=True, max_norm=1., **kwargs):
-        super().__init__(*args, **kwargs)
-        self.max_norm = max_norm
-        self.do_weight_norm = do_weight_norm
-
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        if self.do_weight_norm:
-            self.weight.data = torch.renorm(
-                self.weight.data, 2, 0, self.max_norm
-            )
-        return super().forward(input)
-
-
-class LinearWithNorm(nn.Linear):
-    def __init__(self, *args, do_weight_norm=True, max_norm=1., **kwargs):
-        super().__init__(*args, **kwargs)
-        self.max_norm = max_norm
-        self.do_weight_norm = do_weight_norm
-
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        if self.do_weight_norm:
-            self.weight.data = torch.renorm(
-                self.weight.data, 2, 0, self.max_norm
-            )
-        return super().forward(input)
+from .utils import Conv2dWithNorm, LinearWithNorm
 
 
 class EEGNet(nn.Module):
-    def __init__(self, nCh=22, nTime=1000, C1=125, F1=8, D=2, F2=16, C2=15, 
-                 P1=4, P2=8, p=0.25, cls=4) -> None:
+    def __init__(self, nCh=22, nTime=1000, C1=63, F1=8, D=2, F2=16, C2=15, 
+                 P1=8, P2=16, p=0.5, cls=4) -> None:
         super().__init__()
 
         self.filter = nn.Sequential(
@@ -70,6 +44,9 @@ class EEGNet(nn.Module):
 
         self.flatten = nn.Flatten()
         self.fc = nn.Sequential(
+            # Experimental results show that using linearwithnorm will lead to 
+            # performance degradation.
+            # LinearWithNorm(self.get_size(nCh, nTime), cls, bias=True, max_norm=0.25)
             nn.Linear(self.get_size(nCh, nTime), cls, bias=True),
             nn.LogSoftmax(dim=1)
         )

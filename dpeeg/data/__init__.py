@@ -6,10 +6,13 @@ from .datasets import (
 )
 from .functions import (
     split_train_test,
+    merge_train_test,
     to_tensor,
     slide_win,
+    segmentation_and_reconstruction,
     save,
     load,
+    cheby2_filter,
 )
 from .transforms import (
     Transforms,

@@ -1,9 +1,11 @@
 from .experiments import (
     KFold,
     Holdout,
+    LOSO_HO,
+    LOSO_CV,
 )
-from .classification import (
-    Train,
+from .classifier import (
+    TrainClassifier,
 )
 from .stopcriteria import (
     Criteria,

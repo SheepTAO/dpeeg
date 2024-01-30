@@ -35,16 +35,16 @@ class Logger:
         ----------
         loger : str
             Specify the logger name, creating it if necessary. If no name is specified, 
-            return the root logger. Default is dpeeg_root.
+            return the root logger.
         path : str, optional
-            The path of log file. Default is None.
+            The path of log file.
         mode : str
-            The write mode of the log file. Default is 'a'.
+            The write mode of the log file.
         clevel : int, str
-            The log level of console. Default is DEBUG.
+            The log level of console.
         flevel : int, str, optional
             The log level of filehandler. If it is None, the log file will not be written
-            and parameter path will be ignored. Default is None.
+            and parameter path will be ignored.
         '''
 
         self._logger = logging.getLogger(loger)

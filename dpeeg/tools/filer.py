@@ -27,7 +27,7 @@ class Filer:
         mode : str
             Mode of write.
         exist_ok : bool
-            Whether to allow files that already exist. Default is False.
+            Whether to allow files that already exist.
         '''
         self.path = path
         self.mode = mode

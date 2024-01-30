@@ -13,14 +13,17 @@ import torch
 import seaborn as sns
 import matplotlib.pyplot as plt
 from torch import Tensor
-from typing import Union
+from torch.nn import Module
+from torchinfo import summary
+from torch.utils.hooks import RemovableHandle
+from typing import Union, Optional, Dict, Tuple, List
 from torchmetrics.functional.classification.confusion_matrix import confusion_matrix
 
 
 def save_cm_img(
     preds : Tensor,
     target : Tensor,
-    cls_name : Union[list, tuple],
+    cls_name : Union[List, tuple],
     fig_path : str,
 ) -> None:
     '''Calculate and save the corresponding confusion matrix figure to the given
@@ -43,51 +46,206 @@ def save_cm_img(
     ax.set_ylabel('Actual')
     ax.set_xlabel('Predicted')
     plt.savefig(fig_path)
-    # !!! Clear the current Axes
-    plt.clf()
+    # # !!! Clear the current Axes
+    # plt.clf()
+    # Clear all
+    plt.close()
 
-def ttest_corrected(
-    score1 : Tensor,
-    score2 : Tensor,
-    n1 : int,
-    n2 : int,
-) -> None:
-    '''Corrected Paired t test for comparing the performance of two models.
+
+def model_predict(
+    model : Module, 
+    data : Tensor,
+    event_id : Optional[dict[str, int]] = None,
+    no_grad : bool = True,
+) -> Union[Tuple[Tensor, List[str]], Tuple[Tensor, None]]:
+    '''Compute model predictions.
 
     Parameters
     ----------
-    score1 : 1-D Tensor
-        Results of model A of shape (N, ).
-    score2 : 1-D Tensor
-        Results of model B of shape (N, ).
-    n1 : int
-        The number of data points used for training.
-    n2 : int
-        The number of data points used for testing.
-    
+    model : Module
+        Inherit Module and should define the forward method. The first 
+        parameter returned by model forward propagation is the prediction.
+    data : Tensor (N, ...)
+        Data to be predicted.
+    event_id : dict, optional
+        A dictionary containing label and corresponding id.
+    no_grad : bool
+        Whether to turn off autograd calculation graph recording.
+
     Returns
     -------
-    t : float
-        The t-statistic.
-    pvalue : float
-        Two-tailed p-value. If the chosen significance level is larger than the
-        p-value, we reject the null hypothesis and accept that there are signi-
-        ficant differences in the two compared models.
-
-    Notes
-    -----
-    heavy development
+    preds : Tensor (N, ...)
+        Prediction corresponding to the input data.
+    labels : list of str
+        If event_id not None, corresponding predicted label will be returned.
     '''
-    if score1.dim() != 1:
-        raise ValueError('The input tensor dimension should be 1, but got '
-                         f'{score1.dim()} of score1.')
-    if score2.dim() != 1:
-        raise ValueError('The input tensor dimension should be 1, but got '
-                         f'{score2.dim()} of score2.')
+    model.eval()
+    if no_grad:
+        with torch.no_grad():
+            out = model(data)
+    else:
+        out = model(data)
 
-    diff = score1 - score2
-    dbar = torch.mean(diff)
-    sigma2 = torch.var(diff)
-    sigma2Mod = sigma2 * (1/(n1+n2) + (n2/n1))
+    out = out[0] if isinstance(out, tuple) else out
+    preds = torch.argmax(out, dim=1).detach()
 
-    tStatic = dbar / torch.sqrt(sigma2Mod)
+    if event_id:
+        reversed_event_id = {v : k for k, v in event_id.items()}
+        labels = [reversed_event_id[pred] for pred in preds.tolist()]
+        return preds, labels
+    else:
+        return preds, None
+
+
+def model_depth(model : Module) -> int:
+    '''Compute the maximum depth of the model.
+    '''
+    names = dict(model.named_modules()).keys()
+    name_depth = [len(name.split('.')) for name in names]
+    max_depth = max(name_depth)
+    return max_depth
+
+
+def model_summary(model : Module):
+    '''Output the model structure according to the model depth.
+
+    This function is usually used in conjunction with the `Activation` class. 
+    You can use this function to view the specific inter-layer relationships of
+    the model, and then obtain the corresponding middle layer name by adding '.'
+    to the inter-layer name as the names parameter of the Activation class.
+
+    Examples
+    --------
+    >>> class MyModel(nn.Module):
+    ...     def __init__(self) -> None:
+    ...         super().__init__()
+    ...         self.conv = nn.Sequential(
+    ...             nn.Conv2d(3, 10, 3),
+    ...             nn.Conv2d(10, 20, 4)
+    ...         )
+    ... 
+    ...     def forward(self, x):
+    ...         return self.conv(x)
+    ... 
+    >>> model = MyModel()
+    >>> print(model_summary(model))
+    MyModel (MyModel)                        --
+    ├─Sequential (conv)                      --
+    │    └─Conv2d (0)                        280
+    │    └─Conv2d (1)                        3,220
+
+    Then you can use `conv.0` and `conv.1` as the name of intermediate layer.
+    '''
+    s = summary(
+        model=model,
+        depth=model_depth(model),
+        row_settings=['var_names'],
+        verbose=0
+    )
+    return s
+
+
+class Activation:
+    def __init__(self, model : Module, names : List[str]) -> None:
+        '''Get model's intermediate result.
+
+        Allows the context manager to be used to obtain the forward propagation
+        output feature map of any intermediate layer of the model.
+
+        Parameters
+        ----------
+        model : Module
+            Obtain the intermediate layer output of the model.
+        names : list of str
+            A list of intermediate module names whose outputs will be obtained.
+            You can get all module names through `model.named_modules()` or 
+            `dpeeg.base.evaluate.model_summary`.
+
+        Examples
+        --------
+        >>> with Activation(net, ['conv.0', 'conv.1']) as act:
+        >>>     model_predict(net, data)
+        >>>     actmaps = act.get_actmaps()
+
+        you can also manually remove the handler registered on the model
+
+        >>> act = Activation(net, ['conv.0', 'conv.1'])
+        >>> model_predict(net, data)
+        >>> actmaps = act.get_actmaps()
+        >>> act.close()
+        '''        
+        self.names = names
+        self.handle : List[RemovableHandle] = list()
+        self.activation_maps  = dict()
+
+        for name in self.names:
+            module = model.get_submodule(name)
+            handle = module.register_forward_hook(self._hook_func(name))
+            self.handle.append(handle)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
+
+    def _hook_func(self, name):
+        def hook(model, input, output):
+            if isinstance(output, tuple):
+                actmaps = list()
+                for out in output:
+                    if isinstance(out, Tensor):
+                        actmaps.append(out.detach())
+                    else:
+                        actmaps.append(out)
+                actmap = tuple(actmaps)
+            elif isinstance(output, Tensor):
+                actmap = output.detach()
+            else:
+                raise TypeError(f'Unsupport type {type(output)} as output, in '
+                                f'{model._get_name()}.')
+            self.activation_maps[name] = actmap
+        return hook
+
+    def get_actmaps(self) -> Dict[str, Tensor]:
+        '''Get intermediate activation maps.
+
+        Returns
+        -------
+        dict
+            Returns the name of the intermediate layer and its corresponding
+            activation feature maps.
+        '''
+        return self.activation_maps
+
+    def close(self):
+        '''Remove the handler and clear the activation maps.
+        '''
+        for handle in self.handle:
+            handle.remove()
+        self.handle.clear()
+
+
+def get_data_by_label(data : Tensor, labels : Tensor, label : int) -> Tensor:
+    '''Index data based on specified label.
+
+    Parameters
+    ----------
+    data : Tensor (N, ...)
+        Input data.
+    labels : Tensor (N,)
+        Label table corresponding to the data.
+    label : int
+        The label to get.
+
+    Returns
+    -------
+    Tensor
+        All data for the specified label.
+    '''
+    if label not in labels:
+        raise ValueError(f'label {label} is not in the labels.')
+
+    indices = torch.where(labels == label)
+    return data[indices]

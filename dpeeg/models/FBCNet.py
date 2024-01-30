@@ -10,33 +10,7 @@ Available: https://arxiv.org/abs/2104.01233v1
 import torch
 from torch import nn
 
-
-class Conv2dWithNorm(nn.Conv2d):
-    def __init__(self, *args, do_weight_norm=True, max_norm=1., **kwargs):
-        super().__init__(*args, **kwargs)
-        self.max_norm = max_norm
-        self.do_weight_norm = do_weight_norm
-
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        if self.do_weight_norm:
-            self.weight.data = torch.renorm(
-                self.weight.data, 2, 0, self.max_norm
-            )
-        return super().forward(input)
-
-
-class LinearWithNorm(nn.Linear):
-    def __init__(self, *args, do_weight_norm=True, max_norm=1., **kwargs):
-        super().__init__(*args, **kwargs)
-        self.max_norm = max_norm
-        self.do_weight_norm = do_weight_norm
-
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        if self.do_weight_norm:
-            self.weight.data = torch.renorm(
-                self.weight.data, 2, 0, self.max_norm
-            )
-        return super().forward(input)
+from .utils import Conv2dWithNorm, LinearWithNorm
 
 
 class swish(nn.Module):

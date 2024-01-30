@@ -25,35 +25,36 @@ from .functions import (
     to_tensor,
     slide_win,
     save,
+    cheby2_filter,
 )
 
 
 class Transforms(abc.ABC):
+    def __init__(self) -> None:
+        self._repr = None
+    
     @abc.abstractmethod
     def __call__(self, input : dict, verbose : _Level = None) -> dict:
         pass
 
-    @abc.abstractmethod
     def __repr__(self) -> str:
-        pass
+        if self._repr:
+            return self._repr
+        else:
+            class_name = self.__class__.__name__
+            return f'{class_name} not implement attribute `self._repr`.'
 
 
 class ComposeTransforms(Transforms):
-    '''Composes several transforms together.
-    '''
-    def __init__(
-        self, 
-        *transforms : Transforms, 
-    ) -> None:
+    def __init__(self, *transforms : Transforms) -> None:
         '''Composes several transforms together. 
 
         The transforms in `ComposeTransforms` are connected in a cascading way.
 
         Parameters
         ----------
-        transforms : sequential container of Transforms
-            Transforms (sequential of `Transform` objects): sequential of tran-
-            sforms to compose. 
+        transforms : sequential container of `Transforms`
+            Sequential of transforms to compose. 
 
         Examples
         --------
@@ -111,8 +112,6 @@ class ComposeTransforms(Transforms):
 
 
 class SplitTrainTest(Transforms):
-    '''Split the dataset into training and testing sets.
-    '''
     def __init__(
         self, 
         test_size : float = .25, 
@@ -124,16 +123,17 @@ class SplitTrainTest(Transforms):
         Parameters
         ----------
         test_size : float
-            The proportion of the test set. Default is 0.25. If index is not 
-            None, test_size will be ignored. Default use stratified fashion and 
-            the last arr serves as the class labels.
+            The proportion of the test set. If index not None, test_size will 
+            be ignored. Default use stratified fashion and the last arr serves 
+            as the class labels.
         seed : int
-            Random seed when splitting. Default is DPEEG_SEED.
+            Random seed when splitting.
         sample : list of int, optional
-            A list of integers, the entries indicate which data were selected
-            as the test set. If None, test_size will be used. Default is None.
+            A list of integers, the entries indicate which data were selected 
+            as the test set. If None, test_size will be used.
         '''
         super().__init__()
+        self._repr = get_init_args(self, locals(), format='rp')
         self.test_size = test_size
         self.seed = seed
         self.sample = sample
@@ -150,16 +150,6 @@ class SplitTrainTest(Transforms):
             input[sub]['train'] = [trainX, trainy]
             input[sub]['test'] = [testX, testy]
         return input
-
-    def __repr__(self) -> str:
-        s = 'SplitDataset('
-        if self.sample:
-            s += 'sample'
-        else:
-            s += f'test_size={self.test_size}'
-            if self.seed:
-                s += f', seed={self.seed}'
-        return s + ')'
 
 
 class ToTensor(Transforms):
@@ -178,8 +168,6 @@ class ToTensor(Transforms):
 
 
 class Normalization(Transforms):
-    '''Normalize the data.
-    '''
     def __init__(
         self, 
         mode : str = 'z-score', 
@@ -194,9 +182,9 @@ class Normalization(Transforms):
             within subject:
             - `z-score`,
                 :math: $X_{i}=\\frac{X_{i}-mean(X_{i})}{std(X_{i})}$ where mean
-                represents the channel-wise average value and std represents
-                the channel-wise standard deviation value, calculated with the 
-                training data and used directly for the test data.
+                represents the channel-wise average value and std represents the 
+                channel-wise standard deviation value, calculated with the training
+                data and used directly for the test data.
             - `ems` (exponential moving standardize),
                 Compute the exponental moving mean :math: $m_t$ at time $t$ as
                 :math: $m_t=\\mathrm{factornew}\\cdot mean(x_t)+(1-\\mathrm{factornew})\\cdot m_{t-1}$.
@@ -207,20 +195,19 @@ class Normalization(Transforms):
             cross subject:
             - `ea` (euclidean-space alignment),
                 An unsupervised standardization of data transfer across subjects.
-                > H. He and D. Wu, 'Transfer Learning for Brain-Computer Interfaces: A Euclidean Space 
-                Data Alignment Approach', Ieee T Bio-med Eng, vol. 67, no. 2, pp. 399-410, Feb. 2020, 
-                doi: 10.1109/TBME.2019.2913914.
-
-            Default is z-score.
+                > H. He and D. Wu, 'Transfer Learning for Brain-Computer Interfaces:
+                A Euclidean Space Data Alignment Approach', Ieee T Bio-med Eng, vol. 
+                67, no. 2, pp. 399-410, Feb. 2020, doi: 10.1109/TBME.2019.2913914.
             
         factor_new : float
-            Smoothing factor of exponential moving standardize. Default is 1e-3.
+            Smoothing factor of exponential moving standardize.
 
         Notes
         -----
-        heavy development
+        heavy development.
         '''
         super().__init__()
+        self._repr = get_init_args(self, locals(), format='rp')
         self.mode_list = ['z-score', 'ems', 'ea']
         self.mode = mode
         self.factor_new = factor_new
@@ -273,22 +260,12 @@ class Normalization(Transforms):
                     sub[mode][0] = np.dot(sub[mode][0], R)
         return input
 
-    def __repr__(self) -> str:
-        s = f'Normalization(mode={self.mode}'
-        if self.mode == 'ems':
-            s += f', factor_new={self.factor_new})'
-        return s + ')'
-
 
 class SlideWin(Transforms):
-    '''Apply a sliding window to the dataset.
-    '''
-    def __init__(
-        self, 
-        win : int = 125, 
-        overlap : int = 0,
-    ) -> None:
-        '''This transform is only splits the time series (dim = -1) through the
+    def __init__(self, win : int, overlap : int = 0) -> None:
+        '''Apply a sliding window to the dataset.
+
+        This transform is only splits the time series (dim = -1) through the 
         sliding window operation on the original dataset. If the time axis is 
         not divisible by the sliding window, the last remaining time data will 
         be discarded.
@@ -298,9 +275,10 @@ class SlideWin(Transforms):
         win : int
             The size of the sliding window.
         overlap : int
-            The amount of overlap between adjacent sliding windows. Default is 0.
+            The amount of overlap between adjacent sliding windows.
         '''
         super().__init__()
+        self._repr = get_init_args(self, locals(), format='rp')
         self.win = win
         self.overlap = overlap
 
@@ -315,22 +293,12 @@ class SlideWin(Transforms):
                 )
         return input
 
-    def __repr__(self) -> str:
-        s = f'SlideWin(win={self.win}'
-        if self.overlap != 0:
-            s += f', overlap={self.overlap}'
-        return s + ')'
-
 
 class Unsqueeze(Transforms):
-    '''Insert a dimension on the data.
-    '''
-    def __init__(
-        self,
-        dim : int = 1,
-    ) -> None:
-        '''This transform is usually used to insert a feature dimension on EEG
-        data.
+    def __init__(self, dim : int = 1) -> None:
+        '''Insert a dimension on the data.
+
+        This transform is usually used to insert a empty dimension on EEG data.
 
         Parameters
         ----------
@@ -338,6 +306,7 @@ class Unsqueeze(Transforms):
             Position in the expanded dim where the new dim is placed.
         '''
         super().__init__()
+        self._repr = get_init_args(self, locals(), format='rp')
         self.dim = dim
 
     @verbose
@@ -348,20 +317,17 @@ class Unsqueeze(Transforms):
                 sub[mode][0] = np.expand_dims(sub[mode][0], self.dim)
         return input
 
-    def __repr__(self) -> str:
-        return f'Unsqueeze(dim={self.dim})'
-
 
 class Augmentation(Transforms):
-    '''Training set data augmentation.
-    '''
     def __init__(
         self,
         method : str,
         only_train : bool = True,
         **kwargs
     ) -> None:
-        '''This transform is mainly used for data augmentation of the data set.
+        '''Training set data augmentation.
+
+        This transform is mainly used for data augmentation of the data set.
 
         Parameters
         ----------
@@ -378,7 +344,7 @@ class Augmentation(Transforms):
             Get detailed data augmentation method parameters.
         '''
         super().__init__()
-        self._repr = get_init_args(Augmentation, locals(), 'runtime')
+        self._repr = get_init_args(self, locals(), format='rp')
         self.aug = getattr(F, method)
         self.only_train = only_train
         self.kwargs = kwargs
@@ -392,34 +358,108 @@ class Augmentation(Transforms):
                     continue
                 sub[mode] = list(self.aug(*sub[mode], **self.kwargs))
         return input
-        
-    def __repr__(self) -> str:
-        return self._repr
+
+
+class FilterBank(Transforms):
+    def __init__(
+        self,
+        freq : float,
+        filter_bank : list,
+        transition_bandwidth : float = 2.,
+        gstop : float = 30,
+        gpass : float = 3,
+    ) -> None:
+        '''Filter Bank.
+
+        EEG data will be filtered according to different filtering frequencies 
+        and finally concatenated together. eg.`(Batch, ...) -> (Batch, F, ...)`
+        if the number of filter banks exceeds 1, `(Batch, ...) -> (Batch, ...)`
+        if the filter has only one.
+
+        Parameters
+        ----------
+        freq : float
+            Data sampling frequency.
+        filter_bank : multiple 2 float of list
+            The low-pass and high-pass cutoff frequencies for each filter set.
+        transition_bandwidth : float
+            The bandwidth (in hertz) of the transition region of the frequency 
+            response from the passband to the stopband.
+        gstop : float
+            The minimum attenuation in the stopband (dB).
+        gpass : float
+            The maximum loss in the passband (dB).
+        '''
+        super().__init__()
+        self._repr = get_init_args(self, locals(), format='rp')
+        self.freq = freq
+        self.filter_bank = self._check_filter_bank(filter_bank)
+        self.transition_bandwidth = transition_bandwidth
+        self.gpass = gpass
+        self.gstop = gstop
+
+    def _check_filter_bank(self, fb):
+        if not isinstance(fb, list):
+            raise TypeError(f'Filter_bank must be a list, not {type(fb)}.')
+        for f in fb:
+            if len(f) != 2:
+                raise ValueError(
+                    'The filter should be of two variables low pass and high '
+                    'pass cutoff frequency.'
+                )
+        return fb
+
+    @verbose
+    def __call__(self, input: dict, verbose: _Level = None) -> dict:
+        loger.info(f'[{self} starting] ...')
+        for sub, sub_data in input.items():
+            for mode in ['train', 'test']:
+
+                bank_len = len(self.filter_bank)
+                total_trials = F.total_trials(input, sub, mode) # type: ignore
+                data = np.empty(
+                    (total_trials, bank_len, *sub_data[mode][0].shape[1:])
+                )
+
+                for i, cutoff in enumerate(self.filter_bank):
+                    filter_data = cheby2_filter(
+                        data=sub_data[mode][0],
+                        freq=self.freq,
+                        l_freq=cutoff[0],
+                        h_freq=cutoff[1],
+                        transition_bandwidth=self.transition_bandwidth,
+                        gpass=self.gpass,
+                        gstop=self.gstop,
+                        verbose=verbose,
+                    )
+                    data[:, i] = filter_data
+
+                if bank_len == 1:
+                    data = np.squeeze(data, 1)
+                sub_data[mode][0] = data
+
+        return input
 
 
 class ApplyFunc(Transforms):
-    '''Apply a function on data.
-    '''
-    def __init__(
-        self, 
-        func : Callable[[np.ndarray], np.ndarray], 
-    ) -> None:
-        '''This transform can be used to change the data shape and so on.
+    def __init__(self, func : Callable[[np.ndarray], np.ndarray]) -> None:
+        '''Apply a function on data.
+
+        This transform can be used to change the data shape and so on.
 
         Examples
         --------
-        If you want to pass a function with parameters, such as you want to
-        use `np.expand_dims()` with `axis` parameter, you can do as follows:
+        If you want to pass a function with parameters, such as you want to use 
+        `np.expand_dims()` with `axis` parameter, you can do as follows:
         >>> from functools import partial
         >>> transforms.ApplyFunc(partial(np.expand_dims, axis=1))
-        or
-        >>> transforms.ApplyFunc(lambda x: np.expand_dims(x, 1))
 
-        Notes
-        -----
-        heavy development
+        or
+
+        >>> transforms.ApplyFunc(lambda x: np.expand_dims(x, 1))
         '''
         super().__init__()
+        self._repr = get_init_args(self, locals(), format='rp')
         self.func = func
 
     @verbose
@@ -430,18 +470,12 @@ class ApplyFunc(Transforms):
                 sub[mode][0] = self.func(sub[mode][0])
         return input
 
-    def __repr__(self) -> str:
-        return f'ApplyFunc(func={self.func})'
-
 
 class Save(Transforms):
-    '''Save the transformed data.
-    '''
-    def __init__(
-        self, 
-        folder : str, 
-    ) -> None:
-        '''Save transformed dataset to a binary file in NumPy `.npy` format.
+    def __init__(self, folder : str) -> None:
+        '''Save the transformed data.
+
+        Save transformed dataset to a binary file in NumPy `.npy` format.
 
         Parameters
         ----------
@@ -449,12 +483,10 @@ class Save(Transforms):
             Folder name to save transformed data.
         '''
         super().__init__()
+        self._repr = get_init_args(self, locals(), format='rp')
         self.folder = folder
 
     @verbose
     def __call__(self, input : dict, verbose : _Level = None) -> None:
         loger.info(f'[{self} starting] ...')
         save(self.folder, input, verbose=verbose)
-
-    def __repr__(self) -> str:
-        return f'Save(folder={self.folder})'
