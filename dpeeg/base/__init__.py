@@ -19,5 +19,4 @@ from .stopcriteria import (
 )
 from .evaluate import (
     save_cm_img,
-    ttest_corrected,
 )
