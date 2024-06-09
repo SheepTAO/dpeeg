@@ -11,7 +11,6 @@
 
 
 import abc
-from typing import Optional, Union, List
 
 from ..utils import dict_to_str, unpacked
 
@@ -41,7 +40,7 @@ class ComposePreprocess(Preprocess):
             Preprocess (sequential of `Preprocess` objects): sequential of pre-
             process to compose.
         '''
-        self.preps : List[Preprocess] = []
+        self.preps : list[Preprocess] = []
         self.appends(*preprocess)
 
     def __call__(self, input: dict) -> dict:
@@ -73,7 +72,7 @@ class ComposePreprocess(Preprocess):
         '''
         self.preps.insert(index, preprocess)
 
-    def get_data(self) -> List[Preprocess]:
+    def get_data(self) -> list[Preprocess]:
         '''Return list of Preprocess.
         '''
         return self.preps
@@ -82,8 +81,8 @@ class ComposePreprocess(Preprocess):
 class Filter(Preprocess):
     def __init__(
         self, 
-        lfreq : Optional[float] = None,
-        hfreq : Optional[float] = None,
+        lfreq : float | None = None,
+        hfreq : float | None = None,
         **mne_filter_kwargs,
     ) -> None:
         '''Applies filter to the signals in epochs. The epoch will be modified 

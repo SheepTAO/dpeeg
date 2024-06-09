@@ -144,6 +144,9 @@ class MSVTNet(nn.Module):
 
 
 class JointCrossEntoryLoss(nn.Module):
+    '''
+    $$\\mathcal{L} = \\lambda\\mathcal{L}_c + (1-\\lambda)\\sum_{b=1}^{B}\\mathcal{L}_b$$
+    '''
     def __init__(self, lamd : float = 0.6) -> None:
         super().__init__()
         self.lamd = lamd
@@ -155,6 +158,37 @@ class JointCrossEntoryLoss(nn.Module):
         branch_loss = [F.nll_loss(out, label).unsqueeze(0) for out in branch_out]
         branch_loss = torch.cat(branch_loss)
         loss = self.lamd * end_loss + (1 - self.lamd) * torch.sum(branch_loss)
+        return loss
+
+
+class JointCrossEntoryLossV2(nn.Module):
+    '''
+    $$\\mathcal{L} = \\mathcal{L}_c + \\frac{1}{B}\\sum_{b=1}^{B}\\mathcal{L}_b$$
+    '''
+    def forward(self, out, label):
+        end_out = out[0]
+        branch_out = out[1]
+        end_loss = F.nll_loss(end_out, label)
+        branch_loss = [F.nll_loss(out, label).unsqueeze(0) for out in branch_out]
+        branch_loss = torch.cat(branch_loss)
+        loss = end_loss + torch.mean(branch_loss)
+        return loss
+
+
+class JointCrossEntoryLossV3(nn.Module):
+    '''
+    $$\\mathcal{L} = (1 - \\lambda)\\mathcal{L}_c + \\lambda\\sum_{b=1}^{B}\\mathcal{L}_b$$
+    where $\\lambda = sigmoid(log(\\frac{\\sum_{b=1}^{B}\\mathcal{L}_b}{\\mathcal{L}_c}))$
+    '''
+    def forward(self, out, label):
+        end_out = out[0]
+        branch_out = out[1]
+        end_loss = F.nll_loss(end_out, label)
+        branch_loss = [F.nll_loss(out, label).unsqueeze(0) for out in branch_out]
+        branch_loss = torch.cat(branch_loss)
+        ratio = torch.mean(branch_loss) / end_loss
+        lamd = torch.sigmoid(torch.log(ratio.detach()))
+        loss = (1 - lamd) * end_loss + lamd * torch.mean(branch_loss)
         return loss
 
 

@@ -32,9 +32,11 @@ import torch.nn as nn
 from torch import optim
 from torch import Tensor
 from torch.nn import Module
+from torch.optim import Optimizer
+from torch.optim.lr_scheduler import LRScheduler
 from copy import deepcopy
 from torchinfo import summary
-from typing import Optional, Tuple, Union, Dict, Literal
+from typing import Literal
 from torch.utils.tensorboard.writer import SummaryWriter
 from torch.utils.data import TensorDataset, DataLoader, ConcatDataset
 from torchmetrics.functional.classification.accuracy import multiclass_accuracy
@@ -43,6 +45,7 @@ from torchmetrics.aggregation import MeanMetric, CatMetric
 from ..tools import Logger, Timer
 from ..utils import DPEEG_SEED
 from ..data.functions import to_tensor
+from ..data.utils import check_data_label
 from .stopcriteria import ComposeStopCriteria
 
 from torch.backends import cudnn
@@ -59,19 +62,19 @@ class TrainClassifier:
         net : Module,
         nGPU : int = 0,
         seed : int = DPEEG_SEED,
-        loss_fn : Union[str, Module] = 'NLLLoss',
-        loss_fn_args : Optional[dict] = None,
-        optimizer : Union[str, Module] = 'Adam',
-        optimizer_args : Optional[dict] = None,
+        loss_fn : str | type[Module] = 'NLLLoss',
+        loss_fn_args : dict | None = None,
+        optimizer : str | type[Optimizer] = 'Adam',
+        optimizer_args : dict | None = None,
         lr : float = 1e-3,
-        lr_sch : Optional[Union[str, Module]] = None,
-        lr_sch_args : Optional[dict] = None,
+        lr_sch : str | type[LRScheduler] | None = None,
+        lr_sch_args : dict | None = None,
         grad_acc : int = 1,
         batch_size : int = 32,
         keep_data_gpu : bool = True,
-        data_size : Optional[Union[tuple, list]] = None,
+        data_size : tuple | list | None = None,
         depth : int = 3,
-        verbose : Union[int, str] = 'INFO',
+        verbose : int | str = 'INFO',
     ) -> None:
         '''Initialize the basic attribute of the train model.
 
@@ -89,19 +92,26 @@ class TrainClassifier:
             Select random seed for review.
         loss_fn : str, Module
             Name of the loss function from torch.nn which will be used for
-            training. If Module, means using a custom loss function.
+            training. If Module, means using a custom loss function. Note:
+            custom optimizer is a class (not an instance), and its initializa-
+            tion list is `(**loss_fn_args)`.
         loss_fn_args : dict, optional
             Additional arguments to be passed to the loss function.
-        optimizer : str, Module
+        optimizer : str, Type[Optimizer]
             Name of the optimization function from torch.optim which will be
-            used for training. If Module, means using a custom optimizer.
+            used for training. If Optimizer, means using a custom optimizer.
+            Note: custom optimizer is a class (not an instance), and its init-
+            ialization list is `(net, lr=lr, **optimizer_args)`.
         optimizer_args : dict, optional
             Additional arguments to be passed to the optimization function.
         lr : float
             Learning rate.
-        lr_sch : str, Module, optional
-            Name of the lr_scheduler from torch.optim.lr_scheduler which will 
-            be used for training. If Module, means using a custom lr_scheduler.
+        lr_sch : str, Type[LRScheduler], optional
+            Name of the learning scheduler from torch.optim.lr_scheduler which
+            will be used for training. If LRScheduler, means using a custom 
+            learning scheduler. Note: custom learning scheduler is a class (not
+            an instance), and its initialization list is 
+            `(optimizer, **lr_sch_args)`.
         lr_sch_args : dict, optional
             Additional arguments to be passed to the lr_scheduler function.
         grad_acc : int
@@ -203,7 +213,7 @@ class TrainClassifier:
     def _predict(
         self,
         data_loader : DataLoader,
-    ) -> Tuple[Tensor, Tensor, Tensor]:
+    ) -> tuple[Tensor, Tensor, Tensor]:
         '''Predict the class of the input data.
 
         Parameters
@@ -240,29 +250,6 @@ class TrainClassifier:
                 target.update(label.cpu())
         return preds.compute(), target.compute(), loss_sum.compute()
 
-    def _move_datasets(self, *datasets) -> list:
-        '''Move datasets to specified device.
-
-        Parameters
-        ----------
-        datasets : sequence of data (N, ...) and labels (N,)
-            Sequence consisting of each piece of data and label. Can be ndarray
-            and tensor.
-        '''
-        if len(datasets) == 0:
-            raise ValueError('At least one dataset required as input.')
-
-        ret_datasets = []
-        for i, dataset in enumerate(datasets):
-            if not (isinstance(dataset, (list, tuple)) and len(dataset) == 2):
-                raise ValueError(f'Missing data or label in {i}th group.')
-
-            data, label = to_tensor(dataset[0], dataset[1])
-            data, label = data.to(self.device), label.to(self.device)
-            ret_datasets.append((data, label))
-
-        return ret_datasets
-
     def _data_loader(self, *datasets) -> DataLoader:
         '''Wrap multiple sets of data and labels and return DataLoader.
 
@@ -277,26 +264,19 @@ class TrainClassifier:
 
         # dataset wrapping tensors
         td = []
-        for i, dataset in enumerate(datasets):
-            if not (isinstance(dataset, (list, tuple)) and len(dataset) == 2):
-                raise ValueError(f'Missing data or label in {i}th group.')
-
+        for dataset in datasets:
             data, label = to_tensor(dataset[0], dataset[1])
             if self.keep_data_gpu:
                 data, label = data.to(self.device), label.to(self.device)
-            td.append(TensorDataset(*to_tensor(data, label)))
+            td.append(TensorDataset(data, label))
         td = ConcatDataset(td)
 
-        if self.keep_data_gpu:
-            data_loader = DataLoader(td, self.batch_size, True)
-        else:
-            data_loader = DataLoader(td, self.batch_size, True, pin_memory=True)
-        return data_loader
+        return DataLoader(td, self.batch_size, True)
 
     def reset_fitter(
         self,
         log_dir : str
-    ) -> Tuple[str, SummaryWriter, Logger]:
+    ) -> tuple[str, SummaryWriter, Logger]:
         '''Reset the relevant parameters of the fitter.
 
         Reset the model's training parameters, learning rate schedule and opti-
@@ -314,12 +294,14 @@ class TrainClassifier:
             Return the absolute file path and a new SummaryWriter object and 
             logger manager for the fitter.
         '''
-        # reset parameters of nn.Moudle and lr_scheduler
+        # reset parameters of nn.Moudle
         self.net.load_state_dict(self.train_details['orig_net_param'])
 
         # create loss function
-        self.loss_fn = getattr(nn, self.loss_fn_type)(**self.loss_fn_args) \
-            if isinstance(self.loss_fn_type, str) else self.loss_fn_type
+        if isinstance(self.loss_fn_type, str):
+            self.loss_fn = getattr(nn, self.loss_fn_type)(**self.loss_fn_args)
+        else:
+            self.loss_fn = self.loss_fn_type(**self.loss_fn_args)
 
         # create optimizer
         if isinstance(self.optimizer_type, str):
@@ -327,13 +309,13 @@ class TrainClassifier:
                 (self.net.parameters(), lr=self.lr, **self.optimizer_args)
         else:
             self.optimizer = self.optimizer_type(
-                self.net.parameters(), lr=self.lr, **self.optimizer_args)
+                self.net, lr=self.lr, **self.optimizer_args) # type: ignore
 
         # create lr_scheduler
         if isinstance(self.lr_sch_type, str):
             self.lr_sch = getattr(optim.lr_scheduler, self.lr_sch_type) \
                 (self.optimizer, **self.lr_sch_args)
-        elif isinstance(self.lr_sch_type, Module):
+        elif isinstance(self.lr_sch_type, LRScheduler):
             self.lr_sch = self.lr_sch_type(self.optimizer, **self.lr_sch_args)
         else:
             self.lr_sch = None
@@ -357,7 +339,7 @@ class TrainClassifier:
         if self.device != torch.device('cpu'):
             torch.cuda.manual_seed(seed)
             torch.cuda.manual_seed_all(seed)
-        self.loger.info(f'Set all random seed = {seed}')
+        self.loger.info(f'Set torch random seed = {seed}')
 
     def get_device(self, nGPU : int = 0) -> torch.device:
         '''Get the device for training and testing.
@@ -380,15 +362,15 @@ class TrainClassifier:
 
     def fit_without_val(
         self,
-        trainset : Union[tuple, list],
-        testset : Union[tuple, list],
+        trainset : tuple | list,
+        testset : tuple | list,
         log_dir : str,
-        cls_name : Union[tuple, list],
+        cls_name : tuple | list,
         max_epochs : int = 1000,
         no_increase_epochs : int = 200,
         var_check : Literal['train_loss', 'train_inacc'] = 'train_loss',
         load_best_state : bool = True,
-    ) -> Dict[str, Dict[str, Tensor]]:
+    ) -> dict[str, dict[str, Tensor]]:
         '''During different training model processes, early stopping mechanisms
         can be executed using the training set (validation set not required) to
         select the model.
@@ -440,8 +422,6 @@ class TrainClassifier:
                              f'when training without val, but got {var_check}')
 
         # initialize dataloader
-        if self.keep_data_gpu:
-            trainset, testset = self._move_datasets(trainset, testset)
         train_loader = self._data_loader(trainset)
         test_loader = self._data_loader(testset)
         ncls = len(cls_name)
@@ -449,6 +429,8 @@ class TrainClassifier:
         # start the training
         self.timer.start()
         loger.info(f'[Training...] - [{self.timer.ctime()}]')
+        loger.info(f'[Train/Test] - [{trainset[1].shape[0]}/{testset[1].shape[0]}]')
+
         stopcri = ComposeStopCriteria({'Or': {
             'cri1' : {'MaxEpoch': {
                 'max_epochs': max_epochs, 'var_name': 'epoch'
@@ -530,18 +512,18 @@ class TrainClassifier:
 
     def fit_with_val(
         self,
-        trainset : Union[tuple, list],
-        valset : Union[tuple, list],
-        testset : Union[tuple, list],
+        trainset : tuple | list,
+        valset : tuple | list,
+        testset : tuple | list,
         log_dir : str,
-        cls_name : Union[tuple, list],
+        cls_name : tuple | list,
         max_epochs_s1 : int = 1500,
         max_epochs_s2 : int = 600,
         no_increase_epochs : int = 200,
         second_stage : bool = True,
         load_best_state : bool = True,
         var_check : Literal['val_inacc', 'val_loss'] = 'val_inacc',
-    ) -> Dict[str, Dict[str, Tensor]]:
+    ) -> dict[str, dict[str, Tensor]]:
         '''Two-stage training strategy was used. In the first stage, the model 
         was trained using only the training set with the early stopping criteria
         whereby the validation set accuracy and loss was monitored and training
@@ -570,8 +552,7 @@ class TrainClassifier:
         cls_name : tuple, list
             The name of dataset labels.
         max_epochs_s1, max_epochs_s2 : int
-            Maximum number of epochs in the x stage of training. Default is
-            1500 and 600 respectively.
+            Maximum number of epochs in the x stage of training.
         no_increase_epochs : int
             Maximum number of consecutive epochs when the accuracy or loss of 
             the first-stage validation set has no relative improvement.
@@ -608,10 +589,6 @@ class TrainClassifier:
                              f' when training with val, but got {var_check}')
 
         # initialize dataloader
-        if self.keep_data_gpu:
-            trainset, valset, testset = self._move_datasets(
-                trainset, valset, testset
-            )
         train_loader = self._data_loader(trainset)
         val_loader = self._data_loader(valset)
         test_loader = self._data_loader(testset)
@@ -620,6 +597,8 @@ class TrainClassifier:
         # start the training
         self.timer.start()
         loger.info(f'[Training...] - [{self.timer.ctime()}]')
+        loger.info(f'[Train/Test] - [{trainset[1].shape[0]+valset[1].shape[0]}'
+                   f'/{testset[1].shape[0]}]')
 
         stopcri = ComposeStopCriteria({'Or': {
             'cri1': {'MaxEpoch': {

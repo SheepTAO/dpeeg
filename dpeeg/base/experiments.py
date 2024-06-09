@@ -16,13 +16,14 @@
 import torch
 import os, abc
 from torch import Tensor
-from typing import Union, Optional, Tuple, Literal
+from typing import Literal
 from sklearn.model_selection import StratifiedKFold
 from torchmetrics.functional.classification.cohen_kappa import cohen_kappa
 from torchmetrics.aggregation import MeanMetric, CatMetric
 
 import dpeeg
 from .classifier import TrainClassifier
+from .metrics import AggMetrics
 from ..data.datasets import EEGDataset
 from ..data.functions import split_train_test, merge_train_test, check_dataset, check_sub_data
 from ..data.transforms import Transforms
@@ -37,8 +38,8 @@ class Experiment(abc.ABC):
     def __init__(
         self,
         trainer : TrainClassifier,
-        out_folder : Optional[str] = None,
-        verbose : Union[int, str] = 'INFO'
+        out_folder : str | None = None,
+        verbose : int | str = 'INFO'
     ) -> None:
         '''Initialize the basic parameters of the experiment.
 
@@ -78,11 +79,11 @@ class Experiment(abc.ABC):
     @abc.abstractmethod
     def _run_sub(
         self,
-        trainset : Union[tuple, list],
-        testset : Union[tuple, list],
-        cls_name : Union[tuple, list],
+        trainset : tuple | list,
+        testset : tuple | list,
+        cls_name : tuple | list,
         sub : str,
-    ) -> Tuple[Tensor, Tensor, Tensor, Tensor, dict]:
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor, dict]:
         '''Train a model on the specified subject data.
 
         This function will be called by `run` function to conduct experiments
@@ -111,8 +112,8 @@ class Experiment(abc.ABC):
 
     def _trans_dataset(
         self, 
-        trainset : Union[list, tuple], 
-        testset : Union[list, tuple]
+        trainset : list | tuple, 
+        testset : list | tuple
     ) -> tuple:
         '''Apply pre-transforms on dataset.
 
@@ -162,11 +163,11 @@ class Experiment(abc.ABC):
 
     def run(
         self,
-        dataset : Union[EEGDataset, dict],
-        cls_name : Union[tuple, list],
-        dataset_name : Optional[str] = None,
-        transforms : Optional[Transforms] = None,
-        desc : Optional[str] = None,
+        dataset : EEGDataset | dict,
+        cls_name : tuple | list,
+        dataset_name : str | None = None,
+        transforms : Transforms | None = None,
+        desc : str | None = None,
     ) -> dict:
         '''Train models separately for each subject.
 
@@ -231,7 +232,8 @@ class Experiment(abc.ABC):
 
         # save all sub results
         results = {}
-        acc_metric, kappa_metric = MeanMetric(), MeanMetric()
+        # acc_metric, kappa_metric = MeanMetric(), MeanMetric()
+        acc_metric, kappa_metric = AggMetrics(), AggMetrics()
         preds_metric, target_metric = CatMetric(), CatMetric()
 
         # update root timer and start cross validation for each subject
@@ -256,11 +258,15 @@ class Experiment(abc.ABC):
             filer.write(f'Acc = {test_acc*100:.2f}% | Kappa = '
                         f'{test_kappa:.2f}\n\n')
 
-        acc = acc_metric.compute()
-        kappa = kappa_metric.compute()
+        # acc = acc_metric.compute()
+        # kappa = kappa_metric.compute()
+        acc_mean = acc_metric.mean() * 100
+        acc_std = acc_metric.std() * 100
+        kappa_mean = kappa_metric.mean()
 
-        filer.write(f'---------- MODEL ----------\n')
-        filer.write(f'Acc = {acc*100:.2f}% | Kappa = {kappa:.2f}\n')
+        filer.write(f'-------------- MODEL\n')
+        # filer.write(f'Acc = {acc*100:.2f}% | Kappa = {kappa:.2f}\n')
+        filer.write(f'Acc = {acc_mean:.2f}%\u00B1{acc_std:.2f} | Kappa = {kappa_mean:.2f}\n')
         save_cm_img(preds_metric.compute(), target_metric.compute(), 
                     cls_name, os.path.join(self.data_folder, 'CM.png'))
         torch.save(results, os.path.join(self.data_folder, f'results.pt'))
@@ -269,7 +275,7 @@ class Experiment(abc.ABC):
         self.loger.info(f'\n[All subjects finished]')
         self.loger.info(f'Cost time = {h}H:{m}M:{s:.2f}S')
         self.loger.info('=' * 50)
-        self.loger.info(f'[Acc = {acc*100:.2f}% | Kappa = {kappa:.2f}]')
+        self.loger.info(f'[Acc = {acc_mean:.2f}%\u00B1{acc_std:.2f} | Kappa = {kappa_mean:.2f}]')
 
         return results
 
@@ -286,7 +292,7 @@ class KFold(Experiment):
         self,
         trainer : TrainClassifier,
         k : int = 5,
-        out_folder : Optional[str] = None,
+        out_folder : str | None = None,
         max_epochs_s1 : int = 1500,
         max_epochs_s2 : int = 600,
         no_increase_epochs : int = 100,
@@ -296,7 +302,7 @@ class KFold(Experiment):
         isolate_testset : bool = True,
         shuffle : bool = True,
         seed : int = DPEEG_SEED,
-        verbose : Union[int, str] = 'INFO',
+        verbose : int | str = 'INFO',
     ) -> None:
         '''K-Fold cross validation experiment.
 
@@ -372,11 +378,11 @@ class KFold(Experiment):
 
     def _run_sub(
         self,
-        trainset : Union[tuple, list],
-        testset : Union[tuple, list],
-        cls_name : Union[tuple, list],
+        trainset : tuple | list,
+        testset : tuple | list,
+        cls_name : tuple | list,
         sub : str,
-    ) -> Tuple[Tensor, Tensor, Tensor, Tensor, dict]:
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor, dict]:
         '''Basic K-Fold cross validation function.
 
         Returns
@@ -485,19 +491,17 @@ class Holdout(Experiment):
     def __init__(
         self,
         trainer : TrainClassifier,
-        out_folder : Optional[str] = None,
+        out_folder : str | None = None,
         max_epochs_s1 : int = 1500,
         no_increase_epochs : int = 200,
-        var_check : Optional[
-            Literal['train_inacc', 'train_loss', 'val_inacc', 'val_loss']
-        ] = None,
+        var_check : Literal['train_inacc', 'train_loss', 'val_inacc', 'val_loss'] | None = None,
         split_val : bool = True,
         test_size : float = 0.25,
         second_stage : bool = True,
         load_best_state : bool = True,
         max_epochs_s2 : int = 600,
         seed : int = DPEEG_SEED,
-        verbose : Union[int, str] = 'INFO'
+        verbose : int | str = 'INFO'
     ) -> None:
         '''Holdout cross validation experiment.
 
@@ -517,7 +521,8 @@ class Holdout(Experiment):
             If split_val is True, max_epochs_s1 and max_epochs_s2 correspond to 
             the maximum number of epochs for the two stages of training in 
             `train_with_val`, respectively. Otherwise, only max_epochs_s1 takes 
-            effect, representing the maximum number of epochs in `train_without_val`. 
+            effect, representing the maximum number of epochs in `train_without
+            _val`. 
             Default is 1500 and 600 respectively.
         no_increase_epochs : int
             Maximum number of consecutive epochs when the accuracy or loss of 
@@ -534,8 +539,8 @@ class Holdout(Experiment):
             If True, the training set will be split into training set and 
             validation set, and early stopping will be performed based on the
             corresponding metrics. Otherwise, early stopping will be performed 
-            based on the results of the training set. If False, ignore paramet-
-            ers test_size, max_epochs_s2, second_stage, shuffle and seed.
+            based on the results of the training set. If False, ignore 
+            parameters test_size, max_epochs_s2, second_stage and seed.
         test_size : float
             The proportion of the validation set.
         second_stage : bool
@@ -565,11 +570,11 @@ class Holdout(Experiment):
 
     def _run_sub(
         self,
-        trainset : Union[tuple, list],
-        testset : Union[tuple, list],
-        cls_name : Union[tuple, list],
+        trainset : tuple | list,
+        testset : tuple | list,
+        cls_name : tuple | list,
         sub : str,
-    ) -> Tuple[Tensor, Tensor, Tensor, Tensor, dict]:
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor, dict]:
         '''Basic holdout cross validation function.
         '''
         # set subject's reults storage path

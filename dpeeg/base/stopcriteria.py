@@ -10,7 +10,6 @@
 
 import abc
 import os, sys, json
-from typing import Union
 
 
 CURRENT_MODULE = sys.modules[__name__]
@@ -32,7 +31,7 @@ class Criteria(abc.ABC):
 class ComposeStopCriteria(Criteria):
     '''Advanced complex logical expression parser to compose stopping criteria.
     '''
-    def __init__(self, stopcri : Union[dict, str]) -> None:
+    def __init__(self, stopcri : dict | str) -> None:
         '''The parent class for all the stop criteria.
         
         Parameters

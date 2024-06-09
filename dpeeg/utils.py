@@ -17,14 +17,8 @@ import inspect
 import functools
 import numpy as np
 from .tools.logger import Logger
-from typing import (
-    Any,
-    List,
-    Union,
-    Callable,
-    Iterable,
-    TypeVar,
-)
+from collections.abc import Iterable, Callable
+from typing import Any, TypeVar
 
 
 DPEEG_SEED : int = 42               # Life, the Universe, and Everything
@@ -67,9 +61,9 @@ def verbose(func : _FuncT) -> _FuncT:
 
 
 def set_log_level(
-    verbose : Union[int, str] = DPEEG_LOGER_LEVEL,
+    verbose : int | str = DPEEG_LOGER_LEVEL,
     ret_old_level : bool = False
-) -> Union[None, str]:
+) -> None | str:
     '''Set the global logging level.
     
     Parameters
@@ -125,7 +119,7 @@ def _set_torch_seed(seed : int) -> None:
 def set_seed(
     seed : int = DPEEG_SEED, 
     ret_old_seed : bool = False
-) -> Union[None, int]:
+) -> None | int:
     '''Set the seed for random, numpy and PyTorch.
 
     Parameters
@@ -280,20 +274,41 @@ def get_init_args(
     return s
 
 
-def find_mismatch_elements(key : Iterable[Any], query : Iterable[Any]):
-    '''Check whether the values in the key are all in the query, and return 
-    only those values that exist in key and not in query.
+def find_exist_elements(
+    key : Iterable[Any] | Any, 
+    query : Iterable[Any],
+    reverse : bool = False
+) -> list:
+    '''Check whether the values in the key are all in the query.
+
+    Parameters
+    ----------
+    key : Iterable, Any
+        Key value.
+    query : Iterable
+        Query value.
+    reverse : bool
+        If False, find those values that exist both in key and query. If True,
+        find only those values that exist in key but not in query. 
 
     Returns
     -------
-    set
-        List of elements in the key that do not exist in the query.
+    list
+        If reverse is True, return list of elements in the key that do not 
+        exist in the query. If reverse is False, return elements that exist
+        in both key and query.
     
     Examples
     --------
     >>> list1, list2 = [0, 3, 4, 6], [1, 2, 3, 4, 5]
     >>> find_non_elements(list1, list2)
+    [3, 4]
+
+    >>> find_one_elements(list1, list2, reverse=True)
     [0, 6]
     '''
-    mismatch_elements = [element for element in key if element not in query]
-    return mismatch_elements
+    if reverse:
+        elements = [element for element in key if element not in query]
+    else:
+        elements = list(set(key) & set(query))
+    return elements

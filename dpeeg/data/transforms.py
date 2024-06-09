@@ -15,17 +15,23 @@
 import abc
 import numpy as np
 import pandas as pd
-from typing import Optional, Callable, List
+from typing import Literal
+from collections.abc import Callable
+from numpy import ndarray
 
 from ..utils import loger, verbose, DPEEG_SEED, unpacked, get_init_args
+from .utils import yield_data
 from ..tools.logger import _Level
 import dpeeg.data.functions as F
+from .utils import total_trials
 from .functions import (
     split_train_test,
     to_tensor,
     slide_win,
     save,
     cheby2_filter,
+    label_mapping,
+    pick_label,
 )
 
 
@@ -72,7 +78,7 @@ class ComposeTransforms(Transforms):
         )
         '''
         super().__init__()
-        self.trans : List[Transforms] = []
+        self.trans : list[Transforms] = []
         self.appends(*transforms)
 
     @verbose
@@ -105,7 +111,7 @@ class ComposeTransforms(Transforms):
         '''
         self.trans.insert(index, transform)
 
-    def get_data(self) -> List[Transforms]:
+    def get_data(self) -> list[Transforms]:
         '''Return list of Transforms.
         '''
         return self.trans
@@ -116,7 +122,7 @@ class SplitTrainTest(Transforms):
         self, 
         test_size : float = .25, 
         seed : int = DPEEG_SEED, 
-        sample : Optional[List[int]] = None,
+        sample : list[int] | None = None,
     ) -> None:
         '''Split the dataset into training and testing sets.
 
@@ -125,7 +131,7 @@ class SplitTrainTest(Transforms):
         test_size : float
             The proportion of the test set. If index not None, test_size will 
             be ignored. Default use stratified fashion and the last arr serves 
-            as the class labels.
+            as the class label.
         seed : int
             Random seed when splitting.
         sample : list of int, optional
@@ -285,12 +291,10 @@ class SlideWin(Transforms):
     @verbose
     def __call__(self, input : dict, verbose : _Level = None) -> dict:
         loger.info(f'[{self} starting] ...')
-        for sub in input.values():
-            for mode in ['train', 'test']:
-                sub[mode][0], sub[mode][1] = slide_win(
-                    sub[mode][0], self.win, self.overlap,
-                    sub[mode][1], verbose=verbose
-                )
+        for _, _, sub_data in yield_data(input):
+            sub_data[0], sub_data[1] = slide_win(
+                sub_data[0], self.win, self.overlap, sub_data[1], verbose
+            )
         return input
 
 
@@ -312,9 +316,8 @@ class Unsqueeze(Transforms):
     @verbose
     def __call__(self, input : dict, verbose : _Level = None) -> dict:
         loger.info(f'[{self} starting] ...')
-        for sub in input.values():
-            for mode in ['train', 'test']:
-                sub[mode][0] = np.expand_dims(sub[mode][0], self.dim)
+        for _, _, sub_data in yield_data(input):
+            sub_data[0] = np.expand_dims(sub_data[0], self.dim)
         return input
 
 
@@ -346,17 +349,14 @@ class Augmentation(Transforms):
         super().__init__()
         self._repr = get_init_args(self, locals(), format='rp')
         self.aug = getattr(F, method)
-        self.only_train = only_train
+        self.mode = 'train' if only_train else 'all'
         self.kwargs = kwargs
 
     @verbose
     def __call__(self, input : dict, verbose : _Level = None) -> dict:
         loger.info(f'[{self} starting] ...')
-        for sub in input.values():
-            for mode in ['train', 'test']:
-                if mode == 'test' and self.only_train:
-                    continue
-                sub[mode] = list(self.aug(*sub[mode], **self.kwargs))
+        for _, _, sub_data in yield_data(input, self.mode): # type: ignore
+            sub_data[0], sub_data[1] = self.aug(*sub_data, **self.kwargs)
         return input
 
 
@@ -412,40 +412,52 @@ class FilterBank(Transforms):
     @verbose
     def __call__(self, input: dict, verbose: _Level = None) -> dict:
         loger.info(f'[{self} starting] ...')
-        for sub, sub_data in input.items():
-            for mode in ['train', 'test']:
+        bank_len = len(self.filter_bank)
+        for sub, mode, sub_data in yield_data(input):
+            trials = total_trials(input, sub, mode) # type: ignore
+            data = np.empty((trials, bank_len, *sub_data[0].shape[1:]))
 
-                bank_len = len(self.filter_bank)
-                total_trials = F.total_trials(input, sub, mode) # type: ignore
-                data = np.empty(
-                    (total_trials, bank_len, *sub_data[mode][0].shape[1:])
+            for i, cutoff in enumerate(self.filter_bank):
+                filter_data = cheby2_filter(
+                    data=sub_data[0],
+                    freq=self.freq,
+                    l_freq=cutoff[0],
+                    h_freq=cutoff[1],
+                    transition_bandwidth=self.transition_bandwidth,
+                    gpass=self.gpass,
+                    gstop=self.gstop,
+                    verbose=verbose,
                 )
+                data[:, i] = filter_data
 
-                for i, cutoff in enumerate(self.filter_bank):
-                    filter_data = cheby2_filter(
-                        data=sub_data[mode][0],
-                        freq=self.freq,
-                        l_freq=cutoff[0],
-                        h_freq=cutoff[1],
-                        transition_bandwidth=self.transition_bandwidth,
-                        gpass=self.gpass,
-                        gstop=self.gstop,
-                        verbose=verbose,
-                    )
-                    data[:, i] = filter_data
-
-                if bank_len == 1:
-                    data = np.squeeze(data, 1)
-                sub_data[mode][0] = data
+            if bank_len == 1:
+                data = np.squeeze(data, 1)
+            sub_data[0] = data
 
         return input
 
 
 class ApplyFunc(Transforms):
-    def __init__(self, func : Callable[[np.ndarray], np.ndarray]) -> None:
-        '''Apply a function on data.
+    def __init__(
+        self, 
+        func : Callable[..., ndarray],
+        mode : Literal['train', 'test', 'all'] = 'all',
+        data : bool = True,
+        **kwargs
+    ) -> None:
+        '''Apply a custom function to training or test data or label.
 
-        This transform can be used to change the data shape and so on.
+        Parameters
+        ----------
+        func : Callable
+            Transformation data callback function. The first parameter of the
+            function must be ndarray data.
+        mode : str
+            Transform only the training set, test set, or both.
+        data : bool
+            If True, apply to the data. Otherwise, apply to the label.
+        kwargs : dict
+            Keyword arguments for callback function.
 
         Examples
         --------
@@ -461,13 +473,18 @@ class ApplyFunc(Transforms):
         super().__init__()
         self._repr = get_init_args(self, locals(), format='rp')
         self.func = func
+        self.mode = mode
+        self.data = data
+        self.kwargs = kwargs
 
     @verbose
     def __call__(self, input : dict, verbose : _Level = None) -> dict:
         loger.info(f'[{self} starting] ...')
-        for sub in input.values():
-            for mode in ['train', 'test']:
-                sub[mode][0] = self.func(sub[mode][0])
+        for _, _, sub_data in yield_data(input, self.mode): # type: ignore
+            if self.data:
+                sub_data[0] = self.func(sub_data[0], **self.kwargs)
+            else:
+                sub_data[1] = self.func(sub_data[1], **self.kwargs)
         return input
 
 
@@ -490,3 +507,48 @@ class Save(Transforms):
     def __call__(self, input : dict, verbose : _Level = None) -> None:
         loger.info(f'[{self} starting] ...')
         save(self.folder, input, verbose=verbose)
+
+
+class LabelMapping(Transforms):
+    '''Rearrange the original label according to mapping rules.
+
+    Parameters
+    ----------
+    mapping : ndarray (2, label_num)
+        Label mapping relationship.
+    order : bool
+        New label must start from 0.
+    '''
+    def __init__(self, mapping : ndarray, order : bool = True) -> None:
+        super().__init__()
+        self._repr = get_init_args(self, locals(), format='rp')
+        self.mapping = mapping
+        self.order = order
+
+    @verbose
+    def __call__(self, input: dict, verbose: _Level = None) -> dict:
+        loger.info(f'[{self} starting] ...')
+        for _, _, sub_data in yield_data(input):
+            sub_data[1] = label_mapping(sub_data[1], self.mapping, self.order)
+        return input
+
+
+class PickLabel(Transforms):
+    '''Pick a subset of data.
+
+    Parameters
+    ----------
+    pick : ndarray
+        Label to include.
+    '''
+    def __init__(self, pick : ndarray) -> None:
+        super().__init__()
+        self._repr = get_init_args(self, locals(), format='rp')
+        self.pick = pick
+
+    @verbose
+    def __call__(self, input: dict, verbose: _Level = None) -> dict:
+        loger.info(f'[{self} starting] ...')
+        for _, _, sub_data in yield_data(input):
+            sub_data[0], sub_data[1] = pick_label(*sub_data, pick=self.pick)
+        return input

@@ -9,19 +9,18 @@
 
 
 import os, sys, logging
-from typing import Union, Optional
 
 
-_Level = Optional[Union[int, str]]
+_Level = int | str | None
 
 
 class Logger:
     def __init__(
         self,
         loger : str = 'dpeeg_root',
-        path : Optional[str] = None,
+        path : str | None = None,
         mode : str = 'a',
-        clevel : Union[int, str] = logging.INFO,
+        clevel : int | str = logging.INFO,
         flevel : _Level = None,
     ) -> None:
         '''Logging hooks for terminals and file streams.
@@ -67,7 +66,7 @@ class Logger:
 
         sys.excepthook = self.handle_exception
 
-    def update_sh_level(self, level : Union[int, str]):
+    def update_sh_level(self, level : int | str):
         self._sh.setLevel(level)
 
     def get_sh_level(self) -> str:

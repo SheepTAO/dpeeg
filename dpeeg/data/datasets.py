@@ -26,11 +26,12 @@
 import os
 import mne
 import numpy as np
-from typing import Optional, List, Union, Literal
+from typing import Literal
 from scipy.io import loadmat
 
 from .preprocessing import Preprocess, ComposePreprocess
 from .transforms import Transforms, ComposeTransforms, SplitTrainTest
+from ..tools.logger import _Level
 from ..utils import loger, verbose, DPEEG_SEED, get_init_args
 from .functions import load
 
@@ -72,11 +73,11 @@ class EEGDataset:
 
     def __init__(
         self,
-        preprocess : Optional[Preprocess] = None,
-        transforms : Optional[Transforms] = None,
+        preprocess : Preprocess | None = None,
+        transforms : Transforms | None = None,
         test_size : float = .25, 
         seed : int = DPEEG_SEED,
-        verbose : Optional[Union[str, int]] = None, 
+        verbose : _Level = None, 
     ) -> None:
         '''EEG Dataset abstract base class.
 
@@ -163,8 +164,8 @@ class EEGDataset:
         self,
         tmin : float,
         tmax : float,
-        interval : Optional[tuple] = None,
-        baseline : Optional[tuple] = None,
+        interval : tuple | None = None,
+        baseline : tuple | None = None,
     ) -> tuple:
         '''Preprocessing of data extraction time.
 
@@ -294,16 +295,16 @@ class PhysioNet(EEGDataset):
     @verbose
     def __init__(
         self,
-        subjects : Optional[List[int]] = None,
+        subjects : list[int] | None = None,
         tmin : float = 0,
         tmax : float = 1,
-        preprocess : Optional[Preprocess] = None,
-        transforms : Optional[Transforms] = None,
+        preprocess : Preprocess | None = None,
+        transforms : Transforms | None = None,
         test_size : float = .25,
-        picks : Optional[List[str]] = None,
+        picks : list[str] | None = None,
         baseline = None,
         seed : int = DPEEG_SEED,
-        verbose : Optional[str] = None
+        verbose : _Level = None
     ) -> None:
         '''Physionet MI Dataset.
 
@@ -380,17 +381,17 @@ class BCICIV2A(EEGDataset):
     @verbose
     def __init__(
         self,
-        subjects : Optional[List[int]] = None,
+        subjects : list[int] | None = None,
         tmin : float = 0,
         tmax : float = 4,
-        preprocess : Optional[Preprocess] = None,
-        transforms : Optional[Transforms] = None,
+        preprocess : Preprocess | None = None,
+        transforms : Transforms | None = None,
         test_size : float = .25,
         mode : Literal['single_ses', 'cross_ses', 'mixed_ses'] = 'cross_ses',
-        picks : Optional[List[str]] = None,
+        picks : list[str] | None = None,
         baseline = None,
         seed : int = DPEEG_SEED,
-        verbose : Optional[str] = None
+        verbose : _Level = None
     ) -> None:
         '''BCI Competition IV Data sets 2a.
 
@@ -479,18 +480,18 @@ class BCICIV2B(EEGDataset):
     @verbose
     def __init__(
         self,
-        subjects : Optional[List[int]] = None,
+        subjects : list[int] | None = None,
         tmin : float = 0,
         tmax : float = 4,
-        preprocess : Optional[Preprocess] = None,
-        transforms : Optional[Transforms] = None,
+        preprocess : Preprocess | None = None,
+        transforms : Transforms | None = None,
         test_size : float = .25,
         mode : Literal['single_ses', 'cross_ses', 'mixed_ses'] = 'cross_ses',
-        test_sessions : Optional[List[int]] = None,
-        picks : Optional[List[str]] = None,
+        test_sessions : list[int] | None = None,
+        picks : list[str] | None = None,
         baseline = None,
         seed : int = DPEEG_SEED,
-        verbose : Optional[str] = None,
+        verbose : _Level = None,
     ) -> None:
         '''BCI Competition IV Data sets 2b.
 
@@ -591,16 +592,16 @@ class HGD(EEGDataset):
     @verbose
     def __init__(
       self,
-      subjects : Optional[List[int]] = None,
+      subjects : list[int] | None = None,
       tmin : float = 0,
       tmax : float = 4,
-      preprocess : Optional[Preprocess] = None,
-      transforms : Optional[Transforms] = None,
+      preprocess : Preprocess | None = None,
+      transforms : Transforms | None = None,
       test_size : float = .25,
-      picks : Optional[List[str]] = None,
+      picks : list[str] | None = None,
       baseline = None,
       seed : int = DPEEG_SEED,
-      verbose : Optional[str] = None,
+      verbose : _Level = None,
     ) -> None:
         '''High Gamma Dataset.
 
@@ -661,10 +662,10 @@ class SEED(EEGDataset):
       self,
       path : str,
       session : int = 0,
-      transforms : Optional[Transforms] = None,
+      transforms : Transforms | None = None,
       test_size : float = .25,
       seed : int = DPEEG_SEED,
-      verbose : Optional[str] = None,
+      verbose : _Level = None,
     ) -> None:
         super().__init__(None, transforms, test_size, seed, verbose)
         self._repr = get_init_args(self, locals())

@@ -1,33 +1,39 @@
+'''
+References
+----------
+Y. Song, Q. Zheng, B. Liu, and X. Gao, “EEG conformer: Convolutional transformer for EEG decoding and visualization,” 
+IEEE Transactions on Neural Systems and Rehabilitation Engineering, vol. 31, pp. 710–719, 2022.
+'''
+
+
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
 from torch import Tensor
 from einops import rearrange
-from einops.layers.torch import Rearrange, Reduce
+from einops.layers.torch import Rearrange
 
 
 class PatchEmbedding(nn.Module):
-    def __init__(self, emb_size=40):
-        # self.patch_size = patch_size
+    def __init__(self, nCh, emb_size=40):
         super().__init__()
 
         self.shallownet = nn.Sequential(
             nn.Conv2d(1, 40, (1, 25), (1, 1)),
-            nn.Conv2d(40, 40, (22, 1), (1, 1)),
+            nn.Conv2d(40, 40, (nCh, 1), (1, 1)),
             nn.BatchNorm2d(40),
             nn.ELU(),
-            nn.AvgPool2d((1, 75), (1, 15)),  # pooling acts as slicing to obtain 'patch' along the time dimension as in ViT
+            nn.AvgPool2d((1, 75), (1, 15)),
             nn.Dropout(0.5),
         )
 
         self.projection = nn.Sequential(
-            nn.Conv2d(40, emb_size, (1, 1), stride=(1, 1)),  # transpose, conv could enhance fiting ability slightly
+            nn.Conv2d(40, emb_size, (1, 1), stride=(1, 1)),
             Rearrange('b e (h) (w) -> b (h w) e'),
         )
 
 
     def forward(self, x: Tensor) -> Tensor:
-        b, _, _, _ = x.shape
         x = self.shallownet(x)
         x = self.projection(x)
         return x
@@ -104,48 +110,64 @@ class TransformerEncoderBlock(nn.Sequential):
 
 
 class TransformerEncoder(nn.Sequential):
-    def __init__(self, depth, emb_size):
-        super().__init__(*[TransformerEncoderBlock(emb_size) for _ in range(depth)])
+    def __init__(self, depth, emb_size, num_heads, drop_p, forward_expansion, forward_drop_p):
+        super().__init__(*[
+            TransformerEncoderBlock(emb_size, num_heads, drop_p, forward_expansion, forward_drop_p)
+            for _ in range(depth)
+        ])
 
 
 class ClassificationHead(nn.Sequential):
-    def __init__(self, emb_size, n_classes):
-        super().__init__()
-        
-        # global average pooling
-        self.clshead = nn.Sequential(
-            Reduce('b n e -> b e', reduction='mean'),
-            nn.LayerNorm(emb_size),
-            nn.Linear(emb_size, n_classes)
-        )
-        self.fc = nn.Sequential(
-            nn.Linear(2440, 256),
+    def __init__(self, in_features, cls):
+        super().__init__(
+            nn.Flatten(),
+            nn.Linear(in_features, 256),
             nn.ELU(),
             nn.Dropout(0.5),
             nn.Linear(256, 32),
             nn.ELU(),
             nn.Dropout(0.3),
-            nn.Linear(32, 4),
+            nn.Linear(32, cls),
             nn.LogSoftmax(dim=1)
         )
 
-    def forward(self, x):
-        x = x.contiguous().view(x.size(0), -1)
-        out = self.fc(x)
-        return out
 
-
-class EEGConformer(nn.Sequential):
-    def __init__(self, emb_size=40, depth=6, n_classes=4, **kwargs):
-        super().__init__(
-
-            PatchEmbedding(emb_size),
-            TransformerEncoder(depth, emb_size),
-            ClassificationHead(emb_size, n_classes)
+class EEGConformer(nn.Module):
+    def __init__(
+        self, 
+        nCh, 
+        nTime, 
+        cls, 
+        emb_size=40, 
+        depth=6, 
+        num_heads=10, 
+        drop_p=0.5, 
+        forward_expansion=4, 
+        forward_drop_p=0.5
+    ) -> None:
+        super().__init__()
+        self.nCh = nCh
+        self.nTime = nTime
+        self.patch_embedding = PatchEmbedding(nCh, emb_size)
+        self.transformer_encoder = TransformerEncoder(
+            depth, emb_size, num_heads, drop_p, forward_expansion, forward_drop_p
         )
+        in_freatures = self._forward_transformer().size(1)
+        self.classification_head = ClassificationHead(in_freatures, cls)
+
+    def _forward_transformer(self) -> torch.Tensor:
+        x = torch.randn(1, 1, self.nCh, self.nTime)
+        x = self.patch_embedding(x)
+        x = self.transformer_encoder(x)
+        return x.flatten(start_dim=1, end_dim=-1)
+
+    def forward(self, x):
+        out = self.patch_embedding(x)
+        out = self.transformer_encoder(out)
+        return self.classification_head(out)
 
 
 if __name__ == '__main__':
     from torchinfo import summary
-    net = EEGConformer()
+    net = EEGConformer(22, 1000, 4)
     summary(net, (1, 1, 22, 1000), device='cpu')

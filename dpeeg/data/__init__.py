@@ -2,6 +2,7 @@ from .datasets import (
     EEGDataset,
     PhysioNet,
     BCICIV2A,
+    BCICIV2B,
     HGD,
 )
 from .functions import (
@@ -10,6 +11,8 @@ from .functions import (
     to_tensor,
     slide_win,
     segmentation_and_reconstruction,
+    label_mapping,
+    pick_label,
     save,
     load,
     cheby2_filter,
@@ -24,6 +27,8 @@ from .transforms import (
     Unsqueeze,
     ApplyFunc,
     Save,
+    LabelMapping,
+    PickLabel,
 )
 from .preprocessing import (
     Preprocess,
@@ -31,3 +36,36 @@ from .preprocessing import (
     Filter,
     Resample,
 )
+
+__all__ = [
+    'EEGDataset',
+    'PhysioNet',
+    'BCICIV2A',
+    'BCICIV2B',
+    'HGD',
+    'split_train_test',
+    'merge_train_test',
+    'to_tensor',
+    'slide_win',
+    'segmentation_and_reconstruction',
+    'label_mapping',
+    'pick_label',
+    'save',
+    'load',
+    'cheby2_filter',
+    'Transforms',
+    'ComposeTransforms',
+    'SplitTrainTest',
+    'ToTensor',
+    'Normalization',
+    'SlideWin',
+    'Unsqueeze',
+    'ApplyFunc',
+    'Save',
+    'LabelMapping',
+    'PickLabel',
+    'Preprocess',
+    'ComposePreprocess',
+    'Filter',
+    'Resample'
+]

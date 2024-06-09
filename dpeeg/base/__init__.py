@@ -20,3 +20,6 @@ from .stopcriteria import (
 from .evaluate import (
     save_cm_img,
 )
+from .metrics import (
+    AggMetrics,
+)

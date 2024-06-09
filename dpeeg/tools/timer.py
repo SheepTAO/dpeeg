@@ -9,7 +9,6 @@
 
 
 import time
-from typing import Tuple
 
 
 class Timer:
@@ -23,14 +22,12 @@ class Timer:
     >>> do_something()
     >>> h, m, s = timer.stop()
     >>> h, m, s
-        1, 2, 13.435
+    1, 2, 13.435
         
     And you can update the start time of the default timer, just do like:
-    
     >>> timer.start()
 
     You can also register a specified timer and update the start time of it.
-
     >>> timer.start('new')
     >>> h, m, s = timer.stop('new')
     '''
@@ -47,7 +44,7 @@ class Timer:
         self._beg[name] = time.time()
         return self.ctime()
 
-    def stop(self, name : str = 'dpeeg_timer') -> Tuple[int, int, float]:
+    def stop(self, name : str = 'dpeeg_timer') -> tuple[int, int, float]:
         '''Get the hours, minutes, and seconds of a specific timer.
         '''
         sec = self.stop_precise(name)

@@ -16,14 +16,13 @@ from torch import Tensor
 from torch.nn import Module
 from torchinfo import summary
 from torch.utils.hooks import RemovableHandle
-from typing import Union, Optional, Dict, Tuple, List
 from torchmetrics.functional.classification.confusion_matrix import confusion_matrix
 
 
 def save_cm_img(
     preds : Tensor,
     target : Tensor,
-    cls_name : Union[List, tuple],
+    cls_name : list | tuple,
     fig_path : str,
 ) -> None:
     '''Calculate and save the corresponding confusion matrix figure to the given
@@ -55,9 +54,9 @@ def save_cm_img(
 def model_predict(
     model : Module, 
     data : Tensor,
-    event_id : Optional[dict[str, int]] = None,
+    event_id : dict[str, int] | None = None,
     no_grad : bool = True,
-) -> Union[Tuple[Tensor, List[str]], Tuple[Tensor, None]]:
+) -> tuple[Tensor, list[str]] | tuple[Tensor, None]:
     '''Compute model predictions.
 
     Parameters
@@ -146,7 +145,7 @@ def model_summary(model : Module):
 
 
 class Activation:
-    def __init__(self, model : Module, names : List[str]) -> None:
+    def __init__(self, model : Module, names : list[str]) -> None:
         '''Get model's intermediate result.
 
         Allows the context manager to be used to obtain the forward propagation
@@ -175,7 +174,7 @@ class Activation:
         >>> act.close()
         '''        
         self.names = names
-        self.handle : List[RemovableHandle] = list()
+        self.handle : list[RemovableHandle] = list()
         self.activation_maps  = dict()
 
         for name in self.names:
@@ -208,7 +207,7 @@ class Activation:
             self.activation_maps[name] = actmap
         return hook
 
-    def get_actmaps(self) -> Dict[str, Tensor]:
+    def get_actmaps(self) -> dict[str, Tensor]:
         '''Get intermediate activation maps.
 
         Returns
@@ -225,27 +224,3 @@ class Activation:
         for handle in self.handle:
             handle.remove()
         self.handle.clear()
-
-
-def get_data_by_label(data : Tensor, labels : Tensor, label : int) -> Tensor:
-    '''Index data based on specified label.
-
-    Parameters
-    ----------
-    data : Tensor (N, ...)
-        Input data.
-    labels : Tensor (N,)
-        Label table corresponding to the data.
-    label : int
-        The label to get.
-
-    Returns
-    -------
-    Tensor
-        All data for the specified label.
-    '''
-    if label not in labels:
-        raise ValueError(f'label {label} is not in the labels.')
-
-    indices = torch.where(labels == label)
-    return data[indices]
