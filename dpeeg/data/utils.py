@@ -159,17 +159,3 @@ def total_trials(
         return train_trials + test_trials
     else:
         raise KeyError(f'Only support `all`, `train` and `test` mode.')
-
-
-def yield_data(
-    input : dict,
-    mode : Literal['train', 'test', 'all'] = 'all'
-):
-    '''Traverse all subject training and test set in the dataset, and return 
-    the current subject name, mode and data.
-    '''
-    for sub, sub_data in input.items():
-        for m in ['train', 'test']:
-            if mode != 'all' and m != mode:
-                continue
-            yield sub, m, sub_data[m]

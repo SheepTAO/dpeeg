@@ -13,6 +13,21 @@
 
 import torch
 from torch import Tensor
+from typing import Literal
+
+
+def _multiclass_stat_scores(
+    preds : Tensor,
+    target : Tensor
+) -> tuple[Tensor, Tensor, Tensor, Tensor]:
+    pass
+
+def multiclass_accuracy(
+    preds : Tensor,
+    target : Tensor,
+    average : Literal['micro', 'macro', 'weighted'] = 'micro',
+) -> Tensor:
+    pass
 
 
 class AggMetrics:

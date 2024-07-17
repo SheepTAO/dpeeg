@@ -16,7 +16,7 @@ import random
 import inspect
 import functools
 import numpy as np
-from .tools.logger import Logger
+from .tools.logger import Logger, _Level
 from collections.abc import Iterable, Callable
 from typing import Any, TypeVar
 
@@ -61,7 +61,7 @@ def verbose(func : _FuncT) -> _FuncT:
 
 
 def set_log_level(
-    verbose : int | str = DPEEG_LOGER_LEVEL,
+    verbose : _Level = DPEEG_LOGER_LEVEL,
     ret_old_level : bool = False
 ) -> None | str:
     '''Set the global logging level.

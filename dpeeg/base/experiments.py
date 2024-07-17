@@ -24,7 +24,7 @@ from torchmetrics.aggregation import MeanMetric, CatMetric
 import dpeeg
 from .classifier import TrainClassifier
 from .metrics import AggMetrics
-from ..data.datasets import EEGDataset
+from dpeeg.data.base import EEGDataset
 from ..data.functions import split_train_test, merge_train_test, check_dataset, check_sub_data
 from ..data.transforms import Transforms
 from ..tools import Timer, Filer, Logger

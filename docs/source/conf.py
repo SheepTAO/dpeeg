@@ -1,0 +1,57 @@
+# Configuration file for the Sphinx documentation builder.
+#
+# For the full list of built-in configuration values, see the documentation:
+# https://www.sphinx-doc.org/en/master/usage/configuration.html
+
+# -- Path setup --------------------------------------------------------------
+# If extensions (or modules to document with autodoc) are in another directory,
+# add these directories to sys.path here. If the directory is relative to the
+# documentation root, use os.path.abspath to make it absolute.
+import os
+import sys
+sys.path.insert(0, os.path.abspath('../../dpeeg'))
+
+# -- Project information -----------------------------------------------------
+# https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
+
+from dpeeg import __version__
+
+project = 'dpeeg'
+copyright = '2024, SheepTAO'
+author = 'SheepTAO'
+release = __version__
+
+# -- General configuration ---------------------------------------------------
+# https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
+
+extensions = [
+    'sphinx.ext.autodoc',
+    'sphinx.ext.viewcode',
+    'sphinx.ext.napoleon',
+    'sphinx.ext.mathjax',
+    'sphinx.ext.intersphinx'
+]
+
+templates_path = ['_templates']
+exclude_patterns = []
+
+
+
+# -- Options for HTML output -------------------------------------------------
+# https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
+
+
+html_theme = 'pydata_sphinx_theme'
+html_theme_options = {
+    "footer_start": ["copyright"],
+    "footer_center": ["sphinx-version"],
+    "icon_links": [
+        {
+            "name": "GitHub",
+            "url": "https://github.com/SheepTAO/dpeeg",
+            "icon": "fa-brands fa-github",
+        },
+    ]
+}
+
+html_static_path = ['_static']

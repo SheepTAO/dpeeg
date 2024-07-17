@@ -1,4 +1,4 @@
-from .datasets import (
+from .datasets_old import (
     EEGDataset,
     PhysioNet,
     BCICIV2A,
@@ -19,7 +19,7 @@ from .functions import (
 )
 from .transforms import (
     Transforms,
-    ComposeTransforms,
+    Sequential,
     SplitTrainTest,
     ToTensor,
     Normalization,
@@ -54,7 +54,7 @@ __all__ = [
     'load',
     'cheby2_filter',
     'Transforms',
-    'ComposeTransforms',
+    'Sequential',
     'SplitTrainTest',
     'ToTensor',
     'Normalization',

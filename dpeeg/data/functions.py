@@ -9,26 +9,33 @@
 """
 
 
-import os
+from pathlib import Path
+
+
 import torch
 import numpy as np
 import scipy.signal as signal
 from numpy import ndarray
+from mne.utils import verbose, logger
 from torch import Tensor
-from typing import Literal
+from typing import Literal, TypeAlias
 
-from ..utils import loger, verbose, DPEEG_SEED, find_exist_elements
+
+from dpeeg.data.base import EEGData, EEGDataset
+from dpeeg.utils import DPEEG_SEED, find_exist_elements
 from .utils import check_dataset, check_sub_data, check_data_label
-from ..tools.logger import _Level
+
+
+DictData: TypeAlias = dict[int, EEGData] | EEGDataset
 
 
 @verbose
 def split_train_test(
     *arrs, 
-    test_size : float = .25, 
-    seed : int = DPEEG_SEED, 
-    sample : list[int] | None = None, 
-    verbose : _Level = None
+    test_size: float = .25, 
+    seed: int = DPEEG_SEED, 
+    sample: list[int] | None = None, 
+    verbose = None
 ) -> list:
     '''Split an dataset into training and testing sets. The axis along which
     to split is 0.
@@ -43,7 +50,7 @@ def split_train_test(
         class label.
     seed : int
         Random seed when splitting.
-    sample : list of int, optional
+    sample : list of int, None
         A list of integers, the entries indicate which data were selected
         as the test set. If None, test_size will be used.
 
@@ -94,7 +101,7 @@ def split_train_test(
 @verbose
 def merge_train_test(
     *arrs,
-    verbose : _Level = None
+    verbose = None
 ) -> tuple[ndarray, ndarray]:
     '''Merge the data and label of the training set and test set.
 
@@ -131,7 +138,7 @@ def merge_train_test(
 
         data, label = arr[0], arr[1]
         if data.shape[0] != label.shape[0]:
-            loger.warning(f'Length of data and label in {i}^th group is not uniform.')
+            logger.warning(f'Length of data and label in {i}^th group is not uniform.')
         merge_data.append(data)
         merge_label.append(label)
 
@@ -148,7 +155,7 @@ def merge_train_test(
 def to_tensor(
     data: Tensor | ndarray,
     label: Tensor | ndarray,
-    verbose : _Level = None
+    verbose = None
 ) -> tuple[Tensor, Tensor]:
     '''Convert the numpy data and label into trainable Tensor format.
     '''
@@ -162,12 +169,109 @@ def to_tensor(
 
 
 @verbose
+def crop(
+    data: ndarray,
+    tmin: int | None = None,
+    tmax: int | None = None,
+    include_tmax: bool = False,
+    verbose = None,
+) -> ndarray:
+    '''Crop a time interval from the data along the last dimension by default.
+
+    Parameters
+    ----------
+    tmin : int
+        Start time of selection in sampling points.
+    tmax : int
+        End time of selection in sampling points.
+    include_tmax : bool
+        If `False`, exclude tmax.
+
+    Returns
+    -------
+    data : ndarray
+        The cropped data.
+    '''
+    if tmax is not None and include_tmax:
+        tmax += 1
+    return data[..., tmin : tmax]
+
+
+@verbose
+def z_score_norm(
+    data: ndarray,
+    dim: int | None = None,
+    verbose = None,
+) -> ndarray | tuple[ndarray, ndarray]:
+    '''Z-score normalization.
+
+    .. math:: 
+        \mathbf{z} = \frac{\mathbf{x} - \mu}{\sqrt{\sigma^{2}}}
+
+    where :math:`\mathbf{x}` and :math:`\mathbf{z}` denote the input data and
+    the output of normalization, respectively. :math:`\mu` and :math:`\sigma^2`
+    represent the mean and variance values of the sample.
+
+    Parameters
+    ----------
+    data : ndarray
+        Input data.
+    dim : int, None
+        The dimension to normalize. If None, the entire data is normalized.
+
+    Returns
+    -------
+    ndarray
+        Normalized data.
+    '''
+    keepdims = False if dim is None else True
+    mean = np.mean(data, dim, keepdims=keepdims)
+    std = np.std(data, dim, keepdims=keepdims)
+    return (data - mean) / std
+
+
+@verbose
+def min_max_norm(
+    data: ndarray,
+    dim: int | None = None,
+    verbose = None,
+) -> ndarray:
+    '''Min-max normalization.
+
+    .. math::
+        \mathbf{z} = 
+        \frac{\mathbf{x}-\mathbf{x}_{min}}{\mathbf{x}_{max}-\mathbf{x}_{min}}
+
+    where :math:`\mathbf{x}` and :math:`\mathbf{z}` denote the input data and
+    the output of normalization, respectively. :math:`\mathbf{x}_{max}` and
+    :math:`\mathbf{x}_{min}` represent the maximum and minimum values of the
+    sample.
+
+    Parameters
+    ----------
+    data : ndarray
+        Input data.
+    dim : int, None
+        The dimension to normalize. If None, the entire data is normalized.
+
+    Returns
+    -------
+    ndarray
+        Normalized data.
+    '''
+    keepdims = False if dim is None else True
+    min = np.min(data, dim, keepdims=keepdims)
+    max = np.max(data, dim, keepdims=keepdims)
+    return (data - min) / (max - min)
+
+
+@verbose
 def slide_win(
-    data : ndarray,
-    win : int, 
-    overlap : int = 0,
-    label : ndarray | None = None,
-    verbose : _Level = None,
+    data: ndarray,
+    win: int, 
+    overlap: int = 0,
+    label: ndarray | None = None,
+    verbose = None,
 ) -> tuple[ndarray, ndarray | None]:
     '''This transform is only splits the time series (dim = -1) through the 
     sliding window operation on the original dataset. If the time axis is not
@@ -183,7 +287,7 @@ def slide_win(
         The size of the sliding window.
     overlap : int
         The amount of overlap between adjacent sliding windows.
-    label : ndarray (N,), optional
+    label : ndarray (N,), None
         The label of the data. If not None, label will update with sliding window.
 
     Returns
@@ -203,19 +307,16 @@ def slide_win(
     if isinstance(label, ndarray) and len(data) != len(label):
         raise ValueError('The number of label and data must be the same.')    
 
-    loger.info(f'Sliding window with win:{win} and overlap:{overlap}.')
-
     end = win
     times = data.shape[-1]
     if end > times:
-        loger.warning('The window is larger than the times to be split.')
+        logger.warning('The window is larger than the times to be split.')
         return data, label
 
     sld_num = 0
     data_list = []
     while end <= times:
         data_list.append(data[..., end-win:end])
-        loger.info(f' Intercept data from {end-win} to {end}.')
         sld_num += 1
         end += win - overlap
 
@@ -230,11 +331,11 @@ def slide_win(
 
 @verbose
 def segmentation_and_reconstruction(
-    data : ndarray,
-    label : ndarray,
-    samples : int = 125,
-    multiply : float = 1.,
-    verbose : _Level = None,
+    data: ndarray,
+    label: ndarray,
+    samples: int = 125,
+    multiply: float = 1.,
+    verbose = None,
 ) -> tuple[ndarray, ndarray]:
     '''Signal Segmentation and Recombination in Time Domain.
 
@@ -305,9 +406,9 @@ def segmentation_and_reconstruction(
 
 @verbose
 def save(
-    folder : str,
-    input : dict,
-    verbose : _Level = None,
+    folder: str | Path,
+    input: EEGDataset,
+    verbose = None,
 ) -> None:
     '''Save transformed dataset to a binary file in NumPy `.npy` format.
 
@@ -315,20 +416,20 @@ def save(
     ----------
     folder : str
         Folder name to save transformed data.
-    input : dict
+    input : EEGDataset
         Data are saved on a per-subject basis.
     '''
     check_dataset(input)
 
-    folder = os.path.abspath(folder)
-    os.makedirs(folder, exist_ok=True)
-    if os.listdir(folder):
+    folder = Path(folder).resolve()
+    folder.mkdir(parents=True, exist_ok=True)
+    if folder.iterdir():
         raise FileExistsError(f'\'{folder}\' is not a empty folder.')
     
-    loger.info(f'Transformed data will be saved in: \'{folder}\'')
+    logger.info(f'Transformed data will be saved in: \'{folder}\'')
     for sub, sub_data in input.items():
-        loger.info(f'Save transformed data of sub_{sub}.')
-        file_name = os.path.join(folder, f'sub_{sub}')
+        logger.info(f'Save transformed data of sub_{sub}.')
+        file_name = folder / f'sub_{sub}'
         if check_sub_data(sub, sub_data):
             np.savez(
                 file_name, 
@@ -339,11 +440,11 @@ def save(
             )
         else:
             np.savez(file_name, data=sub_data[0], label=sub_data[1])
+    logger.info('Save dataset done.')
 
 
 def _check_sub_load_data(sub, sub_data) -> bool:
-    '''Check whether the loaded data is split?
-    '''
+    '''Check whether the loaded data is split.'''
     sub_data = dict(sub_data)
     keys = sorted(sub_data.keys())
 
@@ -356,46 +457,55 @@ def _check_sub_load_data(sub, sub_data) -> bool:
 
 
 @verbose
+def _get_subject_list(
+    folder: str | Path, 
+    subjects: list[int] | None = None,
+    verbose=None,
+) -> list[int]:
+    '''Return the list of subjects in a folder.'''
+    folder = Path(folder).resolve()
+    path_list = list(folder.iterdir())
+    subject_list = list(set([int(p.stem.split('_')[1]) for p in path_list]))
+    subject_list.sort()
+
+    if subjects:
+        include = set(subjects) & set(subject_list)
+        exclude = set(subjects) - set(subject_list)
+        subject_list = list(include)
+        if exclude:
+            logger.warning(f'Unable to find {exclude}, loaded only {include}.')
+    return subject_list
+
+
+@verbose
 def load(
-    folder : str,
-    subjects : list[int] | None = None,
-    verbose : _Level = None,
-) -> dict:
+    folder: str,
+    subjects: list[int] | None = None,
+    validate: bool = True,
+    verbose=None,
+) -> EEGDataset:
     '''Load saved transformed dataset from folder.
 
     Parameters
     ----------
     folder : str
         Folder name where transformed data is saved.
-    subjects : list of int, optional
+    subjects : list of int, None
         List of subject number. If None, all subjects will be loaded.
-    mode : str
-        Mode to load data. If 'all', both trainset and testset will be loaded. 
-        If 'train', only trainset will be loaded. 'test' is the same. If data
-        is not split, mode is ignored.
+    validate : bool
+        Verify the correctness of the input. Set to `False` for faster loading.
     '''
-    path = os.path.abspath(folder)
-    loger.info(f'Loading dataset from \'{path}\'')
+    if validate or (subjects is None):
+        subject_list = _get_subject_list(folder, subjects, verbose)
+    else:
+        subject_list = subjects
 
-    path_list = os.listdir(path)
-    sub_list = list(set([int(p.split('_')[1].split('.')[0]) for p in path_list]))
-    sub_list.sort()
-
-    if subjects:
-        intersection = set(subjects) & set(sub_list)
-        exclude = set(subjects) - set(sub_list)
-        if exclude:
-            loger.warning(f'Could not find subjects: {exclude}, ' +
-                          f'only load subjects: {intersection}')
-        sub_list = list(intersection)
-
-    dataset = {}
-    for sub in sub_list:
-        loger.info(f'Loading subject {sub}')
-        file_name = os.path.join(path, f'sub_{sub}.npz')
+    dataset = EEGDataset()
+    for sub in subject_list:
+        logger.info(f'Loading subject {sub}')
+        file_name = Path(folder).resolve() / f'sub_{sub}.npz'
         sub_data = np.load(file_name)
 
-        dataset[sub] = None
         if _check_sub_load_data(sub, sub_data):
             dataset[sub] = {
                 'train': [sub_data['train_data'], sub_data['train_label']],
@@ -404,21 +514,21 @@ def load(
         else:
             dataset[sub] = [sub_data['data'], sub_data['label']]
 
-    loger.info('Load dataset done.')
+    logger.info('Load dataset done.')
     return dataset
 
 
 @verbose
 def cheby2_filter(
-    data : ndarray,
-    freq : float,
-    l_freq : float | None = None,
-    h_freq : float | None = None,
-    transition_bandwidth : float = 2.,
-    gstop : float = 30,
-    gpass : float = 3,
-    filter_type : Literal['filter', 'filtfilt'] = 'filter',
-    verbose : _Level = None
+    data: ndarray,
+    freq: float,
+    l_freq: float | None = None,
+    h_freq: float | None = None,
+    transition_bandwidth: float = 2.,
+    gstop: float = 30,
+    gpass: float = 3,
+    filter_type: Literal['filter', 'filtfilt'] = 'filter',
+    verbose=None
 ):
     '''Filter a signal using cheby2 iir filtering.
 
@@ -428,7 +538,7 @@ def cheby2_filter(
         Filtering is performed in the last dimension (time dimension).
     freq : float
         Data sampling frequency.
-    l_freq, h_freq : float, optional
+    l_freq, h_freq : float, None
         Low and high cut off frequency in hertz. If l_freq is None, the data 
         are only low-passed. If h_freq is None,  the data are only high-passed.
         Both parameters cannot be None at the same time.
@@ -450,12 +560,12 @@ def cheby2_filter(
     n_freq = freq / 2   # Nyquist frequency
 
     if (l_freq == 0 or l_freq == None) and (h_freq == None or h_freq >= n_freq):
-        loger.warning('Not doing any filtering. Invalid cut-off freq.')
+        logger.warning('Not doing any filtering. Invalid cut-off freq.')
         return data
 
     # low-passed filter
     elif l_freq == 0 or l_freq == None:
-        loger.info(f'{h_freq} Hz lowpass filter.')
+        logger.info(f'{h_freq} Hz lowpass filter.')
         fpass = h_freq / n_freq                                 # type:ignore
         fstop = (h_freq + transition_bandwidth) / n_freq        # type:ignore
         N, Ws = signal.cheb2ord(fpass, fstop, gpass, gstop)
@@ -463,7 +573,7 @@ def cheby2_filter(
 
     # high-passed filter
     elif h_freq == None or h_freq == n_freq:
-        loger.info(f'{l_freq} Hz highpass filter.')
+        logger.info(f'{l_freq} Hz highpass filter.')
         fpass = l_freq / n_freq
         fstop = (l_freq - transition_bandwidth) / n_freq
         N, Ws = signal.cheb2ord(fpass, fstop, gpass, gstop)
@@ -471,7 +581,7 @@ def cheby2_filter(
 
     # band-passed filter
     else:
-        loger.info(f'{l_freq} - {h_freq} Hz bandpass filter.')
+        logger.info(f'{l_freq} - {h_freq} Hz bandpass filter.')
         fpass = [l_freq / n_freq, h_freq / n_freq]
         fstop = [(l_freq - transition_bandwidth) / n_freq, 
                  (h_freq + transition_bandwidth) / n_freq]
@@ -480,20 +590,18 @@ def cheby2_filter(
 
     if filter_type == 'filtfilt':
         out = signal.filtfilt(b, a, data)
-    elif filter_type:
-        out = signal.lfilter(b, a, data)
     else:
-        raise ValueError(f'Unsupported filter {filter_type}.')
+        out = signal.lfilter(b, a, data)
 
     return out
 
 
 @verbose
 def label_mapping(
-    label : ndarray,
-    mapping : ndarray, 
-    order : bool = True,
-    verbose : _Level = None,
+    label: ndarray,
+    mapping: ndarray, 
+    order: bool = True,
+    verbose=None,
 ) -> ndarray:
     '''Rearrange the original label according to mapping rules.
 
@@ -548,10 +656,10 @@ def label_mapping(
 
 @verbose
 def pick_label(
-    data : ndarray,
-    label : ndarray,
-    pick : ndarray,
-    verbose : _Level = None,
+    data: ndarray,
+    label: ndarray,
+    pick: ndarray,
+    verbose=None,
 ) -> tuple[ndarray, ndarray]:
     '''Pick a subset of data by label.
 
@@ -611,7 +719,7 @@ def pick_label(
     return new_data, new_label
 
 
-def pick_data(data : ndarray, labels : ndarray, label : int) -> ndarray:
+def pick_data(data: ndarray, labels: ndarray, label: int) -> ndarray:
     '''Index data based on specified label.
 
     Parameters
@@ -635,9 +743,9 @@ def pick_data(data : ndarray, labels : ndarray, label : int) -> ndarray:
 
 
 def _NPMConv(
-    a : ndarray, 
-    v : ndarray, 
-    mode : Literal['full', 'same', 'valid']
+    a: ndarray, 
+    v: ndarray, 
+    mode: Literal['full', 'same', 'valid']
 ) -> ndarray:
     '''Linear convolution of two multi-dimensional sequences.
     '''
@@ -648,7 +756,7 @@ def _NPMConv(
     return a_flatten.reshape(*dim, seq)
 
 
-def smooth(signal : ndarray, win : int = 5) -> ndarray:
+def smooth(signal: ndarray, win: int = 5) -> ndarray:
     '''Matlab smooth implement for moving average method in python.
 
     Parameters
@@ -671,10 +779,10 @@ def smooth(signal : ndarray, win : int = 5) -> ndarray:
 
 
 def erds_time(
-    data : ndarray,
-    ref_start : int,
-    ref_end : int,
-    smooth_win : int,
+    data: ndarray,
+    ref_start: int,
+    ref_end: int,
+    smooth_win: int,
 ) -> tuple[ndarray, ndarray]:
     '''Time course of ERD/ERS.
 
