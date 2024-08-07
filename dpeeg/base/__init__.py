@@ -7,7 +7,7 @@ from .experiments import (
 from .classifier import (
     TrainClassifier,
 )
-from .stopcriteria import (
+from ..trainer.stopcriteria import (
     Criteria,
     ComposeStopCriteria,
     And,

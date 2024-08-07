@@ -1,3 +1,6 @@
+![banner](/docs/source/_static/banner.svg)
+---
+
 # dpeeg
 
 Dpeeg provides a complete workflow for deep learning decoding EEG tasks, including basic datasets (datasets 

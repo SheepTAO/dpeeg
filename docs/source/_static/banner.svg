@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- 由 Microsoft Visio, SVG Export 生成 logo-dark.svg Page-2 -->
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:ev="http://www.w3.org/2001/xml-events"
+		width="10.0688in" height="3in" viewBox="0 0 724.954 216" xml:space="preserve" color-interpolation-filters="sRGB"
+		class="st7">
+	<style type="text/css">
+	<![CDATA[
+		.st1 {fill:none;stroke:none;stroke-width:0.25}
+		.st2 {fill:#000000;font-family:Malgun Gothic;font-size:15em}
+		.st3 {visibility:visible}
+		.st4 {fill:#000000;fill-opacity:0.4;filter:url(#filter_2.6666667461395);stroke:none}
+		.st5 {fill:url(#grad0-11);stroke:none;stroke-width:0.25}
+		.st6 {fill:url(#grad0-18);stroke:none;stroke-width:0.25}
+		.st7 {fill:none;fill-rule:evenodd;font-size:12px;overflow:visible;stroke-linecap:square;stroke-miterlimit:3}
+	]]>
+	</style>
+
+	<defs id="Patterns_And_Gradients">
+		<linearGradient id="grad0-11" x1="0" y1="0" x2="1" y2="0" gradientTransform="rotate(135 0.5 0.5)">
+			<stop offset="0" stop-color="#36d1dc" stop-opacity="1"/>
+			<stop offset="1" stop-color="#5b86e5" stop-opacity="1"/>
+		</linearGradient>
+		<linearGradient id="grad0-18" x1="0" y1="0" x2="1" y2="0" gradientTransform="rotate(315 0.5 0.5)">
+			<stop offset="0" stop-color="#5b86e5" stop-opacity="1"/>
+			<stop offset="1" stop-color="#36d1dc" stop-opacity="1"/>
+		</linearGradient>
+	</defs>
+	<defs id="Filters">
+		<filter id="filter_2.6666667461395">
+			<feGaussianBlur stdDeviation="2.6666667461395"/>
+		</filter>
+	</defs>
+	<g>
+		<title>页-2</title>
+		<g id="shape1002-1" transform="translate(197.46,-9.72007)">
+			<title>工作表.1002</title>
+			<desc>dpeeg</desc>
+			<rect x="0" y="19.4397" width="527.244" height="196.56" class="st1"/>
+			<text x="4.87" y="171.72" class="st2">dpeeg</text>		</g>
+		<g id="group1005-4" transform="translate(6.12132,-22.9609)">
+			<title>工作表.1005</title>
+			<g id="shape1003-5" transform="translate(-130.961,130.961) rotate(-90) scale(-1,1)">
+				<title>L 形状.4</title>
+				<g id="shadow1003-6" transform="matrix(1,0,0,1,2.12132,-2.12132)" class="st3">
+					<path d="M11.34 216 L74.41 216 A10.6299 10.6299 -180 0 0 85.04 205.37 L85.04 205.37 A10.6299 10.6299 -180 0 0
+								 74.41 194.74 L32.6 194.74 A11.3386 11.3386 0 0 1 21.26 183.4 L21.26 141.59 A10.6299 10.6299 -180
+								 0 0 10.63 130.96 L10.63 130.96 A10.6299 10.6299 -180 0 0 0 141.59 L0 204.66 A11.3386 11.3386 -180
+								 0 0 11.34 216 Z" class="st4"/>
+				</g>
+				<path d="M11.34 216 L74.41 216 A10.6299 10.6299 -180 0 0 85.04 205.37 L85.04 205.37 A10.6299 10.6299 -180 0 0 74.41
+							 194.74 L32.6 194.74 A11.3386 11.3386 0 0 1 21.26 183.4 L21.26 141.59 A10.6299 10.6299 -180 0 0 10.63
+							 130.96 L10.63 130.96 A10.6299 10.6299 -180 0 0 0 141.59 L0 204.66 A11.3386 11.3386 -180 0 0 11.34 216
+							 Z" class="st5"/>
+			</g>
+			<g id="shape1004-12" transform="translate(85.0394,-85.0394)">
+				<title>L 形状</title>
+				<g id="shadow1004-13" transform="matrix(1,0,0,1,-2.12132,2.12132)" class="st3">
+					<path d="M11.34 216 L74.41 216 A10.6299 10.6299 -180 0 0 85.04 205.37 L85.04 205.37 A10.6299 10.6299 -180 0 0
+								 74.41 194.74 L32.6 194.74 A11.3386 11.3386 0 0 1 21.26 183.4 L21.26 141.59 A10.6299 10.6299 -180
+								 0 0 10.63 130.96 L10.63 130.96 A10.6299 10.6299 -180 0 0 0 141.59 L0 204.66 A11.3386 11.3386 -180
+								 0 0 11.34 216 Z" class="st4"/>
+				</g>
+				<path d="M11.34 216 L74.41 216 A10.6299 10.6299 -180 0 0 85.04 205.37 L85.04 205.37 A10.6299 10.6299 -180 0 0 74.41
+							 194.74 L32.6 194.74 A11.3386 11.3386 0 0 1 21.26 183.4 L21.26 141.59 A10.6299 10.6299 -180 0 0 10.63
+							 130.96 L10.63 130.96 A10.6299 10.6299 -180 0 0 0 141.59 L0 204.66 A11.3386 11.3386 -180 0 0 11.34 216
+							 Z" class="st6"/>
+			</g>
+		</g>
+	</g>
+</svg>

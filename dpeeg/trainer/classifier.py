@@ -1,31 +1,7 @@
-#!/usr/bin/env python
-# coding: utf-8
+# Authors: SheepTAO <sheeptao@outlook.com>
 
-"""
-    The train model for any deep learning analysis.
-    This class should provide following functionalities for any deep learning.
-
-    module:
-        1. train() -> Train the model
-        2. predict() -> Evaluate the train, validation, and test performance
-        3. Create train and validation graphs
-        4. Run over CPU / GPU (if available)
-    This class needs following things to run:
-        1. net -> The architecture of the network. It should inherit Module
-             and should define the forward method.
-        2. trainset, testset and valset -> these should be tuple, list or
-             DataLoder the first parameters is `data` and second is `label`.
-        3. optimizer -> the optimizer of type torch.optim.
-        4. lr_scheduler -> the scheduler of type torch.optim.lr_scheduler.
-        5. nGPU -> will run on GPU only if it's available, use CPU when the GPU
-                is not available. 
-
-    NOTE: The train model only support single-card training.
-
-    @Author  : SheepTAO
-    @Time    : 2023-07-24
-"""
-
+# License: MIT
+# Copyright the dpeeg contributors.
 
 import os, torch
 import torch.nn as nn
@@ -44,8 +20,8 @@ from torchmetrics.aggregation import MeanMetric, CatMetric
 
 from ..tools import Logger, Timer
 from ..utils import DPEEG_SEED
-from dpeeg.transforms.functions import to_tensor
-from ..trainer.stopcriteria import ComposeStopCriteria
+from ..transforms.functions import to_tensor
+from .stopcriteria import ComposeStopCriteria
 
 from torch.backends import cudnn
 
@@ -53,9 +29,60 @@ cudnn.benchmark = False
 cudnn.deterministic = True
 
 
-# base train classifier
-class TrainClassifier:
-    """Apex Trainer for any deep learning."""
+class Classifier:
+    """Initialize the basic attribute of the train model.
+
+    Generate a trainer to test the performance of the same network on
+    different datasets.
+
+    Parameters
+    ----------
+    net : Module
+        Inherit Module and should define the forward method. The first
+        parameter returned by model forward propagation is the prediction.
+    nGPU : int
+        Select the gpu id to train.
+    seed : int
+        Select random seed for review.
+    loss_fn : str, Module
+        Name of the loss function from torch.nn which will be used for
+        training. If Module, means using a custom loss function. Note:
+        custom optimizer is a class (not an instance), and its initializa-
+        tion list is `(**loss_fn_args)`.
+    loss_fn_args : dict, optional
+        Additional arguments to be passed to the loss function.
+    optimizer : str, Type[Optimizer]
+        Name of the optimization function from torch.optim which will be
+        used for training. If Optimizer, means using a custom optimizer.
+        Note: custom optimizer is a class (not an instance), and its init-
+        ialization list is `(net, lr=lr, **optimizer_args)`.
+    optimizer_args : dict, optional
+        Additional arguments to be passed to the optimization function.
+    lr : float
+        Learning rate.
+    lr_sch : str, Type[LRScheduler], optional
+        Name of the learning scheduler from torch.optim.lr_scheduler which
+        will be used for training. If LRScheduler, means using a custom
+        learning scheduler. Note: custom learning scheduler is a class (not
+        an instance), and its initialization list is
+        `(optimizer, **lr_sch_args)`.
+    lr_sch_args : dict, optional
+        Additional arguments to be passed to the lr_scheduler function.
+    grad_acc : int
+        Aradient accumulation.
+    batch_size : int
+        Mini-batch size.
+    keep_data_gpu : bool
+        Keep the dataset on the GPU to avoid the time consumption of data
+        migration. Please adjust according to the personal GPU memory.
+    data_size : tuple, list, optional
+        Output the structure of the network model according to the input
+        dimension if the `data_size` is given.
+    depth : int
+        Depth of nested layers to display.
+    verbose : int, str
+        The log level of console. Default is INFO. Mainly used for debug.
+    """
 
     def __init__(
         self,
@@ -76,59 +103,6 @@ class TrainClassifier:
         depth: int = 3,
         verbose: int | str = "INFO",
     ) -> None:
-        """Initialize the basic attribute of the train model.
-
-        Generate a trainer to test the performance of the same network on
-        different datasets.
-
-        Parameters
-        ----------
-        net : Module
-            Inherit Module and should define the forward method. The first
-            parameter returned by model forward propagation is the prediction.
-        nGPU : int
-            Select the gpu id to train.
-        seed : int
-            Select random seed for review.
-        loss_fn : str, Module
-            Name of the loss function from torch.nn which will be used for
-            training. If Module, means using a custom loss function. Note:
-            custom optimizer is a class (not an instance), and its initializa-
-            tion list is `(**loss_fn_args)`.
-        loss_fn_args : dict, optional
-            Additional arguments to be passed to the loss function.
-        optimizer : str, Type[Optimizer]
-            Name of the optimization function from torch.optim which will be
-            used for training. If Optimizer, means using a custom optimizer.
-            Note: custom optimizer is a class (not an instance), and its init-
-            ialization list is `(net, lr=lr, **optimizer_args)`.
-        optimizer_args : dict, optional
-            Additional arguments to be passed to the optimization function.
-        lr : float
-            Learning rate.
-        lr_sch : str, Type[LRScheduler], optional
-            Name of the learning scheduler from torch.optim.lr_scheduler which
-            will be used for training. If LRScheduler, means using a custom
-            learning scheduler. Note: custom learning scheduler is a class (not
-            an instance), and its initialization list is
-            `(optimizer, **lr_sch_args)`.
-        lr_sch_args : dict, optional
-            Additional arguments to be passed to the lr_scheduler function.
-        grad_acc : int
-            Aradient accumulation.
-        batch_size : int
-            Mini-batch size.
-        keep_data_gpu : bool
-            Keep the dataset on the GPU to avoid the time consumption of data
-            migration. Please adjust according to the personal GPU memory.
-        data_size : tuple, list, optional
-            Output the structure of the network model according to the input
-            dimension if the `data_size` is given.
-        depth : int
-            Depth of nested layers to display.
-        verbose : int, str
-            The log level of console. Default is INFO. Mainly used for debug.
-        """
         self.net = net
 
         self.loger = Logger("dpeeg_train", clevel=verbose)
