@@ -6,16 +6,13 @@
 Welcome to dpeeg's documentation!
 =================================
 
+
+
 .. toctree::
    :maxdepth: 1
    :caption: Contents:
 
    install
-   api_reference/modules
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+   documentation
+   api_reference
+   development

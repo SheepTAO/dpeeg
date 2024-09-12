@@ -14,6 +14,7 @@ from numpy.lib import format
 from mne.utils import verbose, logger
 from tqdm import tqdm
 
+from .. import __version__
 from ..utils import iterable_to_str
 from .base import BaseData, BaseDataset, EEGData, MultiSessEEGData, SplitEEGData
 
@@ -24,7 +25,7 @@ T = TypeVar("T")
 
 @verbose
 def check_inter_and_compl(
-    r_set: Iterable[T], q_set: Iterable[T], order: bool = True, verbose=None
+    r_set: Iterable[T], q_set: Iterable[T], strict: bool = True, verbose=None
 ) -> tuple[set[T], set[T]]:
     """Check the intersection and complement of two sets.
 
@@ -37,7 +38,7 @@ def check_inter_and_compl(
         Retrieve a collection.
     q_set : Iterable of Any
         Query a collection.
-    order : bool
+    strict : bool
         By default, an error is raised if any element in the retrieved set does
         not exist in the query set. If `False`, the intersection is allowed to
         be empty.
@@ -61,7 +62,7 @@ def check_inter_and_compl(
 
     inter = r_set & q_set
     if len(inter) == 0:
-        if order:
+        if strict:
             raise KeyError(
                 f"Cannot find {iterable_to_str(r_set)}, "
                 f"data only contains {iterable_to_str(q_set)}."
@@ -106,7 +107,7 @@ def save(
 
     path = Path(file).resolve().with_suffix(".egd")
     with zipfile.ZipFile(path, mode="w", compression=compression) as zipf:
-        eegdata_info = {"type": type(eegdata).__name__}
+        eegdata_info = {"version": __version__, "type": type(eegdata).__name__}
         zipf.writestr("eegdata_info.json", json.dumps(eegdata_info, indent=4))
 
         for val, key in eegdata.datas():
@@ -125,7 +126,7 @@ def save_dataset(
 ):
     """Save the eegdata dataset to a folder.
 
-    The eegdata in the dataset is stored separately by subject, and a `json`
+    The eegdata in the dataset is stored separately by subject, and a `.json`
     formatted file describing the basic information of the dataset is saved.
 
     Parameters
@@ -152,6 +153,7 @@ def save_dataset(
         raise FileExistsError(f"'{str(path)}' is not a empty folder.")
 
     dataset_info = {
+        "version": __version__,
         "name": dataset._repr["_obj_name"],
         "event_id": dataset._repr["event_id"],
     }

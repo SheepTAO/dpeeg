@@ -3,7 +3,6 @@
 # License: MIT
 # Copyright the dpeeg contributors.
 
-import numpy as np
 from numpy import ndarray
 from mne.utils import verbose, logger
 
@@ -16,8 +15,16 @@ from .functions import (
 )
 
 
+__all__ = [
+    "ZscoreNorm",
+    "MinMaxNorm",
+]
+
+
 class ZscoreNorm(Transforms):
     """Z-score normalization per subject.
+
+    By default, the EEG data (`edata`) of eegdata are normalized.
 
     Parameters
     ----------
@@ -33,7 +40,7 @@ class ZscoreNorm(Transforms):
 
     Returns
     -------
-    data : BaseData or BaseDataset
+    data : eegdata or dataset
         Transformed eegdata.
     """
 
@@ -49,16 +56,20 @@ class ZscoreNorm(Transforms):
         self.dim = dim
 
     @verbose
-    def _apply(self, input: _DataVar, verbose=None) -> _DataVar:
-        for eegdata, _ in input.datas():
-            eegdata["edata"] = z_score_norm(
-                eegdata["edata"], self.mean, self.std, self.dim, verbose
+    def _apply(self, eegdata: _DataVar, verbose=None) -> _DataVar:
+        logger.info(f"  Apply {self} ...")
+
+        for egd, _ in eegdata.datas():
+            egd["edata"] = z_score_norm(
+                egd["edata"], self.mean, self.std, self.dim, verbose=verbose
             )
-        return input
+        return eegdata
 
 
 class MinMaxNorm(Transforms):
     """Min-max normalization per subject.
+
+    By default, the EEG data (`edata`) of eegdata are normalized.
 
     Parameters
     ----------
@@ -74,7 +85,7 @@ class MinMaxNorm(Transforms):
 
     Returns
     -------
-    data : BaseData or BaseDataset
+    data : eegdata or dataset
         Transformed eegdata.
     """
 
@@ -90,9 +101,11 @@ class MinMaxNorm(Transforms):
         self.dim = dim
 
     @verbose
-    def _apply(self, input: _DataVar, verbose=None) -> _DataVar:
-        for eegdata, _ in input.datas():
-            eegdata["edata"] = min_max_norm(
-                eegdata["edata"], self.min, self.max, self.dim, verbose
+    def _apply(self, eegdata: _DataVar, verbose=None) -> _DataVar:
+        logger.info(f"  Apply {self} ...")
+
+        for egd, _ in eegdata.datas():
+            egd["edata"] = min_max_norm(
+                egd["edata"], self.min, self.max, self.dim, verbose=verbose
             )
-        return input
+        return eegdata

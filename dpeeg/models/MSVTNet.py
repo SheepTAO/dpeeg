@@ -7,18 +7,18 @@ from einops.layers.torch import Rearrange
 class TSConv(nn.Sequential):
     def __init__(self, nCh, F, C1, C2, D, P1, P2, Pc) -> None:
         super().__init__(
-            nn.Conv2d(1, F, (1, C1), padding='same', bias=False),
+            nn.Conv2d(1, F, (1, C1), padding="same", bias=False),
             nn.BatchNorm2d(F),
             nn.Conv2d(F, F * D, (nCh, 1), groups=F, bias=False),
             nn.BatchNorm2d(F * D),
             nn.ELU(),
             nn.AvgPool2d((1, P1)),
             nn.Dropout(Pc),
-            nn.Conv2d(F * D, F * D, (1, C2), padding='same', groups=F * D, bias=False),
+            nn.Conv2d(F * D, F * D, (1, C2), padding="same", groups=F * D, bias=False),
             nn.BatchNorm2d(F * D),
             nn.ELU(),
             nn.AvgPool2d((1, P2)),
-            nn.Dropout(Pc)
+            nn.Dropout(Pc),
         )
 
 
@@ -32,27 +32,31 @@ class PositionalEncoding(nn.Module):
     def forward(self, x):
         x += self.pe
         return x
-        
+
 
 class Transformer(nn.Module):
     def __init__(
         self,
         seq_len,
-        d_model, 
-        nhead, 
-        ff_ratio, 
-        Pt = 0.5, 
-        num_layers = 4, 
+        d_model,
+        nhead,
+        ff_ratio,
+        Pt=0.5,
+        num_layers=4,
     ) -> None:
         super().__init__()
         self.cls_embedding = nn.Parameter(torch.zeros(1, 1, d_model))
         self.pos_embedding = PositionalEncoding(seq_len + 1, d_model)
 
-        dim_ff =  d_model * ff_ratio
+        dim_ff = d_model * ff_ratio
         self.dropout = nn.Dropout(Pt)
-        self.trans = nn.TransformerEncoder(nn.TransformerEncoderLayer(
-            d_model, nhead, dim_ff, Pt, batch_first=True, norm_first=True
-        ), num_layers, norm=nn.LayerNorm(d_model))
+        self.trans = nn.TransformerEncoder(
+            nn.TransformerEncoderLayer(
+                d_model, nhead, dim_ff, Pt, batch_first=True, norm_first=True
+            ),
+            num_layers,
+            norm=nn.LayerNorm(d_model),
+        )
 
     def forward(self, x):
         b = x.shape[0]
@@ -64,65 +68,114 @@ class Transformer(nn.Module):
 
 class ClsHead(nn.Sequential):
     def __init__(self, linear_in, cls):
-        super().__init__(
-            nn.Flatten(),
-            nn.Linear(linear_in, cls),
-            nn.LogSoftmax(dim=1)
-        )
+        super().__init__(nn.Flatten(), nn.Linear(linear_in, cls), nn.LogSoftmax(dim=1))
 
 
 class MSVTNet(nn.Module):
+    """MSVTNet: Multi-Scale Vision Transformer Neural Network for EEG-Based
+    Motor Imagery Decoding (MSVTNet).
+
+    MSVTNet [1]_ effectively integrates the strengths of convolutional neural
+    networks (CNNs) in extracting local features with the global feature
+    extraction capabilities of Transformers. Specifically, to optimize
+    classification features, a multi-branch CNN with different scales is
+    designed to capture local spatiotemporal features, along with a Transformer
+    to jointly model global and local spatiotemporal correlations features.
+    Additionally, auxiliary branch loss (ABL) is leveraged for intermediate
+    supervision, ensuring effective integration of CNNs and Transformers.
+
+    Parameters
+    ----------
+    nCh : int
+        Number of electrode channels.
+    nTime : int
+        Number of data sampling points.
+    cls : int
+        Number of categories.
+    F : list of int
+        Number of temporal filters per branch.
+    C1 : list of int
+        The convolution kernel size of each branch temporal filter.
+    C2 : int
+        Depthwise convolution kernel size.
+    D : int
+        Depth of depthwise convolution.
+    P1 : float
+        The first pooling kernel size.
+    P2 : float
+        The second pooling kernel size.
+    Pc : float
+        Dropout rate of multi-branch convolutional module.
+    nhead : int
+        Number of multi-head attention.
+    ff_ratio : int
+        The expansion factor of the fully connected feed-forward layer.
+    Pt : float
+        Dropout rate of transformer encoder.
+    layers : int
+        Number of transformer encoder layers.
+    b_preds : bool
+        If `True`, return the prediction for each branch.
+
+    References
+    ----------
+    .. [1] K. Liu et al., "MSVTNet: Multi-Scale Vision Transformer Neural
+        Network for EEG-Based Motor Imagery Decoding," in IEEE Journal of
+        Biomedical and Health Informatics, doi: 10.1109/JBHI.2024.3450753.
+    """
+
     def __init__(
         self,
-        nCh = 22,
-        nTime = 1000,
-        cls = 4,
-        F = [9, 9, 9, 9],
-        C1 = [15, 31, 63, 125],
-        C2 = 15,
-        D = 2,
-        P1 = 8,
-        P2 = 7,
-        Pc = 0.3,
-        nhead = 8,
-        ff_ratio = 1,
-        Pt = 0.5,
-        layers = 2,
-        b_preds = True,
+        nCh: int,
+        nTime: int,
+        cls: int,
+        F: list[int] = [9, 9, 9, 9],
+        C1: list[int] = [15, 31, 63, 125],
+        C2: int = 15,
+        D: int = 2,
+        P1: int = 8,
+        P2: int = 7,
+        Pc: float = 0.3,
+        nhead: int = 8,
+        ff_ratio: int = 1,
+        Pt: float = 0.5,
+        layers: int = 2,
+        b_preds: bool = True,
     ) -> None:
         super().__init__()
         self.nCh = nCh
         self.nTime = nTime
         self.b_preds = b_preds
-        assert len(F) == len(C1), 'The length of F and C1 should be equal.'
+        assert len(F) == len(C1), "The length of F and C1 should be equal."
 
-        self.mstsconv = nn.ModuleList([
-            nn.Sequential(
-                TSConv(nCh, F[b], C1[b], C2, D, P1, P2, Pc),
-                Rearrange('b d 1 t -> b t d')
-            )
-            for b in range(len(F))
-        ])
+        self.mstsconv = nn.ModuleList(
+            [
+                nn.Sequential(
+                    TSConv(nCh, F[b], C1[b], C2, D, P1, P2, Pc),
+                    Rearrange("b d 1 t -> b t d"),
+                )
+                for b in range(len(F))
+            ]
+        )
         branch_linear_in = self._forward_flatten(cat=False)
-        self.branch_head = nn.ModuleList([
-            ClsHead(branch_linear_in[b].shape[1], cls)
-            for b in range(len(F))
-        ])
+        self.branch_head = nn.ModuleList(
+            [ClsHead(branch_linear_in[b].shape[1], cls) for b in range(len(F))]
+        )
 
-        seq_len, d_model = self._forward_mstsconv().shape[1:3] # type: ignore
+        seq_len, d_model = self._forward_mstsconv().shape[1:3]  # type: ignore
         self.transformer = Transformer(seq_len, d_model, nhead, ff_ratio, Pt, layers)
 
-        linear_in = self._forward_flatten().shape[1] # type: ignore
+        linear_in = self._forward_flatten().shape[1]  # type: ignore
         self.last_head = ClsHead(linear_in, cls)
 
-    def _forward_mstsconv(self, cat = True):
+    def _forward_mstsconv(self, cat=True):
         x = torch.randn(1, 1, self.nCh, self.nTime)
         x = [tsconv(x) for tsconv in self.mstsconv]
         if cat:
             x = torch.cat(x, dim=2)
         return x
 
-    def _forward_flatten(self, cat = True):
+    def _forward_flatten(self, cat=True):
         x = self._forward_mstsconv(cat)
         if cat:
             x = self.transformer(x)
@@ -144,10 +197,11 @@ class MSVTNet(nn.Module):
 
 
 class JointCrossEntoryLoss(nn.Module):
-    '''
+    """
     $$\\mathcal{L} = \\lambda\\mathcal{L}_c + (1-\\lambda)\\sum_{b=1}^{B}\\mathcal{L}_b$$
-    '''
-    def __init__(self, lamd : float = 0.6) -> None:
+    """
+
+    def __init__(self, lamd: float = 0.6) -> None:
         super().__init__()
         self.lamd = lamd
 
@@ -162,9 +216,10 @@ class JointCrossEntoryLoss(nn.Module):
 
 
 class JointCrossEntoryLossV2(nn.Module):
-    '''
+    """
     $$\\mathcal{L} = \\mathcal{L}_c + \\frac{1}{B}\\sum_{b=1}^{B}\\mathcal{L}_b$$
-    '''
+    """
+
     def forward(self, out, label):
         end_out = out[0]
         branch_out = out[1]
@@ -176,10 +231,11 @@ class JointCrossEntoryLossV2(nn.Module):
 
 
 class JointCrossEntoryLossV3(nn.Module):
-    '''
+    """
     $$\\mathcal{L} = (1 - \\lambda)\\mathcal{L}_c + \\lambda\\sum_{b=1}^{B}\\mathcal{L}_b$$
     where $\\lambda = sigmoid(log(\\frac{\\sum_{b=1}^{B}\\mathcal{L}_b}{\\mathcal{L}_c}))$
-    '''
+    """
+
     def forward(self, out, label):
         end_out = out[0]
         branch_out = out[1]
@@ -190,10 +246,3 @@ class JointCrossEntoryLossV3(nn.Module):
         lamd = torch.sigmoid(torch.log(ratio.detach()))
         loss = (1 - lamd) * end_loss + lamd * torch.mean(branch_loss)
         return loss
-
-
-if __name__ == '__main__':
-    from torchinfo import summary
-    net = MSVTNet(nCh=22, nTime=1000).cuda()
-    print(net)
-    summary(net, (64, 1, 22, 1000), depth=4)

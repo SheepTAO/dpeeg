@@ -3,92 +3,55 @@
 # License: MIT
 # Copyright the dpeeg contributors.
 
-import os, torch
+import os
+from abc import abstractmethod, ABC
+from copy import deepcopy
+
+import torch
 import torch.nn as nn
 from torch import optim
 from torch import Tensor
 from torch.nn import Module
-from torch.optim import Optimizer
+from torch.optim.optimizer import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
-from copy import deepcopy
+from torch.backends import cudnn
 from torchinfo import summary
-from typing import Literal
+from typing import Literal, Type
 from torch.utils.tensorboard.writer import SummaryWriter
 from torch.utils.data import TensorDataset, DataLoader, ConcatDataset
 from torchmetrics.functional.classification.accuracy import multiclass_accuracy
 from torchmetrics.aggregation import MeanMetric, CatMetric
 
+from .base import Trainer
 from ..tools import Logger, Timer
 from ..utils import DPEEG_SEED
 from ..transforms.functions import to_tensor
 from .stopcriteria import ComposeStopCriteria
+from .utils import get_device, get_device_name, model_depth
+from ..utils import _set_torch_seed, mapping_to_str
+from ..datasets.base import EEGData
 
-from torch.backends import cudnn
 
 cudnn.benchmark = False
 cudnn.deterministic = True
 
 
-class Classifier:
-    """Initialize the basic attribute of the train model.
+__all__ = [
+    "Classifier",
+    "ClassifierTwoStage",
+]
+
+
+class BaseClassifier(Trainer, ABC):
+    """Classification model trainer.
 
     Generate a trainer to test the performance of the same network on
     different datasets.
-
-    Parameters
-    ----------
-    net : Module
-        Inherit Module and should define the forward method. The first
-        parameter returned by model forward propagation is the prediction.
-    nGPU : int
-        Select the gpu id to train.
-    seed : int
-        Select random seed for review.
-    loss_fn : str, Module
-        Name of the loss function from torch.nn which will be used for
-        training. If Module, means using a custom loss function. Note:
-        custom optimizer is a class (not an instance), and its initializa-
-        tion list is `(**loss_fn_args)`.
-    loss_fn_args : dict, optional
-        Additional arguments to be passed to the loss function.
-    optimizer : str, Type[Optimizer]
-        Name of the optimization function from torch.optim which will be
-        used for training. If Optimizer, means using a custom optimizer.
-        Note: custom optimizer is a class (not an instance), and its init-
-        ialization list is `(net, lr=lr, **optimizer_args)`.
-    optimizer_args : dict, optional
-        Additional arguments to be passed to the optimization function.
-    lr : float
-        Learning rate.
-    lr_sch : str, Type[LRScheduler], optional
-        Name of the learning scheduler from torch.optim.lr_scheduler which
-        will be used for training. If LRScheduler, means using a custom
-        learning scheduler. Note: custom learning scheduler is a class (not
-        an instance), and its initialization list is
-        `(optimizer, **lr_sch_args)`.
-    lr_sch_args : dict, optional
-        Additional arguments to be passed to the lr_scheduler function.
-    grad_acc : int
-        Aradient accumulation.
-    batch_size : int
-        Mini-batch size.
-    keep_data_gpu : bool
-        Keep the dataset on the GPU to avoid the time consumption of data
-        migration. Please adjust according to the personal GPU memory.
-    data_size : tuple, list, optional
-        Output the structure of the network model according to the input
-        dimension if the `data_size` is given.
-    depth : int
-        Depth of nested layers to display.
-    verbose : int, str
-        The log level of console. Default is INFO. Mainly used for debug.
     """
 
     def __init__(
         self,
-        net: Module,
-        nGPU: int = 0,
-        seed: int = DPEEG_SEED,
+        model: Module,
         loss_fn: str | type[Module] = "NLLLoss",
         loss_fn_args: dict | None = None,
         optimizer: str | type[Optimizer] = "Adam",
@@ -98,25 +61,34 @@ class Classifier:
         lr_sch_args: dict | None = None,
         grad_acc: int = 1,
         batch_size: int = 32,
+        nGPU: int = 0,
+        seed: int = DPEEG_SEED,
         keep_data_gpu: bool = True,
+        depth: int | None = None,
         data_size: tuple | list | None = None,
-        depth: int = 3,
         verbose: int | str = "INFO",
     ) -> None:
-        self.net = net
+        super().__init__(model)
+        self.model = model
 
         self.loger = Logger("dpeeg_train", clevel=verbose)
         self.timer = Timer()
 
         # init trainer
-        self.device = self.get_device(nGPU)
-        self.net.to(self.device)
-        self.set_seed(seed)
+        self.device = get_device(nGPU)
+        self.loger.info(
+            f"Model will be trained on {self.device}({get_device_name(self.device)})"
+        )
+        self.model.to(self.device)
 
-        # summarize network structure
-        self.net_arch = str(net) + "\n"
-        self.net_arch += str(summary(net, data_size, depth=depth))
-        self.loger.info(self.net_arch)
+        _set_torch_seed(seed)
+        self.loger.info(f"Set torch random seed = {seed}")
+
+        # summarize model structure
+        self.model_arch = str(model) + "\n"
+        depth = model_depth(self.model) if depth is None else depth
+        self.model_arch += str(summary(model, data_size, depth=depth))
+        self.loger.info(self.model_arch)
 
         # the type of optimizer, etc. selected
         self.loss_fn_type = loss_fn
@@ -128,46 +100,46 @@ class Classifier:
         self.optimizer_args = optimizer_args if optimizer_args else {}
         self.lr_sch_args = lr_sch_args if lr_sch_args else {}
         # --- others
-        self.lr = lr
-        self.seed = seed
+        self.optimizer_args["lr"] = lr
         self.grad_acc = grad_acc
         self.batch_size = batch_size
+        self.seed = seed
         self.keep_data_gpu = keep_data_gpu
         self.verbose = verbose
 
         # set experimental details
         self.train_details = {
+            "type": self.__class__.__name__,
             "train_param": {
                 "seed": seed,
                 "loss_fn": str(loss_fn),
                 "loss_fn_args": loss_fn_args,
                 "optimizer": str(optimizer),
                 "optimizer_args": optimizer_args,
-                "lr": lr,
                 "lr_sch": str(lr_sch),
                 "lr_sch_args": lr_sch_args,
                 "batch_size": batch_size,
                 "grad_acc": grad_acc,
             },
-            "orig_net_param": deepcopy(self.net.state_dict()),
+            "orig_model_param": deepcopy(self.model.state_dict()),
         }
 
-    def _run_one_epoch(self, train_loader: DataLoader) -> None:
-        """Run one epoch to train net.
+    def fit_epoch(self, train_loader: DataLoader) -> None:
+        """Fit one epoch to train model.
 
         Parameters
         ----------
         train_loader : DataLoader
             DataLoader used for training.
         """
-        # set the network in training mode
-        self.net.train()
+        # set the model in training mode
+        self.model.train()
 
         # iterater over all the data
         with torch.enable_grad():
             for idx, (data, label) in enumerate(train_loader):
                 data, label = data.to(self.device), label.to(self.device)
-                out = self.net(data)
+                out = self.model(data)
                 loss = self.loss_fn(out, label)
                 loss.backward()
                 # gradient accumulation
@@ -181,7 +153,7 @@ class Classifier:
             if self.lr_sch:
                 self.lr_sch.step()
 
-    def _predict(
+    def predict(
         self,
         data_loader: DataLoader,
     ) -> tuple[Tensor, Tensor, Tensor]:
@@ -201,8 +173,8 @@ class Classifier:
         loss : Tensor
             Average loss.
         """
-        # set the network in the eval mode
-        self.net.eval()
+        # set the model in the eval mode
+        self.model.eval()
 
         loss_sum = MeanMetric()
         preds, target = CatMetric(), CatMetric()
@@ -211,7 +183,7 @@ class Classifier:
         with torch.no_grad():
             for data, label in data_loader:
                 data, label = data.to(self.device), label.to(self.device)
-                out = self.net(data)
+                out = self.model(data)
                 loss = self.loss_fn(out, label)
                 loss_sum.update(loss.item(), data.size(0))
                 # convert the output of soft-max to class label
@@ -221,14 +193,13 @@ class Classifier:
                 target.update(label.cpu())
         return preds.compute(), target.compute(), loss_sum.compute()
 
-    def _data_loader(self, *datasets) -> DataLoader:
+    def data_loader(self, *datasets: EEGData) -> DataLoader:
         """Wrap multiple sets of data and labels and return DataLoader.
 
         Parameters
         ----------
-        datasets : sequence of data (N, ...) and labels (N,)
-            Sequence consisting of each piece of data and label. Can be ndarray
-            and tensor.
+        datasets : sequence of EEGData
+            Sequence of EEGData. Multiple EEGData will be concatenated.
         """
         if len(datasets) == 0:
             raise ValueError("At least one dataset required as input.")
@@ -236,7 +207,7 @@ class Classifier:
         # dataset wrapping tensors
         td = []
         for dataset in datasets:
-            data, label = to_tensor(dataset[0], dataset[1])
+            data, label = to_tensor(dataset["edata"], dataset["label"])
             if self.keep_data_gpu:
                 data, label = data.to(self.device), label.to(self.device)
             td.append(TensorDataset(data, label))
@@ -244,11 +215,11 @@ class Classifier:
 
         return DataLoader(td, self.batch_size, True)
 
-    def reset_fitter(self, log_dir: str) -> tuple[str, SummaryWriter, Logger]:
+    def _reset_fitter(self, log_dir: str) -> tuple[str, SummaryWriter, Logger]:
         """Reset the relevant parameters of the fitter.
 
-        Reset the model's training parameters, learning rate schedule and opti-
-        mizer etc. to their initialized state.
+        Reset the model's training parameters, learning rate schedule and
+        optimizer etc. to their initialized state.
 
         Parameters
         ----------
@@ -263,7 +234,7 @@ class Classifier:
             logger manager for the fitter.
         """
         # reset parameters of nn.Moudle
-        self.net.load_state_dict(self.train_details["orig_net_param"])
+        self.model.load_state_dict(self.train_details["orig_model_param"])
 
         # create loss function
         if isinstance(self.loss_fn_type, str):
@@ -274,12 +245,16 @@ class Classifier:
         # create optimizer
         if isinstance(self.optimizer_type, str):
             self.optimizer = getattr(optim, self.optimizer_type)(
-                self.net.parameters(), lr=self.lr, **self.optimizer_args
+                self.model.parameters(), **self.optimizer_args
+            )
+        elif isinstance(self.optimizer_type, Optimizer):
+            self.optimizer = self.optimizer_type(
+                self.model.parameters(), self.optimizer_args
             )
         else:
-            self.optimizer = self.optimizer_type(
-                self.net, lr=self.lr, **self.optimizer_args
-            )  # type: ignore
+            raise TypeError(
+                f"Optimizer type ({type(self.optimizer_type)}) is not supported."
+            )
 
         # create lr_scheduler
         if isinstance(self.lr_sch_type, str):
@@ -289,7 +264,7 @@ class Classifier:
         elif isinstance(self.lr_sch_type, LRScheduler):
             self.lr_sch = self.lr_sch_type(self.optimizer, **self.lr_sch_args)
         else:
-            self.lr_sch = None
+            raise TypeError(f"lr_sch type ({type(self.lr_sch_type)}) is not supported.")
 
         # create log writer
         log_dir = os.path.abspath(log_dir)
@@ -300,80 +275,181 @@ class Classifier:
             flevel="INFO",
             clevel=self.verbose,
         )
+
         return log_dir, writer, loger
 
     def get_acc(self, preds: Tensor, target: Tensor, ncls: int) -> Tensor:
         """Easy for program to caculate the accuarcy."""
         return multiclass_accuracy(preds, target, ncls, "micro")
 
-    def set_seed(self, seed: int = DPEEG_SEED) -> None:
-        """Sets the seed for generating random numbers for cpu and gpu."""
-        torch.manual_seed(seed)
-        if self.device != torch.device("cpu"):
-            torch.cuda.manual_seed(seed)
-            torch.cuda.manual_seed_all(seed)
-        self.loger.info(f"Set torch random seed = {seed}")
+    def __repr__(self) -> str:
+        s = "[Model architecture]:\n" + self.model_arch + "\n"
 
-    def get_device(self, nGPU: int = 0) -> torch.device:
-        """Get the device for training and testing.
-
-        Parameters
-        ----------
-        nGPU : int
-            GPU number to train on.
-        """
-        if not torch.cuda.is_available():
-            self.loger.info("GPU is not avaiable and the CPU will be used")
-            dev = torch.device("cpu")
+        s += f"[Loss function]: {self.loss_fn_type}"
+        if self.loss_fn_args:
+            s += f"({mapping_to_str(self.loss_fn_args)})\n"
         else:
-            if nGPU > torch.cuda.device_count() - 1:
-                raise ValueError(f"GPU: {nGPU} does not exit.")
-            dev = torch.device(f"cuda:{nGPU}")
-            self.loger.info(
-                f'Network will be trained in "cuda:{nGPU} '
-                + f'({torch.cuda.get_device_name(dev)})"'
-            )
-        return dev
+            s += "\n"
 
-    def fit_without_val(
+        s += f"[Optimizer]: {self.optimizer_type}"
+        if self.optimizer_args:
+            s += f"({mapping_to_str(self.optimizer_args)})\n"
+        else:
+            s += "\n"
+
+        if self.lr_sch_type:
+            s += f"[Lr scheduler]: {self.lr_sch_type}"
+            if self.lr_sch_args:
+                s += f"({mapping_to_str(self.lr_sch_args)})\n"
+            else:
+                s += "\n"
+
+        s += f"[Grad Acc]: {self.grad_acc}\n"
+        s += f"[Batch Size]: {self.batch_size}\n"
+        s += f"[Seed]: {self.seed}\n"
+
+        return s
+
+
+class Classifier(BaseClassifier):
+    """Classifier training.
+
+    During different training model processes, early stopping mechanisms can be
+    executed using the training set (validation set not required) to select the
+    model.
+
+    Parameters
+    ----------
+    model : Module
+        Inherit Module and should define the forward method. The first
+        parameter returned by model forward propagation is the prediction.
+    loss_fn : str, Type[Module]
+        Name of the loss function from `torch.nn` which will be used for
+        training. If Module, means using a custom loss function.
+        Note: custom loss_fn is a class (not an instance), and its
+        initialization list is `(**loss_fn_args)`.
+    loss_fn_args : dict, optional
+        Additional arguments to be passed to the loss function.
+    optimizer : str, Type[Optimizer]
+        Name of the optimization function from torch.optim which will be used
+        for training. If Optimizer, means using a custom optimizer.
+        Note: custom optimizer is a class (not an instance), and its
+        initialization list is `(model, lr=lr, **optimizer_args)`.
+    optimizer_args : dict, optional
+        Additional arguments to be passed to the optimization function.
+    lr : float
+        Learning rate.
+    lr_sch : str, Type[LRScheduler], optional
+        Name of the learning scheduler from `torch.optim.lr_scheduler` which
+        will be used for training. If LRScheduler, means using a custom
+        learning scheduler.
+        Note: custom learning scheduler is a class (not an instance), and its
+        initialization list is `(optimizer, **lr_sch_args)`.
+    lr_sch_args : dict, optional
+        Additional arguments to be passed to the lr_scheduler function.
+    grad_acc : int
+        Aradient accumulation.
+    batch_size : int
+        Mini-batch size.
+    max_epochs : int
+        Maximum number of epochs in training.
+    no_increase_epochs : int
+        Maximum number of consecutive epochs when the accuracy or loss of the
+        training set has no relative improvement.
+    var_check : str
+        The best value (train_inacc/train_loss) to check while determining the
+        best model which will be used to evaluate its performance on the test.
+    load_best_state : bool
+        If `True`, the best model parameters will be used for evaluation.
+    nGPU : int
+        Select the gpu id to train. If the GPU is not available then the CPU is
+        used.
+    seed : int
+        Select random seed for review.
+    keep_data_gpu : bool
+        Keep the dataset on the GPU to avoid the time consumption of data
+        migration. Please adjust according to the personal GPU memory.
+    data_size : tuple, list, optional
+        Output the structure of the network model according to the input
+        dimension if the `data_size` is given.
+    depth : int, optional
+        Depth of nested layers to display.
+    verbose : int, str
+        The log level of console. Default is INFO. Mainly used for debug.
+    """
+
+    def __init__(
         self,
-        trainset: tuple | list,
-        testset: tuple | list,
-        log_dir: str,
-        cls_name: tuple | list,
+        model: Module,
+        loss_fn: str | Type[Module] = "NLLLoss",
+        loss_fn_args: dict | None = None,
+        optimizer: str | Type[Optimizer] = "Adam",
+        optimizer_args: dict | None = None,
+        lr: float = 0.001,
+        lr_sch: str | Type[LRScheduler] | None = None,
+        lr_sch_args: dict | None = None,
+        grad_acc: int = 1,
+        batch_size: int = 32,
         max_epochs: int = 1000,
         no_increase_epochs: int = 200,
         var_check: Literal["train_loss", "train_inacc"] = "train_loss",
         load_best_state: bool = True,
+        nGPU: int = 0,
+        seed: int = DPEEG_SEED,
+        keep_data_gpu: bool = True,
+        depth: int | None = None,
+        data_size: tuple | list | None = None,
+        verbose: int | str = "INFO",
+    ) -> None:
+        super().__init__(
+            model,
+            loss_fn,
+            loss_fn_args,
+            optimizer,
+            optimizer_args,
+            lr,
+            lr_sch,
+            lr_sch_args,
+            grad_acc,
+            batch_size,
+            nGPU,
+            seed,
+            keep_data_gpu,
+            depth,
+            data_size,
+            verbose,
+        )
+        self.max_epochs = max_epochs
+        self.no_increase_epochs = no_increase_epochs
+        self.var_check = var_check
+        self.load_best_state = load_best_state
+        self.train_details.update(
+            {
+                "train_param": {
+                    "max_epochs": max_epochs,
+                    "no_increase_epochs": no_increase_epochs,
+                    "var_check": var_check,
+                    "load_best_state": load_best_state,
+                }
+            }
+        )
+
+    def fit(
+        self,
+        trainset: EEGData,
+        testset: EEGData,
+        log_dir: str,
     ) -> dict[str, dict[str, Tensor]]:
-        """During different training model processes, early stopping mechanisms
-        can be executed using the training set (validation set not required) to
-        select the model.
+        """Fit the model.
 
         Parameters
         ----------
-        trainset : tuple, list
-            Dataset used for training. If type is tuple or list, dataset should
-            be (data, labels).
-        testset : tuple, list
-            Dataset used to evaluate the model. If type is tuple or list,
-            dataset should be (data, labels).
+        trainset : EEGData
+            Dataset used for training.
+        testset : EEGData
+            Dataset used to evaluate the model.
         log_dir : str
-            Directory location (support hierarchical folder structure) to save
-            training log.
-        cls_name : tuple, list
-            The name of dataset labels.
-        max_epochs : int
-            Maximum number of epochs in training.
-        no_increase_epochs : int
-            Maximum number of consecutive epochs when the accuracy or loss of
-            the training set has no relative improvement.
-        var_check : str
-            The best value (train_inacc/train_loss) to check while determining
-            the best model which will be used to evaluate its performance on
-            the test set.
-        load_best_state : bool
-            If True, the best model parameters will be used for evaluation.
+            The path to save the training log.
 
         Returns
         -------
@@ -384,61 +460,49 @@ class Classifier:
                 'test'  : ...
             }
         """
-        log_dir, writer, loger = self.reset_fitter(log_dir)
+        log_dir, writer, loger = self._reset_fitter(log_dir)
 
         # check the best model
         best_var = float("inf")
-        best_net_param = deepcopy(self.net.state_dict())
-
-        check_list = ["train_inacc", "train_loss"]
-        if var_check not in check_list:
-            s = ", ".join(check_list)
-            raise ValueError(
-                f"Parameter `var_check` only supports: {s} "
-                f"when training without val, but got {var_check}"
-            )
+        best_model_param = deepcopy(self.model.state_dict())
 
         # initialize dataloader
-        train_loader = self._data_loader(trainset)
-        test_loader = self._data_loader(testset)
-        ncls = len(cls_name)
+        train_loader = self.data_loader(trainset)
+        test_loader = self.data_loader(testset)
+        train_ncls = trainset.ncls
+        test_ncls = testset.ncls
 
         # start the training
         self.timer.start()
         loger.info(f"[Training...] - [{self.timer.ctime()}]")
-        loger.info(f"[Train/Test] - [{trainset[1].shape[0]}/{testset[1].shape[0]}]")
+        loger.info(f"[Train/Test] - [{trainset.trials()}/{testset.trials()}]")
 
         stopcri = ComposeStopCriteria(
             {
                 "Or": {
                     "cri1": {
-                        "MaxEpoch": {"max_epochs": max_epochs, "var_name": "epoch"}
+                        "MaxEpoch": {"max_epochs": self.max_epochs, "var_name": "epoch"}
                     },
                     "cri2": {
                         "NoDecrease": {
-                            "num_epochs": no_increase_epochs,
-                            "var_name": var_check,
+                            "num_epochs": self.no_increase_epochs,
+                            "var_name": self.var_check,
                         }
                     },
                 }
             }
         )
-        self.train_details["fit"] = {
-            "type": "fit_without_val",
-            "var_check": var_check,
-            "stopcri": str(stopcri),
-        }
         monitors = {"epoch": 0, "train_loss": float("inf"), "train_inacc": 1}
 
         while not stopcri(monitors):
 
             # train one epoch
-            self._run_one_epoch(train_loader)
+            self.fit_epoch(train_loader)
             monitors["epoch"] += 1
 
             # evaluate the training and validation accuracy
-            train_preds, train_target, train_loss = self._predict(train_loader)
-            train_acc = self.get_acc(train_preds, train_target, ncls)
+            train_preds, train_target, train_loss = self.predict(train_loader)
+            train_acc = self.get_acc(train_preds, train_target, train_ncls)
             monitors["train_inacc"] = 1 - train_acc
             monitors["train_loss"] = train_loss
 
@@ -450,13 +514,13 @@ class Classifier:
             loger.info(f"  \u21b3train Loss/Acc = {train_loss:.4f}/{train_acc:.4f}")
 
             # select best model
-            if load_best_state and monitors[var_check] <= best_var:
-                best_var = monitors[var_check]
-                best_net_param = deepcopy(self.net.state_dict())
+            if self.load_best_state and monitors[self.var_check] <= best_var:
+                best_var = monitors[self.var_check]
+                best_model_param = deepcopy(self.model.state_dict())
 
         writer.close()
-        if not load_best_state:
-            best_net_param = deepcopy(self.net.state_dict())
+        if not self.load_best_state:
+            best_model_param = deepcopy(self.model.state_dict())
 
         # report the checkpoint time of end and compute cost time
         loger.info(f"[Train Finish] - [{self.timer.ctime()}]")
@@ -464,141 +528,244 @@ class Classifier:
         loger.info(f"Cost time = {h}H:{m}M:{s:.2f}S")
 
         # load the best model and evaulate this model in testset
-        self.net.load_state_dict(best_net_param)
+        self.model.load_state_dict(best_model_param)
 
         results = {}
-        train_preds, train_target, train_loss = self._predict(train_loader)
-        train_acc = self.get_acc(train_preds, train_target, ncls)
+        train_preds, train_target, train_loss = self.predict(train_loader)
+        train_acc = self.get_acc(train_preds, train_target, train_ncls)
         results["train"] = {
             "preds": train_preds,
             "target": train_target,
             "acc": train_acc,
         }
-        test_preds, test_target, test_loss = self._predict(test_loader)
-        test_acc = self.get_acc(test_preds, test_target, ncls)
+        test_preds, test_target, test_loss = self.predict(test_loader)
+        test_acc = self.get_acc(test_preds, test_target, train_ncls)
         results["test"] = {"preds": test_preds, "target": test_target, "acc": test_acc}
 
         loger.info(f"Loss: train={train_loss:.4f} | test={test_loss:.4f}")
         loger.info(f"Acc:  train={train_acc:.4f} | test={test_acc:.4f}")
 
-        # save the training results
         self.train_details["results"] = results
-        self.train_details["best_net_param"] = best_net_param
+        self.train_details["best_model_param"] = best_model_param
 
         # store the training details
         train_details_path = os.path.join(log_dir, f"train_details.pt")
         torch.save(self.train_details, train_details_path)
 
-        # store the best net model parameters
+        # store the best model parameters
         best_checkpoiont_path = os.path.join(log_dir, f"best_checkpoint.pth")
-        torch.save(best_net_param, best_checkpoiont_path)
+        torch.save(best_model_param, best_checkpoiont_path)
 
         return results
 
-    def fit_with_val(
+
+class ClassifierTwoStage(BaseClassifier):
+    """Two-stage classifier training.
+
+    Two-stage training strategy was used. In the first stage, the model was
+    trained using only the training set with the early stopping criteria
+    whereby the validation set accuracy and loss was monitored and training was
+    stopped if there was no increase in the validation set accuracy (or loss)
+    for consecutive 200 epochs. After reaching the stopping criteria, network
+    parameters with the best validation set accuracy (or loss) were restored.
+    In the second stage, the model was trained with the complete training data
+    (train + validation set). The second stage training was stopped when the
+    validation set loss reduced below the first stage training set loss.
+
+    Parameters
+    ----------
+    model : Module
+        Inherit Module and should define the forward method. The first
+        parameter returned by model forward propagation is the prediction.
+    loss_fn : str, Type[Module]
+        Name of the loss function from `torch.nn` which will be used for
+        training. If Module, means using a custom loss function.
+        Note: custom loss_fn is a class (not an instance), and its
+        initialization list is `(**loss_fn_args)`.
+    loss_fn_args : dict, optional
+        Additional arguments to be passed to the loss function.
+    optimizer : str, Type[Optimizer]
+        Name of the optimization function from torch.optim which will be used
+        for training. If Optimizer, means using a custom optimizer.
+        Note: custom optimizer is a class (not an instance), and its
+        initialization list is `(model, lr=lr, **optimizer_args)`.
+    optimizer_args : dict, optional
+        Additional arguments to be passed to the optimization function.
+    lr : float
+        Learning rate.
+    lr_sch : str, Type[LRScheduler], optional
+        Name of the learning scheduler from `torch.optim.lr_scheduler` which
+        will be used for training. If LRScheduler, means using a custom
+        learning scheduler.
+        Note: custom learning scheduler is a class (not an instance), and its
+        initialization list is `(optimizer, **lr_sch_args)`.
+    lr_sch_args : dict, optional
+        Additional arguments to be passed to the lr_scheduler function.
+    grad_acc : int
+        Aradient accumulation.
+    batch_size : int
+        Mini-batch size.
+    max_epochs_s1, max_epochs_s2 : int
+        Maximum number of epochs in the x stage of training.
+    no_increase_epochs : int
+        Maximum number of consecutive epochs when the accuracy or loss of the
+        first-stage validation set has no relative improvement.
+    second_stage : bool
+        If `True`, two-stage training will be performed.
+    load_best_state : bool
+        If `True`, two-stage will retrain based on the best state in first-
+        stage. Otherwise, two-stage will retain based on the last state of the
+        first-stage.
+    var_check : str
+        The best value (valid_inacc/valid_loss) to check while determining the
+        best state which will be used for parameter initialization in the
+        second stage of model training.
+    cls_name : list of str
+        The name of dataset labels.
+    nGPU : int
+        Select the gpu id to train. If the GPU is not available then the CPU is
+        used.
+    seed : int
+        Select random seed for review.
+    keep_data_gpu : bool
+        Keep the dataset on the GPU to avoid the time consumption of data
+        migration. Please adjust according to the personal GPU memory.
+    data_size : tuple, list, optional
+        Output the structure of the network model according to the input
+        dimension if the `data_size` is given.
+    depth : int, optional
+        Depth of nested layers to display.
+    verbose : int, str
+        The log level of console. Default is INFO. Mainly used for debug.
+    """
+
+    def __init__(
         self,
-        trainset: tuple | list,
-        valset: tuple | list,
-        testset: tuple | list,
-        log_dir: str,
-        cls_name: tuple | list,
+        model: Module,
+        loss_fn: str | Type[Module] = "NLLLoss",
+        loss_fn_args: dict | None = None,
+        optimizer: str | Type[Optimizer] = "Adam",
+        optimizer_args: dict | None = None,
+        lr: float = 0.001,
+        lr_sch: str | Type[LRScheduler] | None = None,
+        lr_sch_args: dict | None = None,
+        grad_acc: int = 1,
+        batch_size: int = 32,
         max_epochs_s1: int = 1500,
         max_epochs_s2: int = 600,
         no_increase_epochs: int = 200,
         second_stage: bool = True,
+        var_check: Literal["valid_inacc", "valid_loss"] = "valid_inacc",
         load_best_state: bool = True,
-        var_check: Literal["val_inacc", "val_loss"] = "val_inacc",
-    ) -> dict[str, dict[str, Tensor]]:
-        """Two-stage training strategy was used. In the first stage, the model
-        was trained using only the training set with the early stopping criteria
-        whereby the validation set accuracy and loss was monitored and training
-        was stopped if there was no increase in the validation set accuracy (or
-        loss) for consecutive 200 epochs. After reaching the stopping criteria,
-        network parameters with the best validation set accuracy (or loss) were
-        restored. In the second stage, the model was trained with the complete
-        training data (train + validation set). The second stage training was
-        stopped when the validation set loss reduced below the stage 1 training
-        set loss.
+        nGPU: int = 0,
+        seed: int = DPEEG_SEED,
+        keep_data_gpu: bool = True,
+        depth: int | None = None,
+        data_size: tuple | list | None = None,
+        verbose: int | str = "INFO",
+    ) -> None:
+        super().__init__(
+            model,
+            loss_fn,
+            loss_fn_args,
+            optimizer,
+            optimizer_args,
+            lr,
+            lr_sch,
+            lr_sch_args,
+            grad_acc,
+            batch_size,
+            nGPU,
+            seed,
+            keep_data_gpu,
+            depth,
+            data_size,
+            verbose,
+        )
+        self.max_epochs_s1 = max_epochs_s1
+        self.max_epochs_s2 = max_epochs_s2
+        self.no_increase_epochs = no_increase_epochs
+        self.second_stage = second_stage
+        self.var_check = var_check
+        self.load_best_state = load_best_state
+        self.train_details.update(
+            {
+                "train_param": {
+                    "max_epochs_s1": max_epochs_s1,
+                    "max_epochs_s2": max_epochs_s2,
+                    "no_increase_epochs": no_increase_epochs,
+                    "second_stage": second_stage,
+                    "var_check": var_check,
+                    "load_best_state": load_best_state,
+                }
+            }
+        )
+
+    def fit(
+        self,
+        trainset: EEGData,
+        validset: EEGData,
+        testset: EEGData,
+        log_dir: str,
+    ):
+        """Fit the model.
 
         Parameters
         ----------
-        trainset : tuple, list
-            Dataset used for training. If type is tuple or list, dataset should
-            be (data, labels).
-        valset : tuple, list
-            Dataset used for validation. If type is tuple or list, dataset
-            should be (data, labels).
+        trainset : EEGData
+            Dataset used for training.
+        validset : EEGData
+            Dataset used for validation.
         testset : tuple, list
-            Dataset used to evaluate the model. If type is tuple or list,
-            dataset should be (data, labels).
+            Dataset used to evaluate the model.
         log_dir : str
-            Directory location (support hierarchical folder structure) to save
-            training log.
-        cls_name : tuple, list
-            The name of dataset labels.
-        max_epochs_s1, max_epochs_s2 : int
-            Maximum number of epochs in the x stage of training.
-        no_increase_epochs : int
-            Maximum number of consecutive epochs when the accuracy or loss of
-            the first-stage validation set has no relative improvement.
-        second_stage : bool
-            If True, two-stage training will be performed.
-        load_best_state : bool
-            If True, stage 2 will retrain based on the best state in stage 1.
-        var_check : str
-            The best value (val_inacc/val_loss) to check while determining the
-            best state which will be used for parameter initialization in the
-            second stage of model training.
+            The path to save the training log.
 
         Returns
         -------
         dict
-            Return train, validation and test results dict.
+            Return train and test results dict.
             {
                 'train' : {'preds': Tensor, 'target': Tensor, 'acc': Tensor},
-                'test'  : ...,
-                'val'   : ...
+                'valid' : ...,
+                'test'  : ...
             }
         """
-        log_dir, writer, loger = self.reset_fitter(log_dir)
+        log_dir, writer, loger = self._reset_fitter(log_dir)
 
         # check the best model
         best_var = float("inf")
-        best_net_param = deepcopy(self.net.state_dict())
+        best_model_param = deepcopy(self.model.state_dict())
         best_optim_param = deepcopy(self.optimizer.state_dict())
 
-        check_list = ["val_inacc", "val_loss"]
-        if var_check not in check_list:
-            s = ", ".join(check_list)
-            raise ValueError(
-                f"Parameter `var_check` only supports: {s}"
-                f" when training with val, but got {var_check}"
-            )
-
         # initialize dataloader
-        train_loader = self._data_loader(trainset)
-        val_loader = self._data_loader(valset)
-        test_loader = self._data_loader(testset)
-        ncls = len(cls_name)
+        train_loader = self.data_loader(trainset)
+        valid_loader = self.data_loader(validset)
+        test_loader = self.data_loader(testset)
+        train_ncls = trainset.ncls
+        valid_ncls = validset.ncls
+        test_ncls = testset.ncls
 
         # start the training
         self.timer.start()
         loger.info(f"[Training...] - [{self.timer.ctime()}]")
         loger.info(
-            f"[Train/Test] - [{trainset[1].shape[0]+valset[1].shape[0]}"
-            f"/{testset[1].shape[0]}]"
+            f"[Train/Valid/Test] - [{trainset.trials()}/{validset.trials()}/{testset.trials()}]"
         )
 
         stopcri = ComposeStopCriteria(
             {
                 "Or": {
                     "cri1": {
-                        "MaxEpoch": {"max_epochs": max_epochs_s1, "var_name": "epoch"}
+                        "MaxEpoch": {
+                            "max_epochs": self.max_epochs_s1,
+                            "var_name": "epoch",
+                        }
                     },
                     "cri2": {
                         "NoDecrease": {
-                            "num_epochs": no_increase_epochs,
-                            "var_name": var_check,
+                            "num_epochs": self.no_increase_epochs,
+                            "var_name": self.var_check,
                         }
                     },
                 }
@@ -606,13 +773,13 @@ class Classifier:
         )
         self.train_details["fit"] = {
             "type": "fit_with_val",
-            "var_check": var_check,
+            "var_check": self.var_check,
             "stopcri_1": str(stopcri),
         }
         monitors = {
             "epoch": 0,
-            "val_loss": float("inf"),
-            "val_inacc": 1,
+            "valid_loss": float("inf"),
+            "valid_inacc": 1,
             "global_epoch": 0,
             "best_epoch": -1,
             "best_train_loss": float("inf"),
@@ -622,17 +789,17 @@ class Classifier:
         while not do_stop:
 
             # train one epoch
-            self._run_one_epoch(train_loader)
+            self.fit_epoch(train_loader)
             monitors["epoch"] += 1
             monitors["global_epoch"] += 1
 
             # evaluate the training and validation accuracy
-            train_preds, train_target, train_loss = self._predict(train_loader)
-            train_acc = self.get_acc(train_preds, train_target, ncls)
-            val_preds, val_target, val_loss = self._predict(val_loader)
-            val_acc = self.get_acc(val_preds, val_target, ncls)
-            monitors["val_inacc"] = 1 - val_acc
-            monitors["val_loss"] = val_loss
+            train_preds, train_target, train_loss = self.predict(train_loader)
+            train_acc = self.get_acc(train_preds, train_target, train_ncls)
+            valid_preds, valid_target, valid_loss = self.predict(valid_loader)
+            valid_acc = self.get_acc(valid_preds, valid_target, valid_ncls)
+            monitors["valid_inacc"] = 1 - valid_acc
+            monitors["valid_loss"] = valid_loss
 
             # store loss and acc
             writer.add_scalars(
@@ -641,19 +808,21 @@ class Classifier:
                 monitors["global_epoch"],
             )
             writer.add_scalars(
-                "val", {"loss": val_loss, "acc": val_acc}, monitors["global_epoch"]
+                "valid",
+                {"loss": valid_loss, "acc": valid_acc},
+                monitors["global_epoch"],
             )
             # print the epoch info
             loger.info(f'-->Epoch : {monitors["epoch"]}')
             loger.info(
                 f"  \u21b3train Loss/Acc = {train_loss:.4f}/{train_acc:.4f}"
-                f" | val Loss/Acc = {val_loss:.4f}/{val_acc:.4f}"
+                f" | valid Loss/Acc = {valid_loss:.4f}/{valid_acc:.4f}"
             )
 
             # select best model on Stage 1
-            if load_best_state and monitors[var_check] <= best_var:
-                best_var = monitors[var_check]
-                best_net_param = deepcopy(self.net.state_dict())
+            if load_best_state and monitors[self.var_check] <= best_var:
+                best_var = monitors[self.var_check]
+                best_model_param = deepcopy(self.model.state_dict())
                 best_optim_param = deepcopy(self.optimizer.state_dict())
                 monitors["best_train_loss"] = train_loss
                 monitors["best_epoch"] = monitors["epoch"]
@@ -661,13 +830,13 @@ class Classifier:
             # check whether to stop training
             if stopcri(monitors):
                 # check whether to enter the second stage of training
-                if second_stage and not early_stop_reached:
+                if self.second_stage and not early_stop_reached:
                     early_stop_reached = True
                     epoch = monitors["epoch"]
 
                     # load the best state
                     if load_best_state:
-                        self.net.load_state_dict(best_net_param)
+                        self.model.load_state_dict(best_model_param)
                         self.optimizer.load_state_dict(best_optim_param)
                         train_loss = monitors["best_train_loss"]
                         epoch = monitors["best_epoch"]
@@ -675,8 +844,8 @@ class Classifier:
                     loger.info("[Early Stopping Reached] -> Training on full set.")
                     loger.info(f"[Epoch = {epoch} | Loss = {train_loss:.4f}]")
 
-                    # combine the train and val dataset
-                    train_loader = self._data_loader(trainset, valset)
+                    # combine the train and valid dataset
+                    train_loader = self.data_loader(trainset, validset)
 
                     # update stop monitor and epoch
                     stopcri = ComposeStopCriteria(
@@ -684,14 +853,14 @@ class Classifier:
                             "Or": {
                                 "cri1": {
                                     "MaxEpoch": {
-                                        "max_epochs": max_epochs_s2,
+                                        "max_epochs": self.max_epochs_s2,
                                         "var_name": "epoch",
                                     }
                                 },
                                 "cri2": {
                                     "Smaller": {
                                         "var": train_loss,
-                                        "var_name": "val_loss",
+                                        "var_name": "valid_loss",
                                     }
                                 },
                             }
@@ -700,14 +869,14 @@ class Classifier:
                     self.train_details["fit"]["stopcri_2"] = str(stopcri)
                     monitors["epoch"] = 0
                     load_best_state = False
-                elif second_stage and early_stop_reached:
+                elif self.second_stage and early_stop_reached:
                     do_stop = True
-                    best_net_param = deepcopy(self.net.state_dict())
+                    best_model_param = deepcopy(self.model.state_dict())
                 # no second stage
                 else:
                     do_stop = True
                     if not load_best_state:
-                        best_net_param = deepcopy(self.net.state_dict())
+                        best_model_param = deepcopy(self.model.state_dict())
 
         writer.close()
 
@@ -717,34 +886,40 @@ class Classifier:
         loger.info(f"Cost Time = {h}H:{m}M:{s:.2f}S")
 
         # load the best model and evaulate this model in testset
-        self.net.load_state_dict(best_net_param)
+        self.model.load_state_dict(best_model_param)
 
         results = {}
-        train_preds, train_target, train_loss = self._predict(train_loader)
-        train_acc = self.get_acc(train_preds, train_target, ncls)
+        train_preds, train_target, train_loss = self.predict(train_loader)
+        train_acc = self.get_acc(train_preds, train_target, train_ncls)
         results["train"] = {
             "preds": train_preds,
             "target": train_target,
             "acc": train_acc,
         }
-        val_preds, val_target, val_loss = self._predict(val_loader)
-        val_acc = self.get_acc(val_preds, val_target, ncls)
-        results["val"] = {"preds": val_preds, "target": val_target, "acc": val_acc}
-        test_preds, test_target, test_loss = self._predict(test_loader)
-        test_acc = self.get_acc(test_preds, test_target, ncls)
-        results["test"] = {"preds": test_preds, "target": test_target, "acc": test_acc}
+        valid_preds, valid_target, valid_loss = self.predict(valid_loader)
+        valid_acc = self.get_acc(valid_preds, valid_target, valid_ncls)
+        results["valid"] = {
+            "preds": valid_preds,
+            "target": valid_target,
+            "acc": valid_acc,
+        }
+        test_preds, test_target, test_loss = self.predict(test_loader)
+        test_acc = self.get_acc(test_preds, test_target, test_ncls)
+        results["test"] = {
+            "preds": test_preds,
+            "target": test_target,
+            "acc": test_acc,
+        }
 
         loger.info(
-            f"Loss: train={train_loss:.4f} | val={val_loss:.4f} | "
-            f"test={test_loss:.4f}"
+            f"Loss: train={train_loss:.4f} | valid={valid_loss:.4f} | test={test_loss:.4f}"
         )
         loger.info(
-            f"Acc:  train={train_acc:.4f} | val={val_acc:.4f} | " f"test={test_acc:.4f}"
+            f"Acc:  train={train_acc:.4f} | valid={valid_acc:.4f} | test={test_acc:.4f}"
         )
 
-        # save the training results
         self.train_details["results"] = results
-        self.train_details["best_net_param"] = best_net_param
+        self.train_details["best_model_param"] = best_model_param
 
         # store the training details
         train_details_path = os.path.join(log_dir, f"train_details.pt")
@@ -752,24 +927,6 @@ class Classifier:
 
         # store the best model
         best_checkpoiont_path = os.path.join(log_dir, f"best_checkpoint.pth")
-        torch.save(best_net_param, best_checkpoiont_path)
+        torch.save(best_model_param, best_checkpoiont_path)
 
         return results
-
-    def __repr__(self) -> str:
-        """Trainer details."""
-        s = "[Network architecture]:\n" + self.net_arch + "\n"
-        s += f"[Loss function]: {self.loss_fn_type}\n"
-        if self.loss_fn_args:
-            s += f"[loss_fn Args]: {self.lr_sch_args}\n"
-        s += f"[Optimizer]: {self.optimizer_type}\n"
-        s += f"[Learning rate]: {self.lr}\n"
-        if self.optimizer_args:
-            s += f"[Optim Args]: {self.optimizer_args}\n"
-        if self.lr_sch_type:
-            s += f"[Lr scheduler]: {self.lr_sch_type}\n"
-            if self.lr_sch_args:
-                s += f"[lr_sch Args]: {self.lr_sch_args}\n"
-        s += f"[Grad Acc]: {self.grad_acc}\n"
-        s += f"[Batch Size]: {self.batch_size}\n"
-        return s

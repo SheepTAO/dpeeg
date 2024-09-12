@@ -1,11 +1,3 @@
-'''
-References
-----------
-Y. Song, Q. Zheng, B. Liu, and X. Gao, “EEG conformer: Convolutional transformer for EEG decoding and visualization,” 
-IEEE Transactions on Neural Systems and Rehabilitation Engineering, vol. 31, pp. 710–719, 2022.
-'''
-
-
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
@@ -29,9 +21,8 @@ class PatchEmbedding(nn.Module):
 
         self.projection = nn.Sequential(
             nn.Conv2d(40, emb_size, (1, 1), stride=(1, 1)),
-            Rearrange('b e (h) (w) -> b (h w) e'),
+            Rearrange("b e (h) (w) -> b (h w) e"),
         )
-
 
     def forward(self, x: Tensor) -> Tensor:
         x = self.shallownet(x)
@@ -54,12 +45,12 @@ class MultiHeadAttention(nn.Module):
         queries = rearrange(self.queries(x), "b n (h d) -> b h n d", h=self.num_heads)
         keys = rearrange(self.keys(x), "b n (h d) -> b h n d", h=self.num_heads)
         values = rearrange(self.values(x), "b n (h d) -> b h n d", h=self.num_heads)
-        energy = torch.einsum('bhqd, bhkd -> bhqk', queries, keys)
+        energy = torch.einsum("bhqd, bhkd -> bhqk", queries, keys)
 
         scaling = self.emb_size ** (1 / 2)
         att = F.softmax(energy / scaling, dim=-1)
         att = self.att_drop(att)
-        out = torch.einsum('bhal, bhlv -> bhav ', att, values)
+        out = torch.einsum("bhal, bhlv -> bhav ", att, values)
         out = rearrange(out, "b h n d -> b n (h d)")
         out = self.projection(out)
         return out
@@ -88,33 +79,46 @@ class FeedForwardBlock(nn.Sequential):
 
 
 class TransformerEncoderBlock(nn.Sequential):
-    def __init__(self,
-                 emb_size,
-                 num_heads=10,
-                 drop_p=0.5,
-                 forward_expansion=4,
-                 forward_drop_p=0.5):
+    def __init__(
+        self,
+        emb_size,
+        num_heads=10,
+        drop_p=0.5,
+        forward_expansion=4,
+        forward_drop_p=0.5,
+    ):
         super().__init__(
-            ResidualAdd(nn.Sequential(
-                nn.LayerNorm(emb_size),
-                MultiHeadAttention(emb_size, num_heads, drop_p),
-                nn.Dropout(drop_p)
-            )),
-            ResidualAdd(nn.Sequential(
-                nn.LayerNorm(emb_size),
-                FeedForwardBlock(
-                    emb_size, expansion=forward_expansion, drop_p=forward_drop_p),
-                nn.Dropout(drop_p)
-            )
-            ))
+            ResidualAdd(
+                nn.Sequential(
+                    nn.LayerNorm(emb_size),
+                    MultiHeadAttention(emb_size, num_heads, drop_p),
+                    nn.Dropout(drop_p),
+                )
+            ),
+            ResidualAdd(
+                nn.Sequential(
+                    nn.LayerNorm(emb_size),
+                    FeedForwardBlock(
+                        emb_size, expansion=forward_expansion, drop_p=forward_drop_p
+                    ),
+                    nn.Dropout(drop_p),
+                )
+            ),
+        )
 
 
 class TransformerEncoder(nn.Sequential):
-    def __init__(self, depth, emb_size, num_heads, drop_p, forward_expansion, forward_drop_p):
-        super().__init__(*[
-            TransformerEncoderBlock(emb_size, num_heads, drop_p, forward_expansion, forward_drop_p)
-            for _ in range(depth)
-        ])
+    def __init__(
+        self, depth, emb_size, num_heads, drop_p, forward_expansion, forward_drop_p
+    ):
+        super().__init__(
+            *[
+                TransformerEncoderBlock(
+                    emb_size, num_heads, drop_p, forward_expansion, forward_drop_p
+                )
+                for _ in range(depth)
+            ]
+        )
 
 
 class ClassificationHead(nn.Sequential):
@@ -128,22 +132,69 @@ class ClassificationHead(nn.Sequential):
             nn.ELU(),
             nn.Dropout(0.3),
             nn.Linear(32, cls),
-            nn.LogSoftmax(dim=1)
+            nn.LogSoftmax(dim=1),
         )
 
 
 class EEGConformer(nn.Module):
+    """EEG Conformer: Convolutional Transformer for EEG Decoding and
+    Visualization (EEG Conformer).
+
+    EEG Conformer [1]_ is proposed to encapsulate local and global features in
+    a unified EEG classification framework. The architecture comprises three
+    components: a convolution module, a self-attention module, and a fully-
+    connected classifier. In the convolution module, taking the raw two-
+    dimensional EEG trials as the input, temporal and spatial convolutional
+    layers are applied along the time dimension and electrode channel
+    dimensions, respectively. Then, an average pooling layer is utilized to
+    suppress noise interference while improving generalization. Secondly, the
+    spatial-temporal representation obtained by the convolution module is fed
+    into the selfattention module. The self-attention module further extracts
+    the long-term temporal features by measuring the global correlations
+    between different time positions in the feature maps. Finally, a compact
+    classifier consisting of several fullyconnected layers is adopted to output
+    the decoding results.
+
+    Parameters
+    ----------
+    nCh : int
+        Number of electrode channels.
+    nTime : int
+        Number of data sampling points.
+    cls : int
+        Number of categories.
+    emb_size : int
+        Embedding layer size.
+    depth : int
+        Depth of transformer encoder.
+    num_heads : int
+        Number of multi-head attention.
+    drop_p : float
+        Dropout rate of transformer encoder.
+    forward_expansion : int
+        The expansion factor of the fully connected feed-forward layer.
+    forward_drop_p : float
+        Dropout rate of fully connected feed-forward layer.
+
+    References
+    ----------
+    .. [1] Y. Song, Q. Zheng, B. Liu, and X. Gao, “EEG conformer: Convolutional
+        transformer for EEG decoding and visualization,” IEEE Transactions on
+        Neural Systems and Rehabilitation Engineering, vol. 31, pp. 710–719,
+        2022.
+    """
+
     def __init__(
-        self, 
-        nCh, 
-        nTime, 
-        cls, 
-        emb_size=40, 
-        depth=6, 
-        num_heads=10, 
-        drop_p=0.5, 
-        forward_expansion=4, 
-        forward_drop_p=0.5
+        self,
+        nCh: int,
+        nTime: int,
+        cls: int,
+        emb_size: int = 40,
+        depth: int = 6,
+        num_heads: int = 10,
+        drop_p: float = 0.5,
+        forward_expansion: int = 4,
+        forward_drop_p: float = 0.5,
     ) -> None:
         super().__init__()
         self.nCh = nCh
@@ -165,9 +216,3 @@ class EEGConformer(nn.Module):
         out = self.patch_embedding(x)
         out = self.transformer_encoder(out)
         return self.classification_head(out)
-
-
-if __name__ == '__main__':
-    from torchinfo import summary
-    net = EEGConformer(22, 1000, 4)
-    summary(net, (1, 1, 22, 1000), device='cpu')

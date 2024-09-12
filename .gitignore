@@ -1,6 +1,9 @@
 # Byte-compiled
 __pycache__/
 
+# Vscode
+.vscode/
+
 # Distribution / packaging
 build/
 dist/
@@ -10,3 +13,5 @@ dist/
 tests/out/
 
 # Sphinx
+docs/build
+docs/source/generated

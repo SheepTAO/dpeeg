@@ -3,7 +3,7 @@
 # License: MIT
 # Copyright the dpeeg contributors.
 
-from pathlib import Path
+from typing import Literal
 
 import torch
 import numpy as np
@@ -11,10 +11,8 @@ import scipy.signal as signal
 from numpy import ndarray
 from mne.utils import verbose, logger
 from torch import Tensor
-from typing import Literal
 
-from dpeeg.datasets.base import BaseDataset, EEGDataset
-from dpeeg.utils import DPEEG_SEED
+from ..utils import DPEEG_SEED, iterable_to_str
 
 
 @verbose
@@ -91,6 +89,9 @@ def split_train_test(
 @verbose
 def merge_train_test(*arrs, verbose=None) -> tuple[ndarray, ndarray]:
     """Merge the data and label of the training set and test set.
+
+    .. deprecated:: 0.4.0
+        Will be removed in a later version.
 
     Parameters
     ----------
@@ -343,6 +344,8 @@ def segmentation_and_reconstruction_time(
     label: ndarray,
     samples: int = 125,
     multiply: float = 1.0,
+    shuffle: bool = True,
+    seed: int = DPEEG_SEED,
     verbose=None,
 ) -> tuple[ndarray, ndarray]:
     """Signal Segmentation and Recombination in Time Domain.
@@ -350,7 +353,7 @@ def segmentation_and_reconstruction_time(
     This approach is to first divide each EEG trial into several segments and
     then generate new artificial trials as a concatenation of segments coming
     from different and randomly selected trials from the same class while
-    maintaining the original time order.
+    maintaining the original time order [1]_.
 
     Parameters
     ----------
@@ -360,10 +363,14 @@ def segmentation_and_reconstruction_time(
     label : ndarray (N,)
         The label corresponding to the data. Shape as `(N)`.
     samples : int
-        The number of consecutive samples to segment the data. eg, 125 for 250Hz
-        data is segmented by 0.5s.
+        The number of consecutive samples to segment the data. eg, 125 for
+        250Hz data is segmented by 0.5s.
     multiply : float
         Data expansion multiple of relative metadata, 1 means doubled.
+    shuffle : bool
+        Whether or not to shuffle the data after picking.
+    seed : int
+        Controls the shuffling applied to the data after picking.
 
     Notes
     -----
@@ -371,10 +378,10 @@ def segmentation_and_reconstruction_time(
 
     References
     ----------
-    F. Lotte, “Signal Processing Approaches to Minimize or Suppress
-    Calibration Time in Oscillatory Activity-Based Brain-Computer Interfaces,
-    ” Proc. IEEE, vol. 103, no. 6, pp. 871-890, Jun. 2015,
-    doi: 10.1109/JPROC.2015.2404941.
+    .. [1] F. Lotte, “Signal Processing Approaches to Minimize or Suppress
+        Calibration Time in Oscillatory Activity-Based Brain-Computer
+        Interfaces,” Proc. IEEE, vol. 103, no. 6, pp. 871-890, Jun. 2015,
+        doi: 10.1109/JPROC.2015.2404941.
     """
     assert samples >= 1, "samples should be at least 1"
     assert multiply > 0, "multiply should be greater than 0"
@@ -407,125 +414,14 @@ def segmentation_and_reconstruction_time(
 
     aug_data = np.concatenate(aug_data)
     aug_label = np.concatenate(aug_label)
-    shuffle = np.random.permutation(aug_data.shape[0])
-    aug_data = aug_data[shuffle]
-    aug_label = aug_label[shuffle]
+
+    if shuffle:
+        rng = np.random.RandomState(seed)
+        shuffle_idx = rng.permutation(aug_label.shape[0])
+        aug_data = aug_data[shuffle_idx]
+        aug_label = aug_label[shuffle_idx]
 
     return aug_data, aug_label
-
-
-@verbose
-def save(
-    folder: str | Path,
-    input: BaseDataset,
-    verbose=None,
-) -> None:
-    """Save transformed dataset to a binary file in NumPy `.npy` format.
-
-    Parameters
-    ----------
-    folder : str
-        Folder name to save transformed data.
-    input : EEGDataset
-        Data are saved on a per-subject basis.
-    """
-
-    folder = Path(folder).resolve()
-    folder.mkdir(parents=True, exist_ok=True)
-    if folder.iterdir():
-        raise FileExistsError(f"'{folder}' is not a empty folder.")
-
-    logger.info(f"Transformed data will be saved in: '{folder}'")
-    for sub, sub_data in input.items():
-        logger.info(f"Save transformed data of sub_{sub}.")
-        file_name = folder / f"sub_{sub}"
-        # if check_sub_data(sub, sub_data):
-        #     np.savez(
-        #         file_name,
-        #         train_data=sub_data["train"][0],
-        #         train_label=sub_data["train"][1],
-        #         test_data=sub_data["test"][0],
-        #         test_label=sub_data["test"][1],
-        #     )
-        # else:
-        #     np.savez(file_name, data=sub_data[0], label=sub_data[1])
-    logger.info("Save dataset done.")
-
-
-def _check_sub_load_data(sub, sub_data) -> bool:
-    """Check whether the loaded data is split."""
-    sub_data = dict(sub_data)
-    keys = sorted(sub_data.keys())
-
-    if keys == ["test_data", "test_label", "train_data", "train_label"]:
-        return True
-    elif keys == ["data", "label"]:
-        return False
-    else:
-        raise ValueError(f"Subject {sub} data format error.")
-
-
-@verbose
-def _get_subject_list(
-    folder: str | Path,
-    subjects: list[int] | None = None,
-    verbose=None,
-) -> list[int]:
-    """Return the list of subjects in a folder."""
-    folder = Path(folder).resolve()
-    path_list = list(folder.iterdir())
-    subject_list = list(set([int(p.stem.split("_")[1]) for p in path_list]))
-    subject_list.sort()
-
-    if subjects:
-        include = set(subjects) & set(subject_list)
-        exclude = set(subjects) - set(subject_list)
-        subject_list = list(include)
-        if exclude:
-            logger.warning(f"Unable to find {exclude}, loaded only {include}.")
-    return subject_list
-
-
-@verbose
-def load(
-    folder: str,
-    subjects: list[int] | None = None,
-    validate: bool = True,
-    verbose=None,
-) -> EEGDataset:
-    """Load saved transformed dataset from folder.
-
-    Parameters
-    ----------
-    folder : str
-        Folder name where transformed data is saved.
-    subjects : list of int, None
-        List of subject number. If None, all subjects will be loaded.
-    validate : bool
-        Verify the correctness of the input. Set to `False` for faster loading.
-    """
-
-    if validate or (subjects is None):
-        subject_list = _get_subject_list(folder, subjects, verbose)
-    else:
-        subject_list = subjects
-
-    dataset = EEGDataset()
-    for sub in subject_list:
-        logger.info(f"Loading subject {sub}")
-        file_name = Path(folder).resolve() / f"sub_{sub}.npz"
-        sub_data = np.load(file_name)
-
-        if _check_sub_load_data(sub, sub_data):
-            dataset[sub] = {
-                "train": [sub_data["train_data"], sub_data["train_label"]],
-                "test": [sub_data["test_data"], sub_data["test_label"]],
-            }
-        else:
-            dataset[sub] = [sub_data["data"], sub_data["label"]]
-
-    logger.info("Load dataset done.")
-    return dataset
 
 
 @verbose
@@ -623,9 +519,10 @@ def label_mapping(
     label : ndarray (N,)
         Original label list.
     mapping : ndarray (2, label_num)
-        Label mapping relationship.
+        Label mapping relationship. The first row is the original label, and
+        the second row is the mapped label.
     order : bool
-        New label must start from 0.
+        Force the new labels to start incrementing from 0.
 
     Returns
     -------
@@ -634,12 +531,14 @@ def label_mapping(
     Examples
     --------
     Merge label:
+
     >>> label = np.array([1, 2, 3, 2, 3, 1, 3, 4])
     >>> mapping = np.array([[1, 2, 3, 4], [0, 1, 0, 1]])
     >>> label_mapping(label, mapping)
     array([0, 1, 0, 1, 0, 0, 0, 1])
 
     Rearrange the original label:
+
     >>> mapping = np.array([[1, 2, 3, 4], [3, 2, 1, 0]])
     >>> label_mapping(label, mapping)
     array([3, 2, 1, 2, 1, 3, 1, 0])
@@ -669,65 +568,87 @@ def label_mapping(
 
 @verbose
 def pick_label(
-    data: ndarray,
+    *data: ndarray,
     label: ndarray,
     pick: ndarray,
+    order: bool = False,
+    shuffle: bool = True,
+    seed: int = DPEEG_SEED,
     verbose=None,
-) -> tuple[ndarray, ndarray]:
+):
     """Pick a subset of data by label.
 
-    Pick the required labels and data from the dataset and re-label them.
+    Pick the required labels and data from the dataset or re-label them.
 
     Parameters
     ----------
-    data : ndarray (N, ..., T)
-        The data to pick. Shape as `(N, ..., T)`, with `N` the number of data
-        and `T` the number of samples.
+    *data : sequence of indexables with same length / shape[0]
+        The data to pick. Shape as `(N, ...)`.
     label : ndarray (N,)
         Dataset label.
     pick : ndarray (n,)
         Label to include.
+    order : bool
+        If `True`, relabel the selected labels.
+    shuffle : bool
+        Whether or not to shuffle the data after picking.
+    seed : int
+        Controls the shuffling applied to the data after picking.
 
     Returns
     -------
-    data, label : ndarray (N, ...)
+    data, label : list of ndarray, length = len(data) + 1
         Returns the picked data and label.
 
     Examples
     --------
-    >>> data = np.arange(24).reshape(8, 3)
+    >>> data1 = np.arange(24).reshape(8, 3)
+    >>> data2 = np.arange(2, 26).reshape(8, 3)
     >>> label = np.array([0, 0, 1, 1, 2, 2, 2, 2])
-    >>> data_1, label_1 = pick_label(data, label, np.array([1]))
-    >>> data_1, label_1
-    (array([[ 6,  7,  8],
-            [ 9, 10, 11]]),
-     array([0, 0]))
+    >>> pick_label(data1, data2, label=label, pick=np.array([1]))
+    ([array([[ 9, 10, 11],
+             [ 6,  7,  8]]),
+      array([[11, 12, 13],
+             [ 8,  9, 10]])],
+     array([1, 1]))
 
-    >>> data_02, label_02 = pick_label(data, label, np.array([0, 2]))
-    >>> data_02, label_02
-    (array([[15, 16, 17],
-            [ 3,  4,  5],
-            [18, 19, 20],
-            [ 0,  1,  2],
-            [12, 13, 14],
-            [21, 22, 23]]),
-     array([1, 0, 1, 0, 1, 1]))
+    >>> pick_label(data1, label=label, pick=np.array([0, 2]), order=True)
+    ([array([[ 0,  1,  2],
+             [ 3,  4,  5],
+             [21, 22, 23],
+             [12, 13, 14],
+             [18, 19, 20],
+             [15, 16, 17]])],
+     array([0, 0, 1, 1, 1, 1]))
     """
+    num_data = len(data)
+    if num_data == 0:
+        raise ValueError("At least one data required as input.")
+
     elements = set(pick) - set(label)
     if elements:
-        raise ValueError(f"{elements} not in label.")
+        raise ValueError(f"{iterable_to_str(elements)} not in label.")
 
-    new_data, new_label = [], []
+    new_label = []
+    new_data = [[] for _ in range(num_data)]
     for i, p in enumerate(np.unique(pick)):
         indices = np.where(label == p)[0]
-        new_data.append(data[indices])
-        new_label.append(np.repeat(i, len(indices)))
+        for n in range(num_data):
+            new_data[n].append(data[n][indices])
 
-    new_data = np.concatenate(new_data)
+        if order:
+            new_label.append(np.repeat(i, len(indices)))
+        else:
+            new_label.append(label[indices])
+
+    new_data = [np.concatenate(nd) for nd in new_data]
     new_label = np.concatenate(new_label)
-    shuffle_idx = np.random.permutation(new_label.shape[0])
-    new_data = new_data[shuffle_idx]
-    new_label = new_label[shuffle_idx]
+
+    if shuffle:
+        rng = np.random.RandomState(seed)
+        shuffle_idx = rng.permutation(new_label.shape[0])
+        new_data = [nd[shuffle_idx] for nd in new_data]
+        new_label = new_label[shuffle_idx]
 
     return new_data, new_label
 

@@ -1,15 +1,6 @@
-'''
-References
-----------
-J. Wang, L. Yao and Y. Wang, "IFNet: An Interactive Frequency Convolutional 
-Neural Network for Enhancing Motor Imagery Decoding from EEG," in IEEE 
-Transactions on Neural Systems and Rehabilitation Engineering, 
-doi: 10.1109/TNSRE.2023.3257319.
-'''
-
-
 import torch
 import torch.nn as nn
+from torch.optim.adamw import AdamW
 from torch.nn.init import trunc_normal_, constant_
 
 
@@ -21,40 +12,86 @@ class InterFre(nn.Module):
 
 
 class IFNet(nn.Module):
-    def __init__(self, nCh, nTime, cls, F=64, C=63, radix=2, P=125, p=0.5) -> None:
+    """IFNet: An Interactive Frequency Convolutional Neural Network for
+    Enhancing Motor Imagery Decoding From EEG (IFNet).
+
+    Inspired by the concept of cross-frequency coupling and its correlation
+    with different behavioral tasks, IFNet [1]_ explores cross-frequency
+    interactions for enhancing representation of MI characteristics. IFNet
+    first extracts spectro-spatial features in low and high-frequency bands,
+    respectively. Then the interplay between the two bands is learned using an
+    element-wise addition operation followed by temporal average pooling.
+    Combined with repeated trial augmentation as a regularizer, IFNet yields
+    spectro-spatiotemporally robust features for the final MI classification.
+
+    Parameters
+    ----------
+    nCh : int
+        Number of electrode channels.
+    nTime : int
+        Number of data sampling points.
+    cls : int
+        Number of categories.
+    F : int
+        Number of spectro-spatial filters.
+    C : int
+        Spectro-spatial filter kernel size.
+    radix : int
+        Number of cross-frequency domains.
+    P : int
+        Pooling kernel size.
+    dropout : float
+        Dropout rate.
+
+    References
+    ----------
+    .. [1] J. Wang, L. Yao and Y. Wang, "IFNet: An Interactive Frequency
+        Convolutional Neural Network for Enhancing Motor Imagery Decoding from
+        EEG," in IEEE Transactions on Neural Systems and Rehabilitation
+        Engineering, doi: 10.1109/TNSRE.2023.3257319.
+    """
+
+    def __init__(
+        self,
+        nCh: int,
+        nTime: int,
+        cls: int,
+        F: int = 64,
+        C: int = 63,
+        radix: int = 2,
+        P: int = 125,
+        dropout: float = 0.5,
+    ) -> None:
         super().__init__()
         self.F = F
         self.mF = F * radix
 
         self.sConv = nn.Sequential(
             nn.Conv1d(nCh * radix, self.mF, 1, bias=False, groups=radix),
-            nn.BatchNorm1d(self.mF)
+            nn.BatchNorm1d(self.mF),
         )
 
         self.tConv = nn.ModuleList()
         for _ in range(radix):
-            self.tConv.append(nn.Sequential(
-                nn.Conv1d(F, F, C, 1, padding=C//2, groups=F, bias=False),
-                nn.BatchNorm1d(F)
-            ))
+            self.tConv.append(
+                nn.Sequential(
+                    nn.Conv1d(F, F, C, 1, padding=C // 2, groups=F, bias=False),
+                    nn.BatchNorm1d(F),
+                )
+            )
             C //= 2
 
         self.interFre = InterFre()
-        self.downSamp = nn.Sequential(
-            nn.AvgPool1d(P), 
-            nn.Dropout(p)
-        )
+        self.downSamp = nn.Sequential(nn.AvgPool1d(P), nn.Dropout(dropout))
         self.fc = nn.Sequential(
-            nn.Flatten(), 
-            nn.Linear(int(F * (nTime // P)), cls),
-            nn.LogSoftmax(dim=1)
+            nn.Flatten(), nn.Linear(int(F * (nTime // P)), cls), nn.LogSoftmax(dim=1)
         )
 
         self.apply(self.initParms)
 
     def initParms(self, m):
         if isinstance(m, nn.Linear):
-            trunc_normal_(m.weight, std=.01)
+            trunc_normal_(m.weight, std=0.01)
             if m.bias is not None:
                 constant_(m.bias, 0)
         elif isinstance(m, (nn.LayerNorm, nn.BatchNorm1d, nn.BatchNorm2d)):
@@ -63,7 +100,7 @@ class IFNet(nn.Module):
             if m.bias is not None:
                 constant_(m.bias, 0)
         elif isinstance(m, (nn.Conv1d, nn.Conv2d)):
-            trunc_normal_(m.weight, std=.01)
+            trunc_normal_(m.weight, std=0.01)
             if m.bias is not None:
                 constant_(m.bias, 0)
 
@@ -76,7 +113,7 @@ class IFNet(nn.Module):
         return self.fc(out)
 
 
-class IFNetAdamW(torch.optim.AdamW):
+class IFNetAdamW(AdamW):
     def __init__(self, net: nn.Module, **kwargs) -> None:
         has_decay = []
         no_decay = []
@@ -84,17 +121,17 @@ class IFNetAdamW(torch.optim.AdamW):
         for name, param in net.named_parameters():
             if not param.requires_grad:
                 continue
-            if len(param.shape) == 1 or name.endswith('.bias'):
+            if len(param.shape) == 1 or name.endswith(".bias"):
                 no_decay.append(param)
             else:
                 has_decay.append(param)
-        params = [{'params': has_decay},
-                  {'params': no_decay, 'weight_decay': 0}]
+        params = [{"params": has_decay}, {"params": no_decay, "weight_decay": 0}]
 
         super().__init__(params, **kwargs)
 
 
 if __name__ == "__main__":
     from torchinfo import summary
+
     net = IFNet(22, 750, 4).cuda()
     summary(net, (1, 44, 750))

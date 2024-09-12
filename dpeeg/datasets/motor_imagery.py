@@ -13,6 +13,12 @@ from .loaddata import load_data
 from ..utils import get_init_args
 
 
+__all__ = [
+    "BCICIV2A",
+    "BCICIV2B",
+]
+
+
 class MIDataset(BaseDataset):
     _unit_factor = 1e6
 
@@ -193,8 +199,8 @@ class MIDataset(BaseDataset):
             verbose=verbose,
         )
         if bmin < tmin or bmax > tmax:
-            epochs.crop(tmin=tmin, tmax=tmax, include_tmax=False)
-        return epochs
+            epochs.crop(tmin=tmin, tmax=tmax)
+        return epochs.crop(include_tmax=False)
 
     def _data_from_epochs(self, epochs: Epochs, verbose=False) -> EEGData:
         if self.picks is None:
@@ -208,7 +214,7 @@ class MIDataset(BaseDataset):
         if self.resample is not None:
             epochs.resample(self.resample, verbose=verbose)
 
-        edata = self._unit_factor * epochs.get_data()
+        edata = self._unit_factor * epochs.get_data(copy=False)
         label = epochs.events[:, -1]
         return EEGData(edata, label)
 
@@ -263,9 +269,9 @@ class BCICIV2A(MIDataset):
     ----------
 
     .. [1] Tangermann, M., Müller, K.R., Aertsen, A., Birbaumer, N., Braun, C.,
-           Brunner, C., Leeb, R., Mehring, C., Miller, K.J., Mueller-Putz, G.
-           and Nolte, G., 2012. Review of the BCI competition IV.
-           Frontiers in neuroscience, 6, p.55.
+        Brunner, C., Leeb, R., Mehring, C., Miller, K.J., Mueller-Putz, G. and
+        Nolte, G., 2012. Review of the BCI competition IV.
+        Frontiers in neuroscience, 6, p.55.
     """
 
     _code = "bciciv2a"
@@ -328,9 +334,9 @@ class BCICIV2B(MIDataset):
     ----------
 
     .. [1] R. Leeb, F. Lee, C. Keinrath, R. Scherer, H. Bischof,
-           G. Pfurtscheller. Brain-computer communication: motivation, aim,
-           and impact of exploring a virtual apartment. IEEE Transactions on
-           Neural Systems and Rehabilitation Engineering 15, 473–482, 2007
+        G. Pfurtscheller. Brain-computer communication: motivation, aim, and
+        impact of exploring a virtual apartment. IEEE Transactions on Neural
+        Systems and Rehabilitation Engineering 15, 473–482, 2007.
     """
 
     _code = "bciciv2b"

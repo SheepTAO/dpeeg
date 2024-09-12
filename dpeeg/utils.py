@@ -155,6 +155,7 @@ def align_text(prefix: str, text: str, only_head: bool = True) -> str:
     >>> print(align_text("- ", text, only_head=True))
     - First line
       Second line
+
     >>> print(align_text("+ ", text, only_head=False))
     + First line
     + Second line
@@ -213,10 +214,10 @@ def get_init_args(
 
 def get_init_args(
     obj,
-    locals: dict,
-    format: str = "log",
-    rename: str | None = None,
-    ret_dict: bool = False,
+    locals,
+    format="log",
+    rename=None,
+    ret_dict=False,
     **kwargs,
 ) -> str | dict:
     """Get object initialization parameters.

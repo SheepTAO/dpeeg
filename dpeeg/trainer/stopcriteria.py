@@ -10,6 +10,17 @@ import os, sys, json
 CURRENT_MODULE = sys.modules[__name__]
 
 
+__all__ = [
+    "ComposeStopCriteria",
+    "And",
+    "Or",
+    "MaxEpoch",
+    "NoDecrease",
+    "Bigger",
+    "Smaller",
+]
+
+
 class Criteria(abc.ABC):
     @abc.abstractmethod
     def __call__(self, variables: dict) -> bool:
@@ -24,23 +35,22 @@ class Criteria(abc.ABC):
 
 
 class ComposeStopCriteria(Criteria):
-    """Advanced complex logical expression parser to compose stopping criteria."""
+    """Advanced complex logical expression parser to compose stopping criteria.
+
+    Parameters
+    ----------
+    stopcri : dict, str
+        Type is str, indicate the configuration file path. Type is dict,
+        indicate a dictionary containing initialization parameters for the
+        corresponding stopping criteria.
+
+    Returns
+    -------
+    bool :
+        Whether the stopping condition is reached.
+    """
 
     def __init__(self, stopcri: dict | str) -> None:
-        """The parent class for all the stop criteria.
-
-        Parameters
-        ----------
-        stopcri : dict, str
-            Type is str, indicate the configuration file path. Type is dict,
-            indicate a dictionary containing initialization parameters for the
-            corresponding stopping criteria.
-
-        Returns
-        -------
-        bool :
-            Whether the stopping condition is reached.
-        """
         if isinstance(stopcri, str):
             with open(os.path.abspath(stopcri)) as fp:
                 cri: dict = json.load(fp)
@@ -61,20 +71,21 @@ class ComposeStopCriteria(Criteria):
 
 
 class And(Criteria):
+    """And operation on two stop criteria.
+
+    Parameters
+    ----------
+    cri1 : dict
+        Dictionary describing first criteria.
+    cri2 : dict
+        Dictionary describing second criteria.
+
+    Notes
+    -----
+    If you wish to do and on multiple cases then do like: And(And(A, B), C)...
+    """
+
     def __init__(self, cri1, cri2) -> None:
-        """And operation on two stop criteria.
-
-        Parameters
-        ----------
-        cri1 : dict
-            Dictionary describing first criteria.
-        cri2 : dict
-            Dictionary describing second criteria.
-
-        Notes
-        -----
-        If you wish to do and on multiple cases then do like: And(And(A, B), C)...
-        """
         self.cri1: Criteria = CURRENT_MODULE.__dict__[list(cri1.keys())[0]](
             **cri1[list(cri1.keys())[0]]
         )
@@ -94,21 +105,22 @@ class And(Criteria):
 
 
 class Or(Criteria):
+    """Or operation on two stop criteria.
+
+    Parameters
+    ----------
+    cri1 : dict
+        Dictionary describing first criteria.
+    cri2 : dict
+        Dictionary describing second criteria.
+
+    Notes
+    -----
+    If you wish to do and on multiple cases then do like:
+    And(And(A, B), C)...
+    """
+
     def __init__(self, cri1: dict, cri2: dict) -> None:
-        """Or operation on two stop criteria.
-
-        Parameters
-        ----------
-        cri1 : dict
-            Dictionary describing first criteria.
-        cri2 : dict
-            Dictionary describing second criteria.
-
-        Notes
-        -----
-        If you wish to do and on multiple cases then do like:
-        And(And(A, B), C)...
-        """
         self.cri1: Criteria = CURRENT_MODULE.__dict__[list(cri1.keys())[0]](
             **cri1[list(cri1.keys())[0]]
         )
@@ -128,16 +140,17 @@ class Or(Criteria):
 
 
 class MaxEpoch(Criteria):
-    def __init__(self, max_epochs: int, var_name: str) -> None:
-        """Stop when given number of epochs reached.
+    """Stop when given number of epochs reached.
 
-        Parameters
-        ----------
-        max_epochs : int
-            Maximum epochs to watch.
-        var_name : str
-            Key name to compare with in the variables dictionary.
-        """
+    Parameters
+    ----------
+    max_epochs : int
+        Maximum epochs to watch.
+    var_name : str
+        Key name to compare with in the variables dictionary.
+    """
+
+    def __init__(self, max_epochs: int, var_name: str) -> None:
         self.max_epochs = max_epochs
         self.var_name = var_name
 
@@ -152,19 +165,20 @@ class MaxEpoch(Criteria):
 
 
 class NoDecrease(Criteria):
-    def __init__(self, num_epochs: int, var_name: str, min_change=1e-6):
-        """Stop if there is no decrease on a given monitor channel for given
-        number of epochs.
+    """Stop if there is no decrease on a given monitor channel for given
+    number of epochs.
 
-        Parameters
-        ----------
-        num_epochs : int
-            Number of epochs to wait while there is no decrease in the value.
-        var_name : str
-            Key name to compare with in the variables dictionary.
-        min_change : float
-            Minimum relative decrease which resets the num_epochs.
-        """
+    Parameters
+    ----------
+    num_epochs : int
+        Number of epochs to wait while there is no decrease in the value.
+    var_name : str
+        Key name to compare with in the variables dictionary.
+    min_change : float
+        Minimum relative decrease which resets the num_epochs.
+    """
+
+    def __init__(self, num_epochs: int, var_name: str, min_change=1e-6):
         self.num_epochs = num_epochs
         self.var_name = var_name
         self.min_change = min_change
@@ -198,16 +212,17 @@ class NoDecrease(Criteria):
 
 
 class Bigger(Criteria):
-    def __init__(self, var: float, var_name: str) -> None:
-        """Stop when greater than the specified value.
+    """Stop when greater than the specified value.
 
-        Parameters
-        ----------
-        var : float
-            Maximum value to watch.
-        var_name : str
-            Key name to compare with in the variables dictionary.
-        """
+    Parameters
+    ----------
+    var : float
+        Maximum value to watch.
+    var_name : str
+        Key name to compare with in the variables dictionary.
+    """
+
+    def __init__(self, var: float, var_name: str) -> None:
         self.var = var
         self.var_name = var_name
 
@@ -219,16 +234,17 @@ class Bigger(Criteria):
 
 
 class Smaller(Criteria):
-    def __init__(self, var: float, var_name: str) -> None:
-        """Stop when less than the specified value.
+    """Stop when less than the specified value.
 
-        Parameters
-        ----------
-        var : float
-            Minimum value to watch.
-        var_name : str
-            Key name to compare with in the variables dictionary.
-        """
+    Parameters
+    ----------
+    var : float
+        Minimum value to watch.
+    var_name : str
+        Key name to compare with in the variables dictionary.
+    """
+
+    def __init__(self, var: float, var_name: str) -> None:
         self.var = var
         self.var_name = var_name
 

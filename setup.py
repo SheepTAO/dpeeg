@@ -10,6 +10,9 @@ install_requires = [
     "scipy>=1.11.1",
     "scikit-learn>=1.0.2",
     "tqdm>=4.64.1",
+    "torchmetrics>=1.0.0",
+    "torchinfo>=1.5.0",
+    "tensorboard",
 ]
 
 with open("README.md", "r", encoding="utf-8") as f:
@@ -43,7 +46,5 @@ setup(
         # that you indicate you support Python 3. These classifiers are *not*
         # checked by 'pip install'. See instead 'python_requires' below.
         "Operating System :: OS Independent",
-        "Programming Language :: Python :: 3.10",
-        "Programming Language :: Python :: 3.11",
     ],
 )

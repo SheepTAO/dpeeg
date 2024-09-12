@@ -9,49 +9,62 @@
 # documentation root, use os.path.abspath to make it absolute.
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../../dpeeg'))
+
+sys.path.insert(0, os.path.abspath("../../dpeeg"))
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 from dpeeg import __version__
 
-project = 'dpeeg'
-copyright = '2024, SheepTAO'
-author = 'SheepTAO'
+project = "dpeeg"
+copyright = "2024, SheepTAO"
+author = "SheepTAO"
 release = __version__
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.viewcode',
-    'sphinx.ext.napoleon',
-    'sphinx.ext.mathjax',
-    'sphinx.ext.intersphinx'
+    "sphinx.ext.autodoc",
+    "sphinx.ext.autosummary",
+    "sphinx.ext.viewcode",
+    "sphinx.ext.napoleon",
+    "sphinx.ext.mathjax",
+    "sphinx.ext.intersphinx",
+    "sphinx_copybutton",
 ]
 
-templates_path = ['_templates']
+templates_path = ["_templates"]
+html_static_path = ["_static"]
 exclude_patterns = []
 
 
-
 # -- Options for HTML output -------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
+
+html_theme = "pydata_sphinx_theme"
+html_logo = "_static/banner.svg"
+html_favicon = "_static/logo.svg"
 
 
-html_theme = 'pydata_sphinx_theme'
 html_theme_options = {
     "footer_start": ["copyright"],
     "footer_center": ["sphinx-version"],
+    "header_links_before_dropdown": 4,
+    "external_links": [
+        {"name": "PyTorch", "url": "https://pytorch.org/"},
+        {"name": "MNE", "url": "https://mne.tools/stable/index.html"},
+        {"name": "MOABB", "url": "https://moabb.neurotechx.com/docs/index.html"},
+        {
+            "name": "TorchMetrics",
+            "url": "https://lightning.ai/docs/torchmetrics/stable/",
+        },
+    ],
     "icon_links": [
         {
             "name": "GitHub",
             "url": "https://github.com/SheepTAO/dpeeg",
             "icon": "fa-brands fa-github",
         },
-    ]
+    ],
 }
-
-html_static_path = ['_static']

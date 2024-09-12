@@ -1,12 +1,3 @@
-'''
-References
-----------
-“A Temporal Dependency Learning CNN With Attention Mechanism for MI-EEG Decoding
-| IEEE Journals & Magazine | IEEE Xplore.” Accessed: Oct. 20, 2023. [Online]. 
-Available: https://ieeexplore.ieee.org/document/10196350
-'''
-
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -16,7 +7,7 @@ class LogVarLayer(nn.Module):
     def __init__(self, dim):
         super().__init__()
         self.dim = dim
-    
+
     def forward(self, x):
         out = torch.clamp(x.var(dim=self.dim), 1e-6, 1e6)
         return torch.log(out)
@@ -39,8 +30,16 @@ class LightweightConv1d(nn.Module):
             `(num_heads, 1, kernel_size)`
         bias: the learnable bias of the module of shape `(input_size)`
     """
-    def __init__(self, input_size, kernel_size=1, padding=0, heads=1, 
-                 weight_softmax=False, bias=False):
+
+    def __init__(
+        self,
+        input_size,
+        kernel_size=1,
+        padding=0,
+        heads=1,
+        weight_softmax=False,
+        bias=False,
+    ):
         super().__init__()
         self.input_size = input_size
         self.kernel_size = kernel_size
@@ -55,7 +54,7 @@ class LightweightConv1d(nn.Module):
             self.bias = None
 
         self.init_parameters()
-        
+
     def init_parameters(self):
         nn.init.xavier_uniform_(self.weight)
         if self.bias is not None:
@@ -68,42 +67,92 @@ class LightweightConv1d(nn.Module):
         weight = self.weight
         if self.weight_softmax:
             weight = F.softmax(weight, dim=-1)
-        
+
         input = input.view(-1, H, T)
-        output = F.conv1d(
-            input, weight, padding=self.padding, groups=self.heads
-        )
+        output = F.conv1d(input, weight, padding=self.padding, groups=self.heads)
         output = output.view(B, C, -1)
         if self.bias is not None:
             output = output + self.bias.view(1, -1, 1)
-        
+
         return output
 
 
 class LightConvNet(nn.Module):
-    def __init__(self, nCh=22, nTime=1000, cls=4, bands=9, embed_dim=64, 
-                 win_len=250, heads=8, weight_softmax=True, bias=False):
-        super().__init__()
+    """A Temporal Dependency Learning CNN With Attention Mechanism for MI-EEG
+    Decoding (LightConvNet).
 
+    LightConvNet [1]_ first implements the spatial convolution to learn spatial
+    and spectral information from multi-view EEG data, which is preprocessed
+    with a filter bank. Then, LightConvNet employs a series of non-overlapped
+    time windows to segment the output time series. The discriminative feature
+    from each time window is further extracted using a temporal variance layer
+    to capture MI-related patterns in different stages during MI tasks.
+    Moreover, LightConvNet designs a novel temporal attention module to further
+    learn temporal dependencies among discriminative features from different
+    time windows. The temporal attention module assigns different weights to
+    features in various time windows according to their contribution to the
+    final decoding performance, and fuses them into more discriminative
+    features. Finally, the fused features are used for classification.
+
+    Parameters
+    ----------
+    nCh : int
+        Number of electrode channels.
+    nTime : int
+        Number of data sampling points.
+    cls : int
+        Number of categories.
+    bands : int
+        The filter dimension of the input multi-view data.
+    embed_dim : int
+        Number of spatial filters.
+    win_len : int
+        The length of the time window.
+    heads : int
+        Number of multi-head attention.
+    weight_softmax : bool
+        Normalize the weight with softmax before the convolution.
+    bias : bool
+        The learnable bias.
+
+    References
+    ----------
+    .. [1] “A Temporal Dependency Learning CNN With Attention Mechanism for
+        MI-EEG Decoding | IEEE Journals & Magazine | IEEE Xplore.” Accessed:
+        Oct. 20, 2023.
+        [Online]. Available: https://ieeexplore.ieee.org/document/10196350
+    """
+
+    def __init__(
+        self,
+        nCh: int,
+        nTime: int,
+        cls: int,
+        bands: int = 9,
+        embed_dim: int = 64,
+        win_len: int = 250,
+        heads: int = 8,
+        weight_softmax: bool = True,
+        bias: bool = False,
+    ):
+        super().__init__()
         self.win_len = win_len
-        
+
         self.spacial_block = nn.Sequential(
-            nn.Conv2d(bands, embed_dim, (nCh, 1)),
-            nn.BatchNorm2d(embed_dim),
-            nn.ELU()
+            nn.Conv2d(bands, embed_dim, (nCh, 1)), nn.BatchNorm2d(embed_dim), nn.ELU()
         )
 
         self.temporal_block = LogVarLayer(dim=3)
 
         self.conv = LightweightConv1d(
-            embed_dim, (nTime//win_len), heads=heads, 
-            weight_softmax=weight_softmax, bias=bias
+            embed_dim,
+            (nTime // win_len),
+            heads=heads,
+            weight_softmax=weight_softmax,
+            bias=bias,
         )
 
-        self.classify = nn.Sequential(
-            nn.Linear(embed_dim, cls),
-            nn.LogSoftmax(dim=1)
-        )
+        self.classify = nn.Sequential(nn.Linear(embed_dim, cls), nn.LogSoftmax(dim=1))
 
     def forward(self, x):
         out = self.spacial_block(x)
@@ -113,9 +162,3 @@ class LightConvNet(nn.Module):
         out = out.view(out.size(0), -1)
         out = self.classify(out)
         return out
-
-
-if __name__ == '__main__':
-    from torchinfo import summary
-    net = LightConvNet().cuda()
-    summary(net, (64, 9, 22, 1000))

@@ -1,12 +1,3 @@
-'''
-References
-----------
-R. T. Schirrmeister et al., “Deep learning with convolutional neural networks 
-for EEG decoding and visualization,” Human Brain Mapping, vol. 38, no. 11, pp.
-5391-5420, 2017, doi: 10.1002/hbm.23730.
-'''
-
-
 import torch
 import torch.nn as nn
 
@@ -23,14 +14,71 @@ class Lambda(nn.Module):
 
 
 class ShallowConvNet(nn.Module):
-    def __init__(self, nCh=22, nTime=1000, cls=4, F=40, C=14, P=35, S=7, 
-                 dropout=0.5) -> None:
+    """Deep Learning With Convolutional Neural Networks for EEG Decoding and
+    Visualization (ShallowConvNet).
+
+    Shallow ConvNet [1]_, inspired by the FBCSP pipeline, is specifically
+    tailored to decode band power features. The transformations performed by
+    the shallow ConvNet are similar to the transformations of FBCSP.
+    Concretely, the first two layers of the shallow ConvNet perform a temporal
+    convolution and a spatial filter, as in the deep ConvNet. These steps are
+    analogous to the bandpass and CSP spatial filter steps in FBCSP. In
+    contrast to the deep ConvNet, the temporal convolution of the shallow
+    ConvNet had a larger kernel size, allowing a larger range of
+    transformations in this layer (smaller kernel sizes for the shallow ConvNet
+    led to lower accuracies in preliminary experiments on the training set).
+    After the temporal convolution and the spatial filter of the shallow
+    ConvNet, a squaring nonlinearity, a mean pooling layer and a logarithmic
+    activation function followed; together these steps are analogous to the
+    trial log-variance computation in FBCSP. In contrast to FBCSP, the shallow
+    ConvNet embeds all the computational steps in a single network, and thus
+    all steps can be optimized jointly. Also, due to having several pooling
+    regions within one trial, the shallow ConvNet can learn a temporal
+    structure of the band power changes within the trial.
+
+    Parameters
+    ----------
+    nCh : int
+        Number of electrode channels.
+    nTime : int
+        Number of data sampling points.
+    cls : int
+        Number of categories.
+    F : int
+        The number of convolution channels.
+    C : int
+        Temporal convolution kernel size.
+    P : int
+        Pooling kernel size.
+    S : int
+        Pooling layer stride size.
+    dropout : float
+        Dropout rate.
+
+    References
+    ----------
+    .. [1] R. T. Schirrmeister et al., “Deep learning with convolutional neural
+        networks for EEG decoding and visualization,” Human Brain Mapping,
+        vol. 38, no. 11, pp.5391-5420, 2017, doi: 10.1002/hbm.23730.
+    """
+
+    def __init__(
+        self,
+        nCh: int,
+        nTime: int,
+        cls: int,
+        F: int = 40,
+        C: int = 14,
+        P: int = 35,
+        S: int = 7,
+        dropout: float = 0.5,
+    ) -> None:
         super().__init__()
         self.nCh = nCh
         self.nTime = nTime
 
         self.conv = nn.Sequential(
-            Conv2dWithNorm(1, F, (1, 14), max_norm=2, bias=False),
+            Conv2dWithNorm(1, F, (1, C), max_norm=2, bias=False),
             Conv2dWithNorm(F, F, (nCh, 1), max_norm=2, bias=False, groups=F),
             nn.BatchNorm2d(F),
             Lambda(torch.square),
@@ -43,7 +91,7 @@ class ShallowConvNet(nn.Module):
             nn.Flatten(),
             nn.Dropout(dropout),
             LinearWithNorm(linear_in, cls, max_norm=0.5),
-            nn.LogSoftmax(dim=1)
+            nn.LogSoftmax(dim=1),
         )
 
     def forward_flatten(self):
@@ -56,10 +104,3 @@ class ShallowConvNet(nn.Module):
         x = self.conv(x)
         x = self.head(x)
         return x
-
-
-if __name__ == '__main__':
-    from torchinfo import summary
-    net = ShallowConvNet().cuda()
-    summary(net, (32, 1, 22, 1000))
-    
