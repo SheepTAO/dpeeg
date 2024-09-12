@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Yang"
+  given-names: "Tao"
+  orcid: "https://orcid.org/0009-0000-1703-6454"
+title: "dpeeg: Deep learning with EEG"
+date-released: 2024-01-01
+url: "https://github.com/SheepTAO/dpeeg"
+license: "MIT"

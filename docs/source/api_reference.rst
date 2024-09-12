@@ -9,3 +9,4 @@ API Reference
     Trainer <api/trainer>
     Experiments <api/exps>
     Models <api/models>
+    Logging and Configuration <api/log_conf>

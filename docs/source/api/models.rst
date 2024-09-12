@@ -5,6 +5,7 @@ Models
 
 Motor Imagery
 ------------------------
+
 .. autosummary::
     :toctree: generated/
     :template: models.rst
@@ -21,7 +22,9 @@ Motor Imagery
 
 Utils
 ------------------------
+
 .. currentmodule:: dpeeg.models.utils
+
 .. autosummary::
     :toctree: generated/
     :template: models.rst

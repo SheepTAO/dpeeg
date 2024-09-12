@@ -6,17 +6,37 @@
 from .base import ClsExp
 from ..trainer.classifier import BaseClassifier
 from ..transforms.base import SplitTrainTest
+from ..utils import get_init_args
 
 
 class HoldOut(ClsExp):
+    """Holdout cross validation experiment.
+
+    Validate the performance of the model on unseen data using holdout cross
+    validation. Only one training and testing is required, so it is fast and
+    suitable for large-scale datasets and fast model evaluation.
+
+    Parameters
+    ----------
+    trainer : Trainer
+        Trainer used for training module on dataset.
+    out_folder : str, optional
+        Store all experimental results in a folder named with the model class
+        name in the specified folder. Default is '~/dpeeg/out/model/exp/'.
+    """
+
     def __init__(
         self,
-        repr: str,
         trainer: BaseClassifier,
         out_folder: str | None = None,
         verbose: int | str = "INFO",
     ) -> None:
-        super().__init__(repr, trainer, out_folder, verbose)
+        super().__init__(
+            get_init_args(self, locals()),
+            trainer=trainer,
+            out_folder=out_folder,
+            verbose=verbose,
+        )
 
     def _run_sub_classifier(self, eegdata, sub_folder):
         result = self.trainer.fit(
@@ -25,7 +45,9 @@ class HoldOut(ClsExp):
             log_dir=sub_folder,
         )
 
-        self.logger.info(f"Acc: Train={result['train']['acc']} | Test={result['test']['acc']}")
+        self.logger.info(
+            f"Acc: Train={result['train']['acc']} | Test={result['test']['acc']}"
+        )
         return result
 
     def _run_sub_classifier_two_stage(self, eegdata, sub_folder):
@@ -52,8 +74,8 @@ class HoldOut(ClsExp):
         self.logger.info(f"\n# ---------- {sub_folder.name} ---------- #")
         result = self._run_sub_func(self._trans_eegdata(eegdata), sub_folder)
         return (
-            result["test"]["acc"], 
-            result["test"]["preds"], 
-            result["test"]["target"], 
-            result
+            result["test"]["acc"],
+            result["test"]["preds"],
+            result["test"]["target"],
+            result,
         )

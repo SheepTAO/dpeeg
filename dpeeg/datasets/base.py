@@ -122,16 +122,6 @@ class EEGData(BaseData, dict):
             eegdata[key] = value[idx]
         return eegdata
 
-    @property
-    def ncls(self) -> int:
-        """Returns the number of categories."""
-        return len(np.unique(self["label"]))
-
-    @property
-    def shape(self) -> tuple[int, ...]:
-        """Return the `edata` shape."""
-        return self["edata"].shape[1:]
-
     def datas(self) -> Generator[tuple["EEGData", None], None, None]:
         yield self, None
 
@@ -220,6 +210,16 @@ class EEGData(BaseData, dict):
                 data.extend(value)
             self[key] = np.concatenate(data, axis=dim)
 
+    @property
+    def ncls(self) -> int:
+        """Returns the number of categories."""
+        return len(np.unique(self["label"]))
+
+    @property
+    def shape(self) -> tuple[int, ...]:
+        """Return the `edata` shape."""
+        return self["edata"].shape[1:]
+
     def __repr__(self) -> str:
         data = {key: value.shape for key, value in self.items()}
         return f"[{mapping_to_str(data)}]"
@@ -229,9 +229,9 @@ class MultiSessEEGData(BaseData, dict):
     """Multi-session eegdata.
 
     The multi-session EEGData is actually equivalent to the EEGData collection
-    wrapped by the Python built-in `dict`. It does not have to be multi-session
-    data, it can be any other EEGData collection. This name is only used here
-    to indicate this type of data. The actual format is similar to:
+    wrapped by the Python built-in ``dict``. It does not have to be multi-
+    session data, it can be any other EEGData collection. This name is only
+    used here to indicate this type of data. The actual format is similar to:
 
         multi_sess_eegdata = { 'session_id': EEGData }
 
@@ -401,19 +401,19 @@ class EEGDataset(BaseDataset):
     Parameters
     ----------
     eegdataset : list or dict of eegdata, optional
-        The eegdata of different subjects. If `None`, initialize an empty
+        The eegdata of different subjects. If ``None``, initialize an empty
         dataset.
     event_id : dict, optional
         The correspondence between labels and events.
     rename : str, optional
-        User renamed name. If `None`, the default class name is used.
+        User renamed name. If ``None``, the default class name is used.
 
     Notes
     -----
     The dataset supports different subjects with different eegdata types (such
-    as `EEGData`, `MultiSessEEGData` and `SplitEEGData`), but it is recommended
-    to unify the eegdata types of all subjects when performing transformation
-    and training models to avoid unpredictable errors.
+    as ``EEGData``, ``MultiSessEEGData`` and ``SplitEEGData``), but it is
+    recommended to unify the eegdata types of all subjects when performing
+    transformation and training models to avoid unpredictable errors.
     """
 
     @overload

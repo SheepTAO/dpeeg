@@ -85,17 +85,17 @@ def save(
     eegdata: BaseData,
     compress: bool = False,
 ):
-    """Archive eegdata into a file in `.egd` format.
+    """Archive eegdata into a file in '.egd' format.
 
     Parameters
     ----------
     file : str, Path
-        Filename where the eegdata will be saved, a `.egd` extension will be
+        Filename where the eegdata will be saved, a '.egd' extension will be
         appended to the filename if it does not already have one.
     eegdata : eegdata
         An eegdata to be saved.
     compress : bool
-        If `True`, use standard ZIP compression.
+        If ``True``, use standard ZIP compression.
     """
     import zipfile
     import json

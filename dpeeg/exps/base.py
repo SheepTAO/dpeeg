@@ -5,7 +5,6 @@
 
 from pathlib import Path
 from abc import ABC, abstractmethod
-from unittest.mock import Base
 
 import torch
 from torchmetrics.aggregation import CatMetric, MeanMetric

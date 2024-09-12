@@ -48,6 +48,7 @@ html_favicon = "_static/logo.svg"
 
 
 html_theme_options = {
+    "navbar_align": "left",
     "footer_start": ["copyright"],
     "footer_center": ["sphinx-version"],
     "header_links_before_dropdown": 4,

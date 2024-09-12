@@ -15,10 +15,26 @@ from ..utils import get_init_args
 
 
 class LoadDataset(BaseDataset):
+    """Read a dataset from a local folder.
+
+    This will read the dataset that has already been saved from the local
+    folder. Ensure that the dataset is saved by ``dpeeg.savedataset``.
+
+    Parameters
+    ----------
+    folder : str | Path
+        The path to the saved dataset.
+    subjects : list of int, optional
+        The list of subjects to be read, with all subjects being read by
+        default.
+    rename : str, optional
+        Rename the read dataset, with the default being to use the saved name.
+    """
+
     @verbose
     def __init__(
         self,
-        folder: str,
+        folder: str | Path,
         subjects: list[int] | None = None,
         rename: str | None = None,
         verbose=None,
@@ -54,6 +70,7 @@ class LoadDataset(BaseDataset):
         return load(subject_path)
 
     def get_data(self, progressbar: bool = True):
+        """Returns the eegdata of all subjects."""
         subjects = tqdm(
             self.subjects, "Load EEGData", unit="sub", disable=not progressbar
         )

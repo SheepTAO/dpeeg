@@ -5,11 +5,12 @@ Experiments
 
 Classification Experiments
 ------------------------------------
+
 .. autosummary::
     :toctree: generated/
     :template: exps.rst
 
-    holdout.HoldOut
-    kfold.KFold
-    loso.LOSO_HoldOut
-    loso.LOSO_KFold
+    HoldOut
+    KFold
+    LOSO_HoldOut
+    LOSO_KFold

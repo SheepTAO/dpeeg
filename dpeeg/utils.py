@@ -69,7 +69,7 @@ def _set_torch_seed(seed: int) -> None:
 
 
 def set_seed(seed: int = DPEEG_SEED, ret_old_seed: bool = False) -> None | int:
-    """Set the seed for random, numpy and PyTorch.
+    """Set global random seed for random, Numpy and PyTorch.
 
     Parameters
     ----------
@@ -151,11 +151,6 @@ def align_text(prefix: str, text: str, only_head: bool = True) -> str:
 
     Examples
     --------
-    >>> text = "First line\nSecond line"
-    >>> print(align_text("- ", text, only_head=True))
-    - First line
-      Second line
-
     >>> print(align_text("+ ", text, only_head=False))
     + First line
     + Second line

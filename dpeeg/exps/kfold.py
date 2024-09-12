@@ -17,6 +17,14 @@ from ..utils import DPEEG_SEED, get_init_args
 class KFold(ClsExp):
     """K-Fold cross validation experiment.
 
+    The KFold experiment divides the dataset into K non-overlapping subsets
+    (i.e., “folds”) and repeatedly trains and tests the model. The purpose is
+    to reduce the dependence of the model evaluation results on the way the
+    dataset is divided and to improve the stability and reliability of the
+    evaluation results. However, its computational cost is high, especially for
+    large datasets and complex models. It may take a long time to complete the
+    training of all folds.
+
     Parameters
     ----------
     trainer : Trainer

@@ -1,10 +1,11 @@
 Trainer
 =======
 
+.. currentmodule:: dpeeg.trainer
 
 Classification Trainer
 --------------------------------
-.. currentmodule:: dpeeg.trainer.classifier
+
 .. autosummary::
     :toctree: generated/
     :template: trainer.rst

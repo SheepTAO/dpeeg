@@ -5,6 +5,7 @@ Transforms
 
 Core Transformer
 -----------------------------
+
 .. autosummary::
     :toctree: generated/
     :template: transforms.rst
@@ -15,6 +16,7 @@ Core Transformer
 
 Commonly Transformer
 -----------------------------
+
 .. autosummary::
     :toctree: generated/
     :template: transforms.rst
@@ -31,6 +33,7 @@ Commonly Transformer
 
 Normalization Transformer
 -----------------------------
+
 .. autosummary::
     :toctree: generated/
     :template: transforms.rst
@@ -40,9 +43,17 @@ Normalization Transformer
 
 Data Augmentation Transformer
 -----------------------------
+
 .. autosummary::
     :toctree: generated/
     :template: transforms.rst
 
     SegRecTime
     SlideWinAug
+
+Functions
+-----------------------------
+
+.. automodule:: dpeeg.transforms.functions
+    :members:
+    :undoc-members:
