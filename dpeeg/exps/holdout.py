@@ -25,7 +25,7 @@ class HoldOut(ClsExp):
             log_dir=sub_folder,
         )
 
-        self.logger.info(f"Acc: Train={result["train"]["acc"]} | Test={result["test"]["acc"]}")
+        self.logger.info(f"Acc: Train={result['train']['acc']} | Test={result['test']['acc']}")
         return result
 
     def _run_sub_classifier_two_stage(self, eegdata, sub_folder):
@@ -42,9 +42,9 @@ class HoldOut(ClsExp):
         )
 
         self.logger.info(
-            f"Acc: Train={result["train"]["acc"]} | "
-            f"Valid={result["valid"]["acc"]} | "
-            f"Test={result["test"]["acc"]}"
+            f"Acc: Train={result['train']['acc']} | "
+            f"Valid={result['valid']['acc']} | "
+            f"Test={result['test']['acc']}"
         )
         return result
 

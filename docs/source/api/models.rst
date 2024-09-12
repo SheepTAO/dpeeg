@@ -18,10 +18,10 @@ Motor Imagery
     MSVTNet
     ShallowConvNet
 
-.. currentmodule:: dpeeg.models.utils
 
 Utils
 ------------------------
+.. currentmodule:: dpeeg.models.utils
 .. autosummary::
     :toctree: generated/
     :template: models.rst
