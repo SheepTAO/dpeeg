@@ -83,17 +83,18 @@ class DeepConvNet(nn.Module):
         return x
 
     def forward(self, x):
-        """Forward pass: defines how the data passes through the network.
-        
+        """Forward pass function that processes the input EEG data and produces
+        the decoded results.
+
         Parameters
         ----------
         x : Tensor
-            Input tensor of shape (batch_size, 1, nCh, nTime).
+            Input EEG data, shape `(batch_size, 1, nCh, nTime)`.
 
         Returns
         -------
         cls_prob : Tensor
-            Output tensor of shape (batch_size, ncls).
+            Predicted class probability, shape `(batch_size, cls)`.
         """
         x = self.conv_layer(x)
         x = self.head(x)

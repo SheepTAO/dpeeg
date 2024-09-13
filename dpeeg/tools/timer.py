@@ -13,6 +13,7 @@ class Timer:
     --------
     If you want to start a default timer and then calculate the program interval,
     you can do like:
+
     >>> timer = Timer()
     >>> do_something()
     >>> h, m, s = timer.stop()
@@ -20,9 +21,11 @@ class Timer:
     1, 2, 13.435
 
     And you can update the start time of the default timer, just do like:
+
     >>> timer.start()
 
     You can also register a specified timer and update the start time of it.
+
     >>> timer.start('new')
     >>> h, m, s = timer.stop('new')
     """

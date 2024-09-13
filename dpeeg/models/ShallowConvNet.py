@@ -101,6 +101,19 @@ class ShallowConvNet(nn.Module):
         return x
 
     def forward(self, x):
+        """Forward pass function that processes the input EEG data and produces
+        the decoded results.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input EEG data, shape `(batch_size, bands, nCh, nTime)`.
+
+        Returns
+        -------
+        cls_prob : Tensor
+            Predicted class probability, shape `(batch_size, cls)`.
+        """
         x = self.conv(x)
         x = self.head(x)
         return x

@@ -13,12 +13,6 @@ from ..utils import DPEEG_SEED, get_init_args
 from .functions import segmentation_and_reconstruction_time, slide_win, crop
 
 
-__all__ = [
-    "SegRecTime",
-    "SlideWinAug",
-]
-
-
 class Augmentation(Transforms):
     """Data augmentation base class.
 

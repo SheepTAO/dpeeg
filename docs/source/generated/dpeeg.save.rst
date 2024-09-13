@@ -1,4 +1,0 @@
-﻿save
-==========
-
-.. autofunction:: dpeeg.save

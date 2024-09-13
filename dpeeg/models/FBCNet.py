@@ -89,6 +89,19 @@ class FBCNet(nn.Module):
         )
 
     def forward(self, x):
+        """Forward pass function that processes the input EEG data and produces
+        the decoded results.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input EEG data, shape `(batch_size, bands, nCh, nTime)`.
+
+        Returns
+        -------
+        cls_prob : Tensor
+            Predicted class probability, shape `(batch_size, cls)`.
+        """
         x = self.scb(x)
         x = x.reshape([*x.shape[:2], self.stride, x.shape[3] // self.stride])
         x = self.temporal_layer(x)

@@ -5,7 +5,7 @@ Logging and Configuration
 
 .. autosummary::
     :toctree: ../generated
-    :template: function.rst
+    :template: base/function.rst
 
     set_log_level
     set_seed

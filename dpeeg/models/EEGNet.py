@@ -116,6 +116,19 @@ class EEGNet(nn.Module):
         return self.flatten(out).size(1)
 
     def forward(self, x):
+        """Forward pass function that processes the input EEG data and produces
+        the decoded results.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input EEG data, shape `(batch_size, 1, nCh, nTime)`.
+
+        Returns
+        -------
+        cls_prob : Tensor
+            Predicted class probability, shape `(batch_size, cls)`.
+        """
         out = self.filter(x)
         out = self.depthwise_conv(out)
         out = self.separable_conv(out)

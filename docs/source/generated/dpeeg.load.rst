@@ -1,4 +1,0 @@
-﻿load
-==========
-
-.. autofunction:: dpeeg.load

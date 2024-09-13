@@ -14,4 +14,4 @@ tests/out/
 
 # Sphinx
 docs/build
-docs/source/api/generated
+docs/source/generated/

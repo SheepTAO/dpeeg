@@ -36,12 +36,6 @@ cudnn.benchmark = False
 cudnn.deterministic = True
 
 
-__all__ = [
-    "Classifier",
-    "ClassifierTwoStage",
-]
-
-
 class BaseClassifier(Trainer, ABC):
     """Classification model trainer.
 

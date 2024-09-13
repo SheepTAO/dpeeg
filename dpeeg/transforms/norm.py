@@ -15,12 +15,6 @@ from .functions import (
 )
 
 
-__all__ = [
-    "ZscoreNorm",
-    "MinMaxNorm",
-]
-
-
 class ZscoreNorm(Transforms):
     """Z-score normalization per subject.
 

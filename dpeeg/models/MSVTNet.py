@@ -115,7 +115,7 @@ class MSVTNet(nn.Module):
     layers : int
         Number of transformer encoder layers.
     b_preds : bool
-        If `True`, return the prediction for each branch.
+        If ``True``, return the prediction for each branch.
 
     References
     ----------
@@ -185,6 +185,22 @@ class MSVTNet(nn.Module):
         return x
 
     def forward(self, x):
+        """Forward pass function that processes the input EEG data and produces
+        the decoded results.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input EEG data, shape `(batch_size, bands, nCh, nTime)`.
+
+        Returns
+        -------
+        cls_prob : Tensor
+            Predicted class probability, shape `(batch_size, cls)`.
+        branch_cls_prob : list of Tensor
+            If ``b_preds=True``, return the class prediction probability for
+            each branch.
+        """
         x = [tsconv(x) for tsconv in self.mstsconv]
         bx = [branch(x[idx]) for idx, branch in enumerate(self.branch_head)]
         x = torch.cat(x, dim=2)

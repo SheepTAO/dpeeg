@@ -105,6 +105,19 @@ class IFNet(nn.Module):
                 constant_(m.bias, 0)
 
     def forward(self, x):
+        """Forward pass function that processes the input EEG data and produces
+        the decoded results.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input EEG data, shape `(batch_size, nCh * radix, nTime)`.
+
+        Returns
+        -------
+        cls_prob : Tensor
+            Predicted class probability, shape `(batch_size, cls)`.
+        """
         out = self.sConv(x)
         out = torch.split(out, self.F, dim=1)
         out = [m(x) for m, x in zip(self.tConv, out)]
@@ -114,6 +127,8 @@ class IFNet(nn.Module):
 
 
 class IFNetAdamW(AdamW):
+    """ """
+
     def __init__(self, net: nn.Module, **kwargs) -> None:
         has_decay = []
         no_decay = []
@@ -128,10 +143,3 @@ class IFNetAdamW(AdamW):
         params = [{"params": has_decay}, {"params": no_decay, "weight_decay": 0}]
 
         super().__init__(params, **kwargs)
-
-
-if __name__ == "__main__":
-    from torchinfo import summary
-
-    net = IFNet(22, 750, 4).cuda()
-    summary(net, (1, 44, 750))

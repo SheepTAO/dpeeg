@@ -13,13 +13,9 @@ from .loaddata import load_data
 from ..utils import get_init_args
 
 
-__all__ = [
-    "BCICIV2A",
-    "BCICIV2B",
-]
-
-
 class MIDataset(BaseDataset):
+    """Motor Imagery Dataset."""
+
     _unit_factor = 1e6
 
     def _check_attr(self):

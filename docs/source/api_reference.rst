@@ -10,3 +10,4 @@ API Reference
     Experiments <api/exps>
     Models <api/models>
     Logging and Configuration <api/log_conf>
+    Tools <api/tools>

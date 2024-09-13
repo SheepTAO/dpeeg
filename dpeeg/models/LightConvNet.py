@@ -155,6 +155,19 @@ class LightConvNet(nn.Module):
         self.classify = nn.Sequential(nn.Linear(embed_dim, cls), nn.LogSoftmax(dim=1))
 
     def forward(self, x):
+        """Forward pass function that processes the input EEG data and produces
+        the decoded results.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input EEG data, shape `(batch_size, bands, nCh, nTime)`.
+
+        Returns
+        -------
+        cls_prob : Tensor
+            Predicted class probability, shape `(batch_size, cls)`.
+        """
         out = self.spacial_block(x)
         out = out.reshape([*out.shape[0:2], -1, self.win_len])
         out = self.temporal_block(out)

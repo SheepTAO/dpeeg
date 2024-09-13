@@ -10,17 +10,6 @@ import os, sys, json
 CURRENT_MODULE = sys.modules[__name__]
 
 
-__all__ = [
-    "ComposeStopCriteria",
-    "And",
-    "Or",
-    "MaxEpoch",
-    "NoDecrease",
-    "Bigger",
-    "Smaller",
-]
-
-
 class Criteria(abc.ABC):
     @abc.abstractmethod
     def __call__(self, variables: dict) -> bool:
