@@ -7,7 +7,7 @@ Core Transformer
 -----------------------------
 
 .. autosummary::
-    :toctree: generated/
+    :toctree: ../generated
     :template: transforms.rst
 
     Sequential
@@ -18,7 +18,7 @@ Commonly Transformer
 -----------------------------
 
 .. autosummary::
-    :toctree: generated/
+    :toctree: ../generated
     :template: transforms.rst
 
     Identity
@@ -35,7 +35,7 @@ Normalization Transformer
 -----------------------------
 
 .. autosummary::
-    :toctree: generated/
+    :toctree: ../generated
     :template: transforms.rst
 
     ZscoreNorm
@@ -45,15 +45,8 @@ Data Augmentation Transformer
 -----------------------------
 
 .. autosummary::
-    :toctree: generated/
+    :toctree: ../generated
     :template: transforms.rst
 
     SegRecTime
     SlideWinAug
-
-Functions
------------------------------
-
-.. automodule:: dpeeg.transforms.functions
-    :members:
-    :undoc-members:

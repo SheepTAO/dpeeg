@@ -83,6 +83,18 @@ class DeepConvNet(nn.Module):
         return x
 
     def forward(self, x):
+        """Forward pass: defines how the data passes through the network.
+        
+        Parameters
+        ----------
+        x : Tensor
+            Input tensor of shape (batch_size, 1, nCh, nTime).
+
+        Returns
+        -------
+        cls_prob : Tensor
+            Output tensor of shape (batch_size, ncls).
+        """
         x = self.conv_layer(x)
         x = self.head(x)
         return x

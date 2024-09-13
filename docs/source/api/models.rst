@@ -7,7 +7,7 @@ Motor Imagery
 ------------------------
 
 .. autosummary::
-    :toctree: generated/
+    :toctree: ../generated
     :template: models.rst
 
     DeepConvNet
@@ -26,7 +26,7 @@ Utils
 .. currentmodule:: dpeeg.models.utils
 
 .. autosummary::
-    :toctree: generated/
+    :toctree: ../generated
     :template: models.rst
 
     Conv2dWithNorm

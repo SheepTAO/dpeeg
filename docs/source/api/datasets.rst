@@ -7,7 +7,7 @@ EEG Data
 .. currentmodule:: dpeeg
 
 .. autosummary::
-    :toctree: generated/
+    :toctree: ../generated
     :template: eegdata.rst
 
     EEGData
@@ -20,7 +20,7 @@ EEG Dataset
 ----------------------------------
 
 .. autosummary::
-    :toctree: generated/
+    :toctree: ../generated
     :template: eegdataset.rst
 
     EEGDataset
@@ -30,7 +30,7 @@ Motor Imagery Datasets
 **********************************
 
 .. autosummary::
-    :toctree: generated/
+    :toctree: ../generated
     :template: eegdataset.rst
 
     BCICIV2A
@@ -42,7 +42,7 @@ Load and Save
 .. currentmodule:: dpeeg
 
 .. autosummary::
-    :toctree: generated/
+    :toctree: ../generated
     :template: function.rst
 
     save

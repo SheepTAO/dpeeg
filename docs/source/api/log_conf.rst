@@ -4,7 +4,7 @@ Logging and Configuration
 .. currentmodule:: dpeeg.utils
 
 .. autosummary::
-    :toctree: generated/
+    :toctree: ../generated
     :template: function.rst
 
     set_log_level

@@ -7,7 +7,7 @@ Classification Experiments
 ------------------------------------
 
 .. autosummary::
-    :toctree: generated/
+    :toctree: ../generated
     :template: exps.rst
 
     HoldOut

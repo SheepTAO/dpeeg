@@ -7,7 +7,7 @@ Classification Trainer
 --------------------------------
 
 .. autosummary::
-    :toctree: generated/
+    :toctree: ../generated
     :template: trainer.rst
 
     Classifier
