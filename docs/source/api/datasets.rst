@@ -1,6 +1,8 @@
 EEG Data and Datasets
 =====================
 
+.. _eeg_data:
+
 EEG Data
 ----------------------------------
 
@@ -15,6 +17,8 @@ EEG Data
     SplitEEGData
 
 .. currentmodule:: dpeeg.datasets
+
+.. _eeg_dataset:
 
 EEG Dataset
 ----------------------------------

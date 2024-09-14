@@ -13,5 +13,6 @@ dist/
 tests/out/
 
 # Sphinx
-docs/build
+docs/build/
 docs/source/generated/
+docs/source/auto_examples/

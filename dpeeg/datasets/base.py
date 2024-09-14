@@ -14,14 +14,6 @@ from numpy import ndarray
 from ..utils import get_init_args, iterable_to_str, mapping_to_str, _format_log
 
 
-__all__ = [
-    "EEGData",
-    "MultiSessEEGData",
-    "SplitEEGData",
-    "EEGDataset",
-]
-
-
 class BaseData(ABC):
     """The bottom-level base data class."""
 

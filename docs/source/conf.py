@@ -32,12 +32,13 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.mathjax",
     "sphinx.ext.intersphinx",
+    "sphinx_gallery.gen_gallery",
     "sphinx_copybutton",
 ]
 
 templates_path = ["_templates"]
 html_static_path = ["_static"]
-exclude_patterns = []
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -46,6 +47,7 @@ html_theme = "pydata_sphinx_theme"
 html_logo = "_static/banner.svg"
 html_favicon = "_static/logo.svg"
 
+# https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html
 
 html_theme_options = {
     "navbar_align": "left",
@@ -68,4 +70,13 @@ html_theme_options = {
             "icon": "fa-brands fa-github",
         },
     ],
+}
+
+
+# -- Sphinx-gallery configuration  -------------------------------------------
+# https://sphinx-gallery.github.io/stable/getting_started.html#create-simple-gallery
+
+sphinx_gallery_conf = {
+    "examples_dirs": "../../examples",
+    "gallery_dirs": "auto_examples",
 }

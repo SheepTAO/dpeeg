@@ -1,15 +1,10 @@
-.. dpeeg documentation master file, created by
-   sphinx-quickstart on Sat Jun 29 01:56:59 2024.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
-
 :html_theme.sidebar_secondary.remove:
 
-Welcome to dpeeg's documentation!
-=================================
+.. title:: dpeeg
 
 .. toctree::
    :maxdepth: 1
+   :hidden:
    :caption: Contents:
 
    install
@@ -17,23 +12,23 @@ Welcome to dpeeg's documentation!
    api_reference
    development
 
-Cition
-=================================
+.. image:: _static/dpeeg_logo.svg
+   :align: center
+   :alt: dpeeg logo
 
-If you use **dpeeg** in your experiments, please cite this library when publishing a paper to increase the visibility of open science initiatives:
+.. rst-class:: h4 text-center font-weight-light my-4
 
-.. code-block:: text
+   Open-source Python package for analyzing, exploring, training, and building 
+   deep learning models based on EEG data.
 
-   Yang, T. (2024). dpeeg: Deep learning with EEG. Retrieved from https://github.com/SheepTAO/dpeeg
 
-and here is the Bibtex version:
+Thank you for visiting the dpeeg documentation and associated 
+https://github.com/SheepTAO/dpeeg
 
-.. code-block:: bibtex
-
-   @software{yang_2024_dpeeg,
-      author = {Tao Yang},
-      title = {dpeeg: Deep learning with EEG},
-      year = {2024},
-      url = {https://github.com/SheepTAO/dpeeg},
-      license = {MIT}
-   }
+This is a toolkit for deep learning decoding of EEG signals that provides a 
+complete workflow from data reading to experimental analysis (currently only 
+supports PyTorch). The original intention is to facilitate scientific 
+researchers to quickly start focusing on research rather than code 
+implementation. If you find any bugs or have suggestions for improvements, 
+please feel free to open an 
+`issues <https://github.com/SheepTAO/dpeeg/issues>`_.
