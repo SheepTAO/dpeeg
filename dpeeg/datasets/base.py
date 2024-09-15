@@ -110,7 +110,7 @@ class EEGData(BaseData):
         return self.data.items()
 
     def pop(self, key, default, /):
-        """D.pop(k[,d]) -> v, remove specified key and return the value.
+        """D.pop(k[,d]) -> v, remove specified key and return the value
 
         If the key is not found, return the default if given; otherwise,
         raise a KeyError.
