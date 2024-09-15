@@ -53,7 +53,7 @@ class ZscoreNorm(Transforms):
     def _apply(self, eegdata: _DataVar, verbose=None) -> _DataVar:
         logger.info(f"  Apply {self} ...")
 
-        for egd, _ in eegdata.datas():
+        for egd, _ in eegdata._datas():
             egd["edata"] = z_score_norm(
                 egd["edata"], self.mean, self.std, self.dim, verbose=verbose
             )
@@ -98,7 +98,7 @@ class MinMaxNorm(Transforms):
     def _apply(self, eegdata: _DataVar, verbose=None) -> _DataVar:
         logger.info(f"  Apply {self} ...")
 
-        for egd, _ in eegdata.datas():
+        for egd, _ in eegdata._datas():
             egd["edata"] = min_max_norm(
                 egd["edata"], self.min, self.max, self.dim, verbose=verbose
             )

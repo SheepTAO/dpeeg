@@ -21,13 +21,6 @@ from ..datasets.base import (
 from ..utils import unpacked, DPEEG_SEED, get_init_args, iterable_to_str
 
 
-__all__ = [
-    "Sequential",
-    "SplitTrainTest",
-    "ToEEGData",
-]
-
-
 class Transforms(ABC):
     """Base class for eegdata transformation.
 
@@ -472,6 +465,6 @@ class ToEEGData(Transforms):
 
     def _apply_multi_sess_eegdata(self, eegdata: MultiSessEEGData) -> EEGData:
         egd = EEGData()
-        for tmp_egd, _ in eegdata.datas():
+        for tmp_egd, _ in eegdata._datas():
             egd.append(tmp_egd)
         return egd

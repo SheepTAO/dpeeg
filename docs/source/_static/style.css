@@ -1,0 +1,10 @@
+/* **************************************************** sphinx-gallery fixes */
+
+/* suppress redundant note at top of every tutorial and signature at the end */
+div.sphx-glr-download-link-note,
+p.sphx-glr-signature {
+    visibility: hidden;
+    height: 0;
+    margin: 0;
+    padding: 0;
+}

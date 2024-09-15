@@ -18,23 +18,21 @@ class BaseData(ABC):
     """The bottom-level base data class."""
 
     @abstractmethod
-    def datas(self) -> Generator[tuple["EEGData", Any], None, None]:
+    def _datas(self) -> Generator[tuple["EEGData", Any], None, None]:
         pass
 
     def copy(self):
+        """Creates a shallow copy of the current object."""
         return copy(self)
-
-    def deepcopy(self):
-        return deepcopy(self)
 
 
 _BaseData = TypeVar("_BaseData", bound=BaseData)
 
 
-class EEGData(BaseData, dict):
+class EEGData(BaseData):
     """The base eegdata class.
 
-    The most basic eeg data wrapper. It is essentially a python `dict`, but
+    The most basic eeg data wrapper. It is essentially a python ``dict``, but
     with some additional functions added to it.
 
     Parameters
@@ -44,9 +42,42 @@ class EEGData(BaseData, dict):
     label : ndarray, optional
         The labels corresponding to the eeg data.
     strict : bool
-        `True` means that the number of `edata` and `label` samples must be the
-        same.
+        ``True`` means that the number of ``edata`` and ``label`` samples must
+        be the same.
+    **kwargs : dict, optional
+        Other parameter indicators.
+
+    Examples
+    --------
+    If no value is passed, an empty EEGData object is initialized:
+
+    >>> dpeeg.EEGData()
+    [edata=(0,), label=(0,)]
+
+    Or initialize with additional parameters:
+
+    >>> dpeeg.EEGData(
+    ...     edata=np.random.rand(16, 3, 20),
+    ...     label=np.random.randint(0, 3, 16),
+    ...     adj=np.random.rand(3, 3)
+    ... )
+    [edata=(16, 3, 20), label=(16,), adj=(3, 3)]
     """
+
+    def __init__(
+        self,
+        edata: ndarray | None = None,
+        label: ndarray | None = None,
+        strict: bool = True,
+        **kwargs,
+    ) -> None:
+        super().__init__()
+        edata = np.empty(0) if edata is None else edata
+        label = np.empty(0) if label is None else label
+        if strict:
+            self._check(edata, label)
+
+        self.data = {"edata": edata, "label": label, **kwargs}
 
     def _check(self, edata, label, raise_error=True):
         if len(edata) != len(label):
@@ -60,29 +91,47 @@ class EEGData(BaseData, dict):
 
         return True
 
-    def __init__(
-        self,
-        edata: ndarray | None = None,
-        label: ndarray | None = None,
-        strict: bool = True,
-        **kwargs,
-    ) -> None:
-        edata = np.empty(0) if edata is None else edata
-        label = np.empty(0) if label is None else label
-        if strict:
-            self._check(edata, label)
+    def __getitem__(self, key) -> ndarray:
+        return self.data[key]
 
-        super().__init__({"edata": edata, "label": label, **kwargs})
+    def __setitem__(self, key, value):
+        self.data[key] = value
+
+    def keys(self):
+        """D.keys() -> a set-like object providing a view on D's keys"""
+        return self.data.keys()
+
+    def values(self):
+        """D.values() -> an object providing a view on D's values"""
+        return self.data.values()
+
+    def items(self):
+        """D.items() -> a set-like object providing a view on D's items"""
+        return self.data.items()
+
+    def pop(self, key, default, /):
+        """D.pop(k[,d]) -> v, remove specified key and return the value.
+
+        If the key is not found, return the default if given; otherwise,
+        raise a KeyError.
+        """
+        if key in ["edata", "label"]:
+            raise KeyError(f"{key} as a basic structure cannot be popped")
+        self.data.pop(key, default)
+
+    def __len__(self):
+        """Returns the number of internal keys, not the number of samples."""
+        return len(self.data)
 
     def check(self) -> bool:
         """Check whether the number of samples of the current `edata` and
         `label` is equal.
         """
-        return self._check(self["edata"], self["label"], False)
+        return self._check(self.data["edata"], self.data["label"], False)
 
     def trials(self) -> int:
         """Returns the number of trial samples."""
-        return len(self["label"])
+        return len(self.data["label"])
 
     def index(self, idx: Iterable[int] | slice) -> "EEGData":
         """Index internal data and return a new EEGData instance.
@@ -110,11 +159,11 @@ class EEGData(BaseData, dict):
         [edata=(6, 3, 10), label=(6,)]
         """
         eegdata = EEGData()
-        for key, value in self.items():
+        for key, value in self.data.items():
             eegdata[key] = value[idx]
         return eegdata
 
-    def datas(self) -> Generator[tuple["EEGData", None], None, None]:
+    def _datas(self) -> Generator[tuple["EEGData", None], None, None]:
         yield self, None
 
     def append(
@@ -209,7 +258,7 @@ class EEGData(BaseData, dict):
 
     @property
     def shape(self) -> tuple[int, ...]:
-        """Return the `edata` shape."""
+        """Return the ``edata`` shape."""
         return self["edata"].shape[1:]
 
     def __repr__(self) -> str:
@@ -230,8 +279,8 @@ class MultiSessEEGData(BaseData, dict):
     Parameters
     ----------
     data : list or dict of EEGData
-        Initialize EEG data. If it is a list of `EEGData`, add a key to each
-        data in the order of the list. If it is a dict of `EEGData`, use the
+        Initialize EEG data. If it is a list of ``EEGData``, add a key to each
+        data in the order of the list. If it is a dict of ``EEGData``, use the
         dict to initialize.
 
     Examples
@@ -284,7 +333,7 @@ class MultiSessEEGData(BaseData, dict):
         else:
             return trials
 
-    def datas(self) -> Generator[tuple[EEGData, str], None, None]:
+    def _datas(self) -> Generator[tuple[EEGData, str], None, None]:
         for session, eegdata in self.items():
             yield eegdata, session
 
@@ -332,7 +381,7 @@ class SplitEEGData(BaseData):
         test_trials = len(self.data["test"]["label"])
         return train_trials, test_trials
 
-    def datas(self) -> Generator[tuple[EEGData, str], None, None]:
+    def _datas(self) -> Generator[tuple[EEGData, str], None, None]:
         for mode, eegdata in self.data.items():
             yield eegdata, mode
 

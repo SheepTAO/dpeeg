@@ -75,7 +75,7 @@ class Crop(Transforms):
     def _apply(self, eegdata: _DataVar, verbose=None) -> _DataVar:
         logger.info(f"  Apply {self} ...")
 
-        for egd, _ in eegdata.datas():
+        for egd, _ in eegdata._datas():
             egd["edata"] = crop(
                 data=egd["edata"],
                 tmin=self.tmin,
@@ -123,7 +123,7 @@ class SlideWin(Transforms):
     def _apply(self, eegdata: _DataVar, verbose=None) -> _DataVar:
         logger.info(f"  Apply {self} ...")
 
-        for egd, _ in eegdata.datas():
+        for egd, _ in eegdata._datas():
             egd["edata"], egd["label"] = slide_win(
                 data=egd["edata"],
                 win=self.win,
@@ -168,7 +168,7 @@ class Unsqueeze(Transforms):
     def _apply(self, eegdata: _DataVar, verbose=None) -> _DataVar:
         logger.info(f"  Apply {self} ...")
 
-        for egd, _ in eegdata.datas():
+        for egd, _ in eegdata._datas():
             egd[self.key] = np.expand_dims(egd[self.key], self.dim)
         return eegdata
 
@@ -206,7 +206,7 @@ class Squeeze(Transforms):
     def _apply(self, eegdata: _DataVar, verbose=None) -> _DataVar:
         logger.info(f"  Apply {self} ...")
 
-        for egd, _ in eegdata.datas():
+        for egd, _ in eegdata._datas():
             egd[self.key] = np.squeeze(egd[self.key], self.dim)
         return eegdata
 
@@ -300,7 +300,7 @@ class FilterBank(Transforms):
         logger.info(f"  Apply {self} ...")
 
         bank_len = len(self.filter_bank)
-        for egd, _ in eegdata.datas():
+        for egd, _ in eegdata._datas():
             trials = egd.trials()
             data = np.empty((trials, bank_len, *egd["edata"].shape[1:]))
 
@@ -376,7 +376,7 @@ class ApplyFunc(Transforms):
     def _apply(self, eegdata: _DataVar, verbose=None) -> _DataVar:
         logger.info(f"  Apply {self} ...")
 
-        for egd, key in eegdata.datas():
+        for egd, key in eegdata._datas():
             if (self.keys is None) or (key in self.keys):
                 self.func(egd, **self.kwargs)
         return eegdata
@@ -421,7 +421,7 @@ class LabelMapping(Transforms):
     def _apply(self, eegdata: _DataVar, verbose=None) -> _DataVar:
         logger.info(f"  Apply {self} ...")
 
-        for egd, _ in eegdata.datas():
+        for egd, _ in eegdata._datas():
             egd["label"] = label_mapping(
                 label=egd["label"],
                 mapping=self.mapping,
@@ -498,7 +498,7 @@ class PickLabel(Transforms):
     def _apply(self, eegdata: _DataVar, verbose=None) -> _DataVar:
         logger.info(f"  Apply {self} ...")
 
-        for egd, _ in eegdata.datas():
+        for egd, _ in eegdata._datas():
             label = egd["label"]
 
             keys, values = [], []

@@ -5,4 +5,4 @@ Documentation
    :maxdepth: 1
    :caption: Tutorials:
 
-    Test <auto_examples/index>
+    Introductory tutorials <auto_examples/index>

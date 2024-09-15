@@ -37,15 +37,17 @@ extensions = [
 ]
 
 templates_path = ["_templates"]
-html_static_path = ["_static"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
-
 
 # -- Options for HTML output -------------------------------------------------
 
-html_theme = "pydata_sphinx_theme"
+html_static_path = ["_static"]
+html_css_files = ["style.css"]
+
 html_logo = "_static/banner.svg"
 html_favicon = "_static/logo.svg"
+
+html_theme = "pydata_sphinx_theme"
 
 # https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html
 
@@ -62,6 +64,7 @@ html_theme_options = {
             "name": "TorchMetrics",
             "url": "https://lightning.ai/docs/torchmetrics/stable/",
         },
+        {"name": "Captum", "url": "https://captum.ai/"},
     ],
     "icon_links": [
         {
@@ -77,6 +80,6 @@ html_theme_options = {
 # https://sphinx-gallery.github.io/stable/getting_started.html#create-simple-gallery
 
 sphinx_gallery_conf = {
-    "examples_dirs": "../../examples",
-    "gallery_dirs": "auto_examples",
+    "examples_dirs": ["../../examples"],
+    "gallery_dirs": ["auto_examples"],
 }

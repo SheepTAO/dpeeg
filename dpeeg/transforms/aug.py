@@ -45,10 +45,10 @@ class Augmentation(Transforms):
                     "The input must have been split, or `strict` is set to False."
                 )
             else:
-                for egd, _ in eegdata.datas():
+                for egd, _ in eegdata._datas():
                     self._apply_aug(egd, "None", verbose)
         else:
-            for egd, mode in eegdata.datas():
+            for egd, mode in eegdata._datas():
                 if (mode != "train") and self.only_train:
                     continue
                 self._apply_aug(egd, mode, verbose)
