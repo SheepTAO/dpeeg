@@ -71,7 +71,8 @@ class BaseClassifier(Trainer, ABC):
         # init trainer
         self.device = get_device(nGPU)
         self.loger.info(
-            f"Model will be trained on {self.device}({get_device_name(self.device)})"
+            f"Model will be trained on {self.device} "
+            f"({get_device_name(self.device)})"
         )
         self.model.to(self.device)
 
@@ -251,7 +252,9 @@ class BaseClassifier(Trainer, ABC):
             )
 
         # create lr_scheduler
-        if isinstance(self.lr_sch_type, str):
+        if self.lr_sch_type is None:
+            self.lr_sch = None
+        elif isinstance(self.lr_sch_type, str):
             self.lr_sch = getattr(optim.lr_scheduler, self.lr_sch_type)(
                 self.optimizer, **self.lr_sch_args
             )
@@ -447,12 +450,9 @@ class Classifier(BaseClassifier):
 
         Returns
         -------
-        dict
-            Return train and test results dict.
-            {
-                'train' : {'preds': Tensor, 'target': Tensor, 'acc': Tensor},
-                'test'  : ...
-            }
+        result : dict
+            Returns the training set and test set results (including true
+            labels, predicted labels and accuracy).
         """
         log_dir, writer, loger = self._reset_fitter(log_dir)
 
@@ -517,9 +517,8 @@ class Classifier(BaseClassifier):
             best_model_param = deepcopy(self.model.state_dict())
 
         # report the checkpoint time of end and compute cost time
-        loger.info(f"[Train Finish] - [{self.timer.ctime()}]")
         h, m, s = self.timer.stop()
-        loger.info(f"Cost time = {h}H:{m}M:{s:.2f}S")
+        loger.info(f"[Train Finish] - [Cost Time = {h}H:{m}M:{s:.2f}S]")
 
         # load the best model and evaulate this model in testset
         self.model.load_state_dict(best_model_param)
@@ -536,8 +535,8 @@ class Classifier(BaseClassifier):
         test_acc = self.get_acc(test_preds, test_target, train_ncls)
         results["test"] = {"preds": test_preds, "target": test_target, "acc": test_acc}
 
-        loger.info(f"Loss: train={train_loss:.4f} | test={test_loss:.4f}")
-        loger.info(f"Acc:  train={train_acc:.4f} | test={test_acc:.4f}")
+        loger.info(f"Loss: Train={train_loss:.4f} | Test={test_loss:.4f}")
+        loger.info(f"Acc:  Train={train_acc:.4f} | Test={test_acc:.4f}")
 
         self.train_details["results"] = results
         self.train_details["best_model_param"] = best_model_param
@@ -710,7 +709,7 @@ class ClassifierTwoStage(BaseClassifier):
             Dataset used for training.
         validset : EEGData
             Dataset used for validation.
-        testset : tuple, list
+        testset : EEGData
             Dataset used to evaluate the model.
         log_dir : str
             The path to save the training log.
@@ -718,12 +717,8 @@ class ClassifierTwoStage(BaseClassifier):
         Returns
         -------
         dict
-            Return train and test results dict.
-            {
-                'train' : {'preds': Tensor, 'target': Tensor, 'acc': Tensor},
-                'valid' : ...,
-                'test'  : ...
-            }
+            Returns the training set, validation set, and test set results
+            (including true labels, predicted labels and accuracy).
         """
         log_dir, writer, loger = self._reset_fitter(log_dir)
 
@@ -744,7 +739,8 @@ class ClassifierTwoStage(BaseClassifier):
         self.timer.start()
         loger.info(f"[Training...] - [{self.timer.ctime()}]")
         loger.info(
-            f"[Train/Valid/Test] - [{trainset.trials()}/{validset.trials()}/{testset.trials()}]"
+            f"[Train/Valid/Test] - "
+            f"[{trainset.trials()}/{validset.trials()}/{testset.trials()}]"
         )
 
         stopcri = ComposeStopCriteria(
@@ -778,6 +774,7 @@ class ClassifierTwoStage(BaseClassifier):
             "best_epoch": -1,
             "best_train_loss": float("inf"),
         }
+        load_best_state = self.load_best_state
         early_stop_reached, do_stop = False, False
 
         while not do_stop:
@@ -875,9 +872,8 @@ class ClassifierTwoStage(BaseClassifier):
         writer.close()
 
         # report the checkpoint time of end and compute cost time
-        loger.info(f"[Train Finish] - [{self.timer.ctime()}]")
         h, m, s = self.timer.stop()
-        loger.info(f"Cost Time = {h}H:{m}M:{s:.2f}S")
+        loger.info(f"[Train Finish] - [Cost Time = {h}H:{m}M:{s:.2f}S]")
 
         # load the best model and evaulate this model in testset
         self.model.load_state_dict(best_model_param)
@@ -906,10 +902,12 @@ class ClassifierTwoStage(BaseClassifier):
         }
 
         loger.info(
-            f"Loss: train={train_loss:.4f} | valid={valid_loss:.4f} | test={test_loss:.4f}"
+            f"Loss: Train={train_loss:.4f} | Valid={valid_loss:.4f} | "
+            f"test={test_loss:.4f}"
         )
         loger.info(
-            f"Acc:  train={train_acc:.4f} | valid={valid_acc:.4f} | test={test_acc:.4f}"
+            f"Acc:  Train={train_acc:.4f} | Valid={valid_acc:.4f} | "
+            f"Test={test_acc:.4f}"
         )
 
         self.train_details["results"] = results

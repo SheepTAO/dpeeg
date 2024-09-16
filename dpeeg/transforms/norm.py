@@ -16,9 +16,17 @@ from .functions import (
 
 
 class ZscoreNorm(Transforms):
-    """Z-score normalization per subject.
+    r"""Z-score normalization per subject.
 
-    By default, the EEG data (`edata`) of eegdata are normalized.
+    By default, the EEG data (``edata``) of eegdata are normalized.
+
+    .. math::
+
+       \mathbf{z} = \frac{\mathbf{x} - \mu}{\sqrt{\sigma^{2}}}
+
+    where :math:`\mathbf{x}` and :math:`\mathbf{z}` denote the input data and
+    the output of normalization, respectively. :math:`\mu` and :math:`\sigma^2`
+    represent the mean and variance values of the sample.
 
     Parameters
     ----------
@@ -61,9 +69,19 @@ class ZscoreNorm(Transforms):
 
 
 class MinMaxNorm(Transforms):
-    """Min-max normalization per subject.
+    r"""Min-max normalization per subject.
 
-    By default, the EEG data (`edata`) of eegdata are normalized.
+    By default, the EEG data (``edata``) of eegdata are normalized.
+
+    .. math::
+
+       \mathbf{z} =
+       \frac{\mathbf{x}-\mathbf{x}_{min}}{\mathbf{x}_{max}-\mathbf{x}_{min}}
+
+    where :math:`\mathbf{x}` and :math:`\mathbf{z}` denote the input data and
+    the output of normalization, respectively. :math:`\mathbf{x}_{max}` and
+    :math:`\mathbf{x}_{min}` represent the maximum and minimum values of the
+    sample.
 
     Parameters
     ----------

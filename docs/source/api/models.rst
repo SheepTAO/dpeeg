@@ -7,18 +7,18 @@ Motor Imagery
 ------------------------
 
 .. autosummary::
-    :toctree: ../generated
-    :template: models.rst
+   :toctree: ../generated
+   :nosignatures:
+   :template: models.rst
 
-    DeepConvNet
-    EEGConformer
-    EEGNet
-    FBCNet
-    IFNet
-    LightConvNet
-    MSVTNet
-    ShallowConvNet
-
+   EEGNet
+   DeepConvNet
+   ShallowConvNet
+   FBCNet
+   IFNet
+   LightConvNet
+   EEGConformer
+   MSVTNet
 
 Utils
 ------------------------
@@ -26,8 +26,9 @@ Utils
 .. currentmodule:: dpeeg.models.utils
 
 .. autosummary::
-    :toctree: ../generated
-    :template: models.rst
+   :toctree: ../generated
+   :nosignatures:
+   :template: base/class.rst
 
-    Conv2dWithNorm
-    LinearWithNorm
+   Conv2dWithNorm
+   LinearWithNorm

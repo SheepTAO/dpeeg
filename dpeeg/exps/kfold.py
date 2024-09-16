@@ -18,7 +18,7 @@ class KFold(ClsExp):
     """K-Fold cross validation experiment.
 
     The KFold experiment divides the dataset into K non-overlapping subsets
-    (i.e., “folds”) and repeatedly trains and tests the model. The purpose is
+    (i.e., "folds") and repeatedly trains and tests the model. The purpose is
     to reduce the dependence of the model evaluation results on the way the
     dataset is divided and to improve the stability and reliability of the
     evaluation results. However, its computational cost is high, especially for
@@ -29,11 +29,12 @@ class KFold(ClsExp):
     ----------
     trainer : Trainer
         Trainer used for training module on dataset.
-    k : int, optional
-        k of k-Fold.
     out_folder : str, optional
         Store all experimental results in a folder named with the model class
-        name in the specified folder. Default is '~/dpeeg/out/model/exp/'.
+        name in the specified folder. Default is
+        '~/dpeeg/out/model/exp/dataset/timestamp'.
+    k : int, optional
+        k of k-Fold.
     isolate_testset : bool
         By default, the test set is independent, that is, the k-fold cross-
         validation at this time only divides the training set and the
@@ -44,30 +45,35 @@ class KFold(ClsExp):
         Shuffle before kfold.
     seed : int
         Seed of random for review.
+    timestamp : bool
+        Output folders are timestamped.
 
     Notes
     -----
-    If `isolate_testset` False, please provide the `transforms` parameter
-    of the `run` function to avoid data leakage caused by operations such
+    If ``isolate_testset`` False, please provide the ``transforms`` parameter
+    of the ``run`` function to avoid data leakage caused by operations such
     as data augmentation in advance.
     """
 
     def __init__(
         self,
         trainer: BaseClassifier,
-        k: int = 5,
         out_folder: str | None = None,
+        k: int = 5,
         isolate_testset: bool = True,
         shuffle: bool = True,
         seed: int = DPEEG_SEED,
+        timestamp: bool = True,
         verbose: int | str = "INFO",
     ) -> None:
         super().__init__(
-            get_init_args(self, locals()),
+            get_init_args(self, locals(), ret_dict=True),
             trainer=trainer,
             out_folder=out_folder,
+            timestamp=timestamp,
             verbose=verbose,
         )
+        self.k = str(k)
         self.isolate_testset = isolate_testset
         self.skf = StratifiedKFold(k, shuffle=shuffle, random_state=seed)
 
@@ -87,7 +93,7 @@ class KFold(ClsExp):
         for exp_idx, (train_idx, test_idx) in enumerate(
             self.skf.split(eegdata["edata"], eegdata["label"]), start=1
         ):
-            self.logger.info(f"\n# ----- {sub_folder.name}-exp{exp_idx} ----- #")
+            self.logger.info(f"\n# ---- {sub_folder.name}_exp{exp_idx} ---- #")
 
             trainset = eegdata.index(train_idx)
             testset = eegdata.index(test_idx)
@@ -108,19 +114,17 @@ class KFold(ClsExp):
             preds_metric.update(exp_result["test"]["preds"])
             target_metric.update(exp_result["test"]["target"])
 
-            filer.write(f"------------ exp{exp_idx} ------------\n")
             filer.write(
-                f"Acc: Train={exp_result['train']['acc']:.4f} | "
-                f"Test={exp_result['test']['acc']:.4f}"
+                f"Exp_{str(exp_idx).zfill(len(self.k))} Acc: "
+                f"Train={exp_result['train']['acc']:.4f} | "
+                f"Test={exp_result['test']['acc']:.4f}\n"
             )
 
         train_acc = train_acc_metric.compute()
         test_acc = test_acc_metric.compute()
+        filer.write(f"Avg Acc = {test_acc*100:.2f}%\n")
         self.logger.info("-" * 30)
-        self.logger.info(f"Acc: Train={train_acc:.4f}|Test={test_acc:.4f}")
-
-        filer.write(f"------------ TestAccAvg ------------\n")
-        filer.write(f"Acc = {test_acc*100:.2f}%")
+        self.logger.info(f"Avg Acc: Train={train_acc:.4f} | Test={test_acc:.4f}")
 
         result.update(
             {
@@ -150,7 +154,7 @@ class KFold(ClsExp):
         target_metric = CatMetric()
 
         for exp_idx, (train_idx, test_idx) in enumerate(self.skf.split(X, y), start=1):
-            self.logger.info(f"\n# ----- {sub_folder.name}-exp{exp_idx} ----- #")
+            self.logger.info(f"\n# ---- {sub_folder.name}_exp{exp_idx} ---- #")
 
             if self.isolate_testset:
                 train_set = eegdata["train"].index(train_idx)
@@ -182,23 +186,22 @@ class KFold(ClsExp):
             preds_metric.update(exp_result["test"]["preds"])
             target_metric.update(exp_result["test"]["target"])
 
-            filer.write(f"------------ exp{exp_idx} ------------\n")
             filer.write(
-                f"Acc: Train={exp_result['train']['acc']:.4f} | "
+                f"Exp_{str(exp_idx).zfill(len(self.k))} Acc: "
+                f"Train={exp_result['train']['acc']:.4f} | "
                 f"Valid={exp_result['train']['acc']:.4f} | "
-                f"Test={exp_result['test']['acc']:.4f}"
+                f"Test={exp_result['test']['acc']:.4f}\n"
             )
 
         train_acc = train_acc_metric.compute()
         valid_acc = valid_acc_metric.compute()
         test_acc = test_acc_metric.compute()
+        filer.write(f"Avg Acc = {test_acc*100:.2f}%\n")
         self.logger.info("-" * 30)
         self.logger.info(
-            f"Acc: Train={train_acc:.4f}|Valid={valid_acc:.4f}|Test={test_acc:.4f}"
+            f"Avg Acc: Train={train_acc:.4f} | Valid={valid_acc:.4f} | "
+            f"Test={test_acc:.4f}"
         )
-
-        filer.write(f"------------ TestAccAvg ------------\n")
-        filer.write(f"Acc = {test_acc*100:.2f}%")
 
         result.update(
             {
@@ -226,7 +229,8 @@ class KFold(ClsExp):
         self.logger.info(f"\n# ---------- {sub_folder.name} ---------- #")
         result = self._run_sub_func(eegdata, sub_folder)
         h, m, s = self.timer.stop("kfold")
-        self.logger.info(f"\n[Cross-Validation Finish]")
-        self.logger.info(f"Cost time = {h}H:{m}M:{s:.2f}S")
+        self.logger.info(
+            f"\n[{self.k}Fold CV Finish] - [Cost Time = {h}H:{m}M:{s:.2f}S]"
+        )
 
         return result["acc"], result["preds"], result["target"], result

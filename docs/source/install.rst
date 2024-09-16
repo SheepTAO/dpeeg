@@ -1,5 +1,3 @@
-:html_theme.sidebar_secondary.remove:
-
 Install
 =======
 
@@ -11,4 +9,4 @@ Pip
 ---
 To use dpeeg, you could simply do: ::
 
-    pip install dpeeg
+   pip install dpeeg

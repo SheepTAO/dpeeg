@@ -2,4 +2,4 @@
 {{ underline }}
 
 .. autoclass:: {{ fullname }}
-    :members:
+   :members:

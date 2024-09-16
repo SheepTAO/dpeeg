@@ -6,6 +6,9 @@ from einops import rearrange
 from einops.layers.torch import Rearrange
 
 
+__all__ = ["EEGConformer"]
+
+
 class PatchEmbedding(nn.Module):
     def __init__(self, nCh, emb_size=40):
         super().__init__()

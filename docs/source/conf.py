@@ -9,16 +9,20 @@
 # documentation root, use os.path.abspath to make it absolute.
 import os
 import sys
+from datetime import datetime
+
+from dpeeg import __version__
+
 
 sys.path.insert(0, os.path.abspath("../../dpeeg"))
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-from dpeeg import __version__
 
 project = "dpeeg"
-copyright = "2024, SheepTAO"
+year = datetime.now().year
+copyright = f"2023-{year}, SheepTAO"
 author = "SheepTAO"
 release = __version__
 
@@ -75,6 +79,10 @@ html_theme_options = {
     ],
 }
 
+# -- Sphinx-autodoc configuration  -------------------------------------------
+# https://www.sphinx-doc.org/en/master/usage/extensions/autodoc.html
+
+autodoc_member_order = "bysource"
 
 # -- Sphinx-gallery configuration  -------------------------------------------
 # https://sphinx-gallery.github.io/stable/getting_started.html#create-simple-gallery
@@ -82,4 +90,8 @@ html_theme_options = {
 sphinx_gallery_conf = {
     "examples_dirs": ["../../examples"],
     "gallery_dirs": ["auto_examples"],
+    "default_thumb_file": "source/_static/thumb.png",
 }
+
+# -- Intersphinx configuration -----------------------------------------------
+# https://www.sphinx-doc.org/en/master/usage/extensions/intersphinx.html

@@ -15,7 +15,7 @@ from ..transforms.base import Transforms
 from ..trainer.base import Trainer
 from ..trainer.classifier import BaseClassifier
 from ..tools import Logger, Timer, Filer
-from ..utils import DPEEG_DIR, iterable_to_str
+from ..utils import DPEEG_DIR, iterable_to_str, _format_log, _format_log_kv
 
 
 class Experiment(ABC):
@@ -29,7 +29,10 @@ class Experiment(ABC):
         Trainer used for training module on dataset.
     out_folder : str, optional
         Store all experimental results in a folder named with the model class
-        name in the specified folder. Default is '~/dpeeg/out/model/exp/'.
+        name in the specified folder. Default is
+        '~/dpeeg/out/model/exp/dataset/timestamp'.
+    timestamp : bool
+        Output folders are timestamped.
     verbose : int, str
         The log level of console. Default is INFO. Mainly used for debugging.
 
@@ -41,13 +44,16 @@ class Experiment(ABC):
 
     def __init__(
         self,
-        repr: str,
+        repr: dict,
         trainer: Trainer,
         out_folder: str | None = None,
+        timestamp: bool = True,
         verbose: int | str = "INFO",
     ) -> None:
+        repr.pop("trainer")
         self._repr = repr
         self.trainer = trainer
+        self.timestamp = timestamp
         self.verbose = verbose
 
         # create logger and timer
@@ -62,7 +68,6 @@ class Experiment(ABC):
             if out_folder
             else Path(DPEEG_DIR).joinpath("out", net, exp)
         )
-        self.logger.info(f"Results will be saved in folder: `{self.out_folder}`")
 
     @abstractmethod
     def _run(self) -> dict:
@@ -85,11 +90,11 @@ class Experiment(ABC):
 
         Parameters
         ----------
-        dataset : eegdataset
+        dataset : EEG Data or Dataset
             The dataset used for the experimental test.
         dataset_name : str, optional
-            The dataset name to use. If `None`, The default name of the dataset
-            will be used as the folder to save experimental results.
+            The dataset name to use. If ``None``, The default name of the
+            dataset will be used as the folder to save experimental results.
         transforms : Transforms, optional
             Apply pre-transforms on dataset. Transformations will be apply
             during the experiment on each subject's dataset. The rationable
@@ -111,7 +116,11 @@ class Experiment(ABC):
             self.data_folder = self.out_folder / dataset_name
         else:
             self.data_folder = self.out_folder / dataset._repr["_obj_name"]
+
+        if self.timestamp:
+            self.data_folder = self.data_folder / Timer.cdate()
         self.data_folder.mkdir(parents=True, exist_ok=False)
+        self.logger.info(f"Results saved in `{self.data_folder}`")
 
         self.dataset = dataset
         self.transforms = transforms
@@ -120,8 +129,10 @@ class Experiment(ABC):
         self.filer.write(f"[Start Time]: {self.timer.ctime()}\n")
         self.filer.write(f"[DPEEG Version]: {dpeeg.__version__}\n")
         self.filer.write(f"[Description]: {desc}\n")
-        self.filer.write(str(self) + "\n")
         self.filer.write(str(dataset) + "\n")
+        self.filer.write(_format_log_kv("Transforms", transforms) + "\n")
+        self.filer.write(_format_log_kv("Trainer", self.trainer) + "\n")
+        self.filer.write(str(self) + "\n")
 
         self.timer.start()
         self.logger.info("=" * 50)
@@ -131,14 +142,15 @@ class Experiment(ABC):
 
         h, m, s = self.timer.stop()
         torch.save(results, self.data_folder / f"results.pt")
-        self.logger.info(f"\n[All subjects finished]")
-        self.logger.info(f"Cost time = {h}H:{m}M:{s:.2f}S")
+        self.logger.info(
+            f"\n[All Subjects Finished] - [Cost Time = {h}H:{m}M:{s:.2f}S]"
+        )
         self.logger.info("=" * 50)
 
         return results
 
     def __repr__(self) -> str:
-        return self._repr
+        return _format_log(self._repr)
 
 
 class ClsExp(Experiment, ABC):
@@ -154,12 +166,19 @@ class ClsExp(Experiment, ABC):
 
     def __init__(
         self,
-        repr: str,
+        repr: dict,
         trainer: BaseClassifier,
         out_folder: str | None = None,
+        timestamp: bool = True,
         verbose: int | str = "INFO",
     ) -> None:
-        super().__init__(repr, trainer, out_folder, verbose)
+        super().__init__(
+            repr=repr,
+            trainer=trainer,
+            out_folder=out_folder,
+            timestamp=timestamp,
+            verbose=verbose,
+        )
 
         trainer_type = type(trainer).__name__
         trainer_list = {
@@ -242,15 +261,13 @@ class ClsExp(Experiment, ABC):
             preds_metric.update(preds)
             target_metric.update(target)
 
-            self.filer.write(f"------ Subject_{subject}\n")
-            self.filer.write(f"Acc = {acc:.2f}%\n")
+            self.filer.write(f"Subject_{subject} Acc = {acc*100:.2f}%\n")
 
         acc = acc_metric.compute()
-        self.filer.write(f"---------- MODEL\n")
-        self.filer.write(f"Acc = {acc:.2f}%")
+        self.filer.write(f"Model Acc = {acc*100:.2f}%\n")
 
         self.logger.info("-" * 50)
-        self.logger.info(f"[Model Acc = {acc:.2f}%]")
+        self.logger.info(f"[Model Acc = {acc*100:.2f}%]")
 
         result.update(
             {

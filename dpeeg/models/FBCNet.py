@@ -4,6 +4,9 @@ from torch import nn
 from .utils import Conv2dWithNorm, LinearWithNorm
 
 
+__all__ = ["FBCNet"]
+
+
 class swish(nn.Module):
     def __init__(self):
         super(swish, self).__init__()

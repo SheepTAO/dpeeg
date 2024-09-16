@@ -229,9 +229,15 @@ class MIDataset(BaseDataset):
 
 
 class BCICIV2A(MIDataset):
-    """Dataset IIa from BCI Competition IV.
+    """Dataset IIA from BCI Competition IV.
 
-    **Dataset Description**
+    .. admonition:: Dataset summary
+
+        ====== ====== ====== ===== ======= ======
+        Subj   Chan   Time   Cls   Freq    Sess
+        ====== ====== ====== ===== ======= ======
+        9      22     4 s    4     250 Hz  2
+        ====== ====== ====== ===== ======= ======
 
     This data set consists of EEG data from 9 subjects of a study published in
     [1]_.  The cue-based BCI paradigm consisted of four different motor imagery
@@ -263,7 +269,6 @@ class BCICIV2A(MIDataset):
 
     References
     ----------
-
     .. [1] Tangermann, M., Müller, K.R., Aertsen, A., Birbaumer, N., Braun, C.,
         Brunner, C., Leeb, R., Mehring, C., Miller, K.J., Mueller-Putz, G. and
         Nolte, G., 2012. Review of the BCI competition IV.
@@ -279,7 +284,14 @@ class BCICIV2A(MIDataset):
 class BCICIV2B(MIDataset):
     """Dataset IIB from BCI Competition IV.
 
-    **Dataset description**
+    .. admonition:: Dataset summary
+
+        ====== ====== ======= ===== ======== ======
+        Subj   Chan   Time    Cls   Freq     Sess
+        ====== ====== ======= ===== ======== ======
+        9      3      4.5 s   2     250 Hz   5
+        ====== ====== ======= ===== ======== ======
+
 
     This data set consists of EEG data from 9 subjects of a study published in
     [1]_. The subjects were right-handed, had normal or corrected-to-normal
@@ -328,7 +340,6 @@ class BCICIV2B(MIDataset):
 
     References
     ----------
-
     .. [1] R. Leeb, F. Lee, C. Keinrath, R. Scherer, H. Bischof,
         G. Pfurtscheller. Brain-computer communication: motivation, aim, and
         impact of exploring a virtual apartment. IEEE Transactions on Neural

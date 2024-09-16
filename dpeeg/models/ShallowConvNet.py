@@ -3,6 +3,8 @@ import torch.nn as nn
 
 from .utils import Conv2dWithNorm, LinearWithNorm
 
+__all__ = ["ShallowConvNet"]
+
 
 class Lambda(nn.Module):
     def __init__(self, func) -> None:

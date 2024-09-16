@@ -4,6 +4,9 @@ import torch.nn as nn
 from .utils import Conv2dWithNorm, LinearWithNorm
 
 
+__all__ = ["DeepConvNet"]
+
+
 class DeepConvNet(nn.Module):
     """Deep Learning With Convolutional Neural Networks for EEG Decoding and
     Visualization (Deep ConvNet).

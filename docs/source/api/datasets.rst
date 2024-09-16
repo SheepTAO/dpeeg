@@ -1,5 +1,5 @@
-EEG Data and Datasets
-=====================
+EEG Data and Dataset
+====================
 
 .. _eeg_data:
 
@@ -9,12 +9,13 @@ EEG Data
 .. currentmodule:: dpeeg
 
 .. autosummary::
-    :toctree: ../generated
-    :template: eegdata.rst
+   :toctree: ../generated
+   :nosignatures:
+   :template: eegdata.rst
 
-    EEGData
-    MultiSessEEGData
-    SplitEEGData
+   EEGData
+   MultiSessEEGData
+   SplitEEGData
 
 .. currentmodule:: dpeeg.datasets
 
@@ -24,21 +25,23 @@ EEG Dataset
 ----------------------------------
 
 .. autosummary::
-    :toctree: ../generated
-    :template: eegdataset.rst
+   :toctree: ../generated
+   :nosignatures:
+   :template: eegdataset.rst
 
-    EEGDataset
-    LoadDataset
+   EEGDataset
+   LoadDataset
 
 Motor Imagery Datasets
 **********************************
 
 .. autosummary::
-    :toctree: ../generated
-    :template: eegdataset.rst
+   :toctree: ../generated
+   :nosignatures:
+   :template: eegdataset.rst
 
-    BCICIV2A
-    BCICIV2B
+   BCICIV2A
+   BCICIV2B
 
 Load and Save
 ----------------------------------
@@ -46,9 +49,10 @@ Load and Save
 .. currentmodule:: dpeeg
 
 .. autosummary::
-    :toctree: ../generated
-    :template: function.rst
+   :toctree: ../generated
+   :nosignatures:
+   :template: base/function.rst
 
-    save
-    load
-    datasets.save_dataset
+   save
+   load
+   datasets.save_dataset

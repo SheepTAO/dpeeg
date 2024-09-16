@@ -1,17 +1,10 @@
-"""
-EEGNet-8,2
-
-References
-----------
-V. J. Lawhern, A. J. Solon, N. R. Waytowich, S. M. Gordon, C. P. Hung, and B. J. Lance,
-“EEGNet: a compact convolutional neural network for EEG-based brain–computer interfaces,”
-J. Neural Eng., vol. 15, no. 5, p. 056013, Jul. 2018, doi: 10.1088/1741-2552/aace8c.
-"""
-
 import torch
 import torch.nn as nn
 
 from .utils import Conv2dWithNorm, LinearWithNorm
+
+
+__all__ = ["EEGNet"]
 
 
 class EEGNet(nn.Module):

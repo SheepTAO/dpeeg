@@ -199,7 +199,8 @@ def z_score_norm(
     r"""Z-score normalization.
 
     .. math::
-        \mathbf{z} = \frac{\mathbf{x} - \mu}{\sqrt{\sigma^{2}}}
+
+       \mathbf{z} = \frac{\mathbf{x} - \mu}{\sqrt{\sigma^{2}}}
 
     where :math:`\mathbf{x}` and :math:`\mathbf{z}` denote the input data and
     the output of normalization, respectively. :math:`\mu` and :math:`\sigma^2`
@@ -240,8 +241,9 @@ def min_max_norm(
     r"""Min-max normalization.
 
     .. math::
-        \mathbf{z} =
-        \frac{\mathbf{x}-\mathbf{x}_{min}}{\mathbf{x}_{max}-\mathbf{x}_{min}}
+
+       \mathbf{z} =
+       \frac{\mathbf{x}-\mathbf{x}_{min}}{\mathbf{x}_{max}-\mathbf{x}_{min}}
 
     where :math:`\mathbf{x}` and :math:`\mathbf{z}` denote the input data and
     the output of normalization, respectively. :math:`\mathbf{x}_{max}` and
@@ -508,7 +510,7 @@ def cheby2_filter(
 @verbose
 def label_mapping(
     label: ndarray,
-    mapping: ndarray,
+    mapping: ndarray | None = None,
     order: bool = True,
     verbose=None,
 ) -> ndarray:
@@ -520,7 +522,8 @@ def label_mapping(
         Original label list.
     mapping : ndarray (2, label_num)
         Label mapping relationship. The first row is the original label, and
-        the second row is the mapped label.
+        the second row is the mapped label. If ``None``, the label will be
+        reordered in ascending order starting from 0.
     order : bool
         Force the new labels to start incrementing from 0.
 
@@ -543,14 +546,19 @@ def label_mapping(
     >>> label_mapping(label, mapping)
     array([3, 2, 1, 2, 1, 3, 1, 0])
     """
-    label, mapping = np.array(label), np.array(mapping)
+    label, uni_label = np.array(label), np.unique(label)
 
-    if mapping.ndim != 2 or mapping.shape[0] != 2:
-        raise ValueError("The mapping is not 2D.")
+    if mapping is None:
+        mapping = np.array([uni_label, np.arange(len(uni_label))])
+        order = False
+    else:
+        mapping, uni_mapping = np.array(mapping), np.unique(mapping[0])
 
-    uni_label, uni_mapping = np.unique(label), np.unique(mapping[0])
-    if len(uni_label) != len(uni_mapping) or any(uni_label != uni_mapping):
-        raise ValueError("Mapping does not correspond to label.")
+        if mapping.ndim != 2 or mapping.shape[0] != 2:
+            raise ValueError("The mapping is not 2D.")
+
+        if len(uni_label) != len(uni_mapping) or any(uni_label != uni_mapping):
+            raise ValueError("Mapping does not correspond to label.")
 
     if order:
         uni_new_label = np.unique(mapping[1])

@@ -3,6 +3,9 @@
 # License: MIT
 # Copyright the dpeeg contributors.
 
+# This code is adapted from https://github.com/ravikiran-mane/FBCNet/blob/master/codes/centralRepo/stopCriteria.py
+# The original code is licensed under the MIT License.
+
 import abc
 import os, sys, json
 

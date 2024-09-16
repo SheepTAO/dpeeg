@@ -7,8 +7,9 @@ Classification Trainer
 --------------------------------
 
 .. autosummary::
-    :toctree: ../generated
-    :template: trainer.rst
+   :toctree: ../generated
+   :nosignatures:
+   :template: trainer.rst
 
-    Classifier
-    ClassifierTwoStage
+   Classifier
+   ClassifierTwoStage

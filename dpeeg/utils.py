@@ -167,9 +167,13 @@ def align_text(prefix: str, text: str, only_head: bool = True) -> str:
     )
 
 
+def _format_log_kv(key, value, spaces: int = 2) -> str:
+    return f"[{key}:\n{align_text(' ' * spaces, str(value))}\n]"
+
+
 def _format_log(input: dict, spaces: int = 2) -> str:
     formatted_items = "\n".join(
-        f"{' ' * spaces}[{key}]: {value}"
+        align_text(f"{" " * spaces}[{key}]: ", str(value))
         for key, value in input.items()
         if key != "_obj_name"
     )

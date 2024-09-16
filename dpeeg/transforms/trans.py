@@ -387,11 +387,12 @@ class LabelMapping(Transforms):
 
     Parameters
     ----------
-    mapping : ndarray (2, label_num)
+    mapping : ndarray (2, label_num), optional
         Label mapping relationship. The first row is the original label, and
-        the second row is the mapped label.
+        the second row is the mapped label. If ``None``, the label will be
+        reordered in ascending order starting from zero.
     order : bool
-        Force the new labels to start incrementing from 0.
+        Force the new labels to start incrementing from zero.
 
     Returns
     -------
@@ -405,6 +406,8 @@ class LabelMapping(Transforms):
     >>> eegdata['label']
     array([3, 2, 2, 2, 3, 2, 4, 3, 4, 3, 3, 2, 4, 4, 2, 3])
 
+    Merge labels as needed:
+
     >>> transforms.LabelMapping(
     ...     np.array([[2, 3, 4], [0, 0, 1]])
     ... )(eegdata, verbose=False)
@@ -412,7 +415,7 @@ class LabelMapping(Transforms):
     array([0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0])
     """
 
-    def __init__(self, mapping: ndarray, order: bool = True) -> None:
+    def __init__(self, mapping: ndarray | None = None, order: bool = True) -> None:
         super().__init__(get_init_args(self, locals(), format="rp"))
         self.mapping = mapping
         self.order = order

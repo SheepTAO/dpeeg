@@ -141,7 +141,7 @@ class Sequential(Transforms):
 
     Parameters
     ----------
-    transforms : sequential of `Transforms`
+    transforms : sequential of ``Transforms``
         Sequential of transforms to compose.
 
     Examples

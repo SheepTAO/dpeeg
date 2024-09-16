@@ -3,6 +3,8 @@ import torch.nn as nn
 from torch.optim.adamw import AdamW
 from torch.nn.init import trunc_normal_, constant_
 
+__all__ = ["IFNet", "IFNetAdamW"]
+
 
 class InterFre(nn.Module):
     def forward(self, x):
@@ -127,7 +129,16 @@ class IFNet(nn.Module):
 
 
 class IFNetAdamW(AdamW):
-    """ """
+    """Customized AdamW Optimizer for IFNet.
+
+    IFNetAdamW optimizer allows bias and weights based on certain parameters to
+    not decay.
+
+    Parameters
+    ----------
+    net : IFNet
+        IFNet model instance.
+    """
 
     def __init__(self, net: nn.Module, **kwargs) -> None:
         has_decay = []

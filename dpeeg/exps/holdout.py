@@ -22,19 +22,24 @@ class HoldOut(ClsExp):
         Trainer used for training module on dataset.
     out_folder : str, optional
         Store all experimental results in a folder named with the model class
-        name in the specified folder. Default is '~/dpeeg/out/model/exp/'.
+        name in the specified folder. Default is
+        '~/dpeeg/out/model/exp/dataset/timestamp'.
+    timestamp : bool
+        Output folders are timestamped.
     """
 
     def __init__(
         self,
         trainer: BaseClassifier,
         out_folder: str | None = None,
+        timestamp: bool = True,
         verbose: int | str = "INFO",
     ) -> None:
         super().__init__(
-            get_init_args(self, locals()),
+            get_init_args(self, locals(), ret_dict=True),
             trainer=trainer,
             out_folder=out_folder,
+            timestamp=timestamp,
             verbose=verbose,
         )
 
@@ -43,10 +48,6 @@ class HoldOut(ClsExp):
             trainset=eegdata["train"],
             testset=eegdata["test"],
             log_dir=sub_folder,
-        )
-
-        self.logger.info(
-            f"Acc: Train={result['train']['acc']} | Test={result['test']['acc']}"
         )
         return result
 
@@ -61,12 +62,6 @@ class HoldOut(ClsExp):
             validset=valid_set,
             testset=test_set,
             log_dir=sub_folder,
-        )
-
-        self.logger.info(
-            f"Acc: Train={result['train']['acc']} | "
-            f"Valid={result['valid']['acc']} | "
-            f"Test={result['test']['acc']}"
         )
         return result
 

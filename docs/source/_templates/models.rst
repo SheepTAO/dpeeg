@@ -1,5 +1,5 @@
 {{ name }}
 {{ underline }}
 
-.. autoclass:: {{ fullname }}
-    :members:
+.. automodule:: {{ fullname }}
+   :members:

@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from einops.layers.torch import Rearrange
 
+__all__ = ["MSVTNet", "JointCrossEntoryLoss"]
+
 
 class TSConv(nn.Sequential):
     def __init__(self, nCh, F, C1, C2, D, P1, P2, Pc) -> None:
@@ -213,8 +215,24 @@ class MSVTNet(nn.Module):
 
 
 class JointCrossEntoryLoss(nn.Module):
-    """
-    $$\\mathcal{L} = \\lambda\\mathcal{L}_c + (1-\\lambda)\\sum_{b=1}^{B}\\mathcal{L}_b$$
+    r"""Auxiliary branch loss.
+
+    The parameters of MSVTNet are learned under the supervision of the
+    auxiliary branch loss and model prediction loss:
+
+    .. math::
+
+       \mathcal{L}=\lambda\mathcal{L}_c+(1-\lambda)\sum_{b=1}^{B}\mathcal{L}_b
+
+       \mathcal{L}_{c/b}=\mathrm{Cross Entropy Loss}(\hat{y})
+
+    where :math:`\lambda\in(0, 1]` is the ratio factor for intermediate
+    supervision of the model.
+
+    Parameters
+    ----------
+    lamd : float
+        Ratio factor of ABL.
     """
 
     def __init__(self, lamd: float = 0.6) -> None:
@@ -222,6 +240,21 @@ class JointCrossEntoryLoss(nn.Module):
         self.lamd = lamd
 
     def forward(self, out, label):
+        """Forward pass function that processes the model and branch prediction
+        probabilities.
+
+        Parameters
+        ----------
+        out : tuple of Tensor
+            Models and branch prediction probabilities.
+        label : Tensor
+            True label.
+
+        Returns
+        -------
+        loss : Tensor
+            Loss with gradient.
+        """
         end_out = out[0]
         branch_out = out[1]
         end_loss = F.nll_loss(end_out, label)

@@ -4,9 +4,10 @@ Tools
 .. currentmodule:: dpeeg.tools
 
 .. autosummary::
-    :toctree: ../generated
-    :template: base/class.rst
+   :toctree: ../generated
+   :nosignatures:
+   :template: base/class.rst
 
-    Timer
-    Filer
-    Logger
+   Timer
+   Filer
+   Logger

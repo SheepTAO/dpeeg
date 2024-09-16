@@ -4,6 +4,7 @@
 # Copyright the dpeeg contributors.
 
 import time
+from datetime import datetime
 
 
 class Timer:
@@ -66,4 +67,12 @@ class Timer:
 
     @staticmethod
     def ctime() -> str:
+        """Return the current local time as a human-readable string."""
         return time.ctime()
+
+    @staticmethod
+    def cdate() -> str:
+        """Get the current date and time in the 'year-month-day_hour:minute'
+        format.
+        """
+        return datetime.now().strftime("%y-%m-%d_%H:%M")
