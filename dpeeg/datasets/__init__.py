@@ -12,5 +12,6 @@ from .loaddataset import LoadDataset
 from .motor_imagery import (
     BCICIV2A,
     BCICIV2B,
+    OpenBMI_MI,
 )
 from .utils import save, load, save_dataset

@@ -252,14 +252,19 @@ class EEGData(BaseData):
             self[key] = np.concatenate(data, axis=dim)
 
     @property
+    def cls(self) -> list[int]:
+        """Returns all categories."""
+        return list(np.unique(self.data["label"]))
+
+    @property
     def ncls(self) -> int:
         """Returns the number of categories."""
-        return len(np.unique(self["label"]))
+        return len(np.unique(self.data["label"]))
 
     @property
     def shape(self) -> tuple[int, ...]:
         """Return the ``edata`` shape."""
-        return self["edata"].shape[1:]
+        return self.data["edata"].shape[1:]
 
     def __repr__(self) -> str:
         data = {key: value.shape for key, value in self.items()}

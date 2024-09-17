@@ -15,7 +15,7 @@ from ..utils import DPEEG_SEED, get_init_args
 
 
 class KFold(ClsExp):
-    """K-Fold cross validation experiment.
+    r"""K-Fold cross validation experiment.
 
     The KFold experiment divides the dataset into K non-overlapping subsets
     (i.e., "folds") and repeatedly trains and tests the model. The purpose is
@@ -24,6 +24,25 @@ class KFold(ClsExp):
     evaluation results. However, its computational cost is high, especially for
     large datasets and complex models. It may take a long time to complete the
     training of all folds.
+
+    Two validation methods are provided in the experiment, determined by the
+    parameter ``isolate_testset``. When set to ``True``, it indicates that the
+    test set is independent of the k-fold cross-validation. That is, for each
+    fold, the data is divided into a training set and a validation set to find
+    the optimal parameters for each fold, and then the model is evaluated on an
+    independent dataset. When set to ``False``, it indicates that one fold of
+    data in each fold is used as the test set, and the remaining folds are used
+    to train the model. The average value of all folds' evaluations is used as
+    the performance metric of the model. The specific experimental method is
+    shown in the figure below, which illustrates a 3-fold cross-validation
+    experiment:
+
+    .. image:: _static/images/kfold_isolate_testset.png
+       :align: center
+       :alt: kfold isolate testset
+
+    When the training set and test set come from different sessions, setting
+    this parameter is very useful.
 
     Parameters
     ----------
@@ -52,7 +71,8 @@ class KFold(ClsExp):
     -----
     If ``isolate_testset`` False, please provide the ``transforms`` parameter
     of the ``run`` function to avoid data leakage caused by operations such
-    as data augmentation in advance.
+    as data augmentation in advance. When set to ``True``, it means that the
+    experiment requires the `trainer` to support a validation set.
     """
 
     def __init__(

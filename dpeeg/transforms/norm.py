@@ -6,8 +6,8 @@
 from numpy import ndarray
 from mne.utils import verbose, logger
 
-from .base import Transforms
-from ..datasets.base import _DataVar
+from .base import TransformsEGD
+from ..datasets.base import EEGData
 from ..utils import get_init_args
 from .functions import (
     z_score_norm,
@@ -15,7 +15,7 @@ from .functions import (
 )
 
 
-class ZscoreNorm(Transforms):
+class ZscoreNorm(TransformsEGD):
     r"""Z-score normalization per subject.
 
     By default, the EEG data (``edata``) of eegdata are normalized.
@@ -57,18 +57,11 @@ class ZscoreNorm(Transforms):
         self.std = std
         self.dim = dim
 
-    @verbose
-    def _apply(self, eegdata: _DataVar, verbose=None) -> _DataVar:
-        logger.info(f"  Apply {self} ...")
-
-        for egd, _ in eegdata._datas():
-            egd["edata"] = z_score_norm(
-                egd["edata"], self.mean, self.std, self.dim, verbose=verbose
-            )
-        return eegdata
+    def _apply_egd(self, egd: EEGData, key: str | None):
+        egd["edata"] = z_score_norm(egd["edata"], self.mean, self.std, self.dim)
 
 
-class MinMaxNorm(Transforms):
+class MinMaxNorm(TransformsEGD):
     r"""Min-max normalization per subject.
 
     By default, the EEG data (``edata``) of eegdata are normalized.
@@ -112,12 +105,5 @@ class MinMaxNorm(Transforms):
         self.max = max
         self.dim = dim
 
-    @verbose
-    def _apply(self, eegdata: _DataVar, verbose=None) -> _DataVar:
-        logger.info(f"  Apply {self} ...")
-
-        for egd, _ in eegdata._datas():
-            egd["edata"] = min_max_norm(
-                egd["edata"], self.min, self.max, self.dim, verbose=verbose
-            )
-        return eegdata
+    def _apply_egd(self, egd: EEGData, key: str | None):
+        egd["edata"] = min_max_norm(egd["edata"], self.min, self.max, self.dim)

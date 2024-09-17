@@ -44,7 +44,7 @@ class ShallowConvNet(nn.Module):
         Number of electrode channels.
     nTime : int
         Number of data sampling points.
-    cls : int
+    nCls : int
         Number of categories.
     F : int
         The number of convolution channels.
@@ -68,7 +68,7 @@ class ShallowConvNet(nn.Module):
         self,
         nCh: int,
         nTime: int,
-        cls: int,
+        nCls: int,
         F: int = 40,
         C: int = 14,
         P: int = 35,
@@ -92,7 +92,7 @@ class ShallowConvNet(nn.Module):
         self.head = nn.Sequential(
             nn.Flatten(),
             nn.Dropout(dropout),
-            LinearWithNorm(linear_in, cls, max_norm=0.5),
+            LinearWithNorm(linear_in, nCls, max_norm=0.5),
             nn.LogSoftmax(dim=1),
         )
 
@@ -114,7 +114,7 @@ class ShallowConvNet(nn.Module):
         Returns
         -------
         cls_prob : Tensor
-            Predicted class probability, shape `(batch_size, cls)`.
+            Predicted class probability, shape `(batch_size, nCls)`.
         """
         x = self.conv(x)
         x = self.head(x)

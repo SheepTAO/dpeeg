@@ -102,7 +102,7 @@ class LightConvNet(nn.Module):
         Number of electrode channels.
     nTime : int
         Number of data sampling points.
-    cls : int
+    nCls : int
         Number of categories.
     bands : int
         The filter dimension of the input multi-view data.
@@ -129,7 +129,7 @@ class LightConvNet(nn.Module):
         self,
         nCh: int,
         nTime: int,
-        cls: int,
+        nCls: int,
         bands: int = 9,
         embed_dim: int = 64,
         win_len: int = 250,
@@ -154,7 +154,7 @@ class LightConvNet(nn.Module):
             bias=bias,
         )
 
-        self.classify = nn.Sequential(nn.Linear(embed_dim, cls), nn.LogSoftmax(dim=1))
+        self.classify = nn.Sequential(nn.Linear(embed_dim, nCls), nn.LogSoftmax(dim=1))
 
     def forward(self, x):
         """Forward pass function that processes the input EEG data and produces
@@ -168,7 +168,7 @@ class LightConvNet(nn.Module):
         Returns
         -------
         cls_prob : Tensor
-            Predicted class probability, shape `(batch_size, cls)`.
+            Predicted class probability, shape `(batch_size, nCls)`.
         """
         out = self.spacial_block(x)
         out = out.reshape([*out.shape[0:2], -1, self.win_len])

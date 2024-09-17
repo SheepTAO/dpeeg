@@ -32,7 +32,7 @@ class IFNet(nn.Module):
         Number of electrode channels.
     nTime : int
         Number of data sampling points.
-    cls : int
+    nCls : int
         Number of categories.
     F : int
         Number of spectro-spatial filters.
@@ -57,7 +57,7 @@ class IFNet(nn.Module):
         self,
         nCh: int,
         nTime: int,
-        cls: int,
+        nCls: int,
         F: int = 64,
         C: int = 63,
         radix: int = 2,
@@ -86,7 +86,7 @@ class IFNet(nn.Module):
         self.interFre = InterFre()
         self.downSamp = nn.Sequential(nn.AvgPool1d(P), nn.Dropout(dropout))
         self.fc = nn.Sequential(
-            nn.Flatten(), nn.Linear(int(F * (nTime // P)), cls), nn.LogSoftmax(dim=1)
+            nn.Flatten(), nn.Linear(int(F * (nTime // P)), nCls), nn.LogSoftmax(dim=1)
         )
 
         self.apply(self.initParms)
@@ -118,7 +118,7 @@ class IFNet(nn.Module):
         Returns
         -------
         cls_prob : Tensor
-            Predicted class probability, shape `(batch_size, cls)`.
+            Predicted class probability, shape `(batch_size, nCls)`.
         """
         out = self.sConv(x)
         out = torch.split(out, self.F, dim=1)

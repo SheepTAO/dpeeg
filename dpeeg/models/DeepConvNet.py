@@ -32,7 +32,7 @@ class DeepConvNet(nn.Module):
         Number of electrode channels.
     nTime : int
         Number of data sampling points.
-    cls : int
+    nCls : int
         Number of categories.
     dropout : float
         Dropout rate.
@@ -44,7 +44,7 @@ class DeepConvNet(nn.Module):
         vol. 38, no. 11, pp.5391-5420, 2017, doi: 10.1002/hbm.23730.
     """
 
-    def __init__(self, nCh=22, nTime=1000, cls=4, dropout=0.25) -> None:
+    def __init__(self, nCh: int, nTime: int, nCls: int, dropout: float = 0.25) -> None:
         super().__init__()
         self.nCh = nCh
         self.nTime = nTime
@@ -75,7 +75,7 @@ class DeepConvNet(nn.Module):
         linear_in = self._forward_flatten().shape[1]
         self.head = nn.Sequential(
             nn.Flatten(),
-            LinearWithNorm(linear_in, cls, max_norm=0.5),
+            LinearWithNorm(linear_in, nCls, max_norm=0.5),
             nn.LogSoftmax(dim=1),
         )
 

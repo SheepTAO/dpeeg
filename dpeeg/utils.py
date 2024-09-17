@@ -160,7 +160,7 @@ def align_text(prefix: str, text: str, only_head: bool = True) -> str:
             (
                 f"{prefix}{line}"
                 if (i == 0) or (not only_head)
-                else f'{" " * len(prefix)}{line}'
+                else f"{' ' * len(prefix)}{line}"
             )
             for i, line in enumerate(text.splitlines())
         ]
@@ -173,7 +173,7 @@ def _format_log_kv(key, value, spaces: int = 2) -> str:
 
 def _format_log(input: dict, spaces: int = 2) -> str:
     formatted_items = "\n".join(
-        align_text(f"{" " * spaces}[{key}]: ", str(value))
+        align_text(f"{' ' * spaces}[{key}]: ", str(value))
         for key, value in input.items()
         if key != "_obj_name"
     )

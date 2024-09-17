@@ -69,8 +69,8 @@ class Transformer(nn.Module):
 
 
 class ClsHead(nn.Sequential):
-    def __init__(self, linear_in, cls):
-        super().__init__(nn.Flatten(), nn.Linear(linear_in, cls), nn.LogSoftmax(dim=1))
+    def __init__(self, linear_in, nCls):
+        super().__init__(nn.Flatten(), nn.Linear(linear_in, nCls), nn.LogSoftmax(dim=1))
 
 
 class MSVTNet(nn.Module):
@@ -92,7 +92,7 @@ class MSVTNet(nn.Module):
         Number of electrode channels.
     nTime : int
         Number of data sampling points.
-    cls : int
+    nCls : int
         Number of categories.
     F : list of int
         Number of temporal filters per branch.
@@ -130,7 +130,7 @@ class MSVTNet(nn.Module):
         self,
         nCh: int,
         nTime: int,
-        cls: int,
+        nCls: int,
         F: list[int] = [9, 9, 9, 9],
         C1: list[int] = [15, 31, 63, 125],
         C2: int = 15,
@@ -161,14 +161,14 @@ class MSVTNet(nn.Module):
         )
         branch_linear_in = self._forward_flatten(cat=False)
         self.branch_head = nn.ModuleList(
-            [ClsHead(branch_linear_in[b].shape[1], cls) for b in range(len(F))]
+            [ClsHead(branch_linear_in[b].shape[1], nCls) for b in range(len(F))]
         )
 
         seq_len, d_model = self._forward_mstsconv().shape[1:3]  # type: ignore
         self.transformer = Transformer(seq_len, d_model, nhead, ff_ratio, Pt, layers)
 
         linear_in = self._forward_flatten().shape[1]  # type: ignore
-        self.last_head = ClsHead(linear_in, cls)
+        self.last_head = ClsHead(linear_in, nCls)
 
     def _forward_mstsconv(self, cat=True):
         x = torch.randn(1, 1, self.nCh, self.nTime)
@@ -198,7 +198,7 @@ class MSVTNet(nn.Module):
         Returns
         -------
         cls_prob : Tensor
-            Predicted class probability, shape `(batch_size, cls)`.
+            Predicted class probability, shape `(batch_size, nCls)`.
         branch_cls_prob : list of Tensor
             If ``b_preds=True``, return the class prediction probability for
             each branch.

@@ -19,7 +19,7 @@ Usage can be referenced from the following examples:
 
 .. currentmodule:: dpeeg.transforms
 
-Core Transformer
+Core
 -----------------------------
 
 .. autosummary::
@@ -31,7 +31,7 @@ Core Transformer
    SplitTrainTest
    ToEEGData
 
-Commonly Transformer
+Commonly
 -----------------------------
 
 .. autosummary::
@@ -44,12 +44,13 @@ Commonly Transformer
    SlideWin
    Unsqueeze
    Squeeze
+   Transpose
    FilterBank
    ApplyFunc
    LabelMapping
    PickLabel
 
-Normalization Transformer
+Normalization
 -----------------------------
 
 .. autosummary::
@@ -60,7 +61,7 @@ Normalization Transformer
    ZscoreNorm
    MinMaxNorm
 
-Data Augmentation Transformer
+Data Augmentation
 -----------------------------
 
 .. autosummary::
@@ -70,3 +71,14 @@ Data Augmentation Transformer
 
    SegRecTime
    SlideWinAug
+
+
+Compute Metrics
+-----------------------------
+
+.. autosummay::
+   :toctree: ../generated
+   :nosignatures:
+   :template: transform.rst
+
+   Pearsonr
