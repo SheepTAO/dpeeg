@@ -1,0 +1,5 @@
+sphinx_gallery
+sphinx_copybutton
+pydata_sphinx_theme
+torch
+dpeeg

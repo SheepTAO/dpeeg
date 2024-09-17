@@ -1,6 +1,7 @@
 from setuptools import setup, find_packages
 
-__version__ = "0.4.0"
+from dpeeg import __version__
+
 install_requires = [
     "numpy>=1.21.5",
     "einops>=0.7.0",

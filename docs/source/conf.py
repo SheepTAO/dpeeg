@@ -90,7 +90,7 @@ autodoc_member_order = "bysource"
 sphinx_gallery_conf = {
     "examples_dirs": ["../../examples"],
     "gallery_dirs": ["auto_examples"],
-    "default_thumb_file": "source/_static/thumb.png",
+    "default_thumb_file": "_static/thumb.png",
 }
 
 # -- Intersphinx configuration -----------------------------------------------
