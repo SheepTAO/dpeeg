@@ -12,6 +12,9 @@ dist/
 # Out for test
 tests/out/
 
+# debugging
+debug/
+
 # Sphinx
 docs/build/
 docs/source/generated/
