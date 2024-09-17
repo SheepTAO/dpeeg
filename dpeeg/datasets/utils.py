@@ -96,6 +96,11 @@ def save(
         An eegdata to be saved.
     compress : bool
         If ``True``, use standard ZIP compression.
+
+    Returns
+    -------
+    path : Path
+        File save position.
     """
     import zipfile
     import json
@@ -110,11 +115,13 @@ def save(
         eegdata_info = {"version": __version__, "type": type(eegdata).__name__}
         zipf.writestr("eegdata_info.json", json.dumps(eegdata_info, indent=4))
 
-        for val, key in eegdata.datas():
+        for val, key in eegdata._datas():
             for k, v in val.items():
                 fname = k + ".npy" if key is None else Path(key) / (k + ".npy")
                 with zipf.open(str(fname), "w", force_zip64=True) as fid:
                     format.write_array(fid, v, allow_pickle=True)
+
+    return path
 
 
 def save_dataset(
@@ -143,6 +150,11 @@ def save_dataset(
         the folder `folder` and saved.
     progressbar : bool
         Whether to show the progress bar.
+
+    Returns
+    -------
+    path : Path
+        Dataset save folder.
     """
     path = Path(folder).resolve()
     if name_folder:
@@ -171,6 +183,8 @@ def save_dataset(
 
     for sub, sub_data in subjects:
         save(path / f"sub_{sub}", sub_data, compress=compress)
+
+    return path
 
 
 def _load_EEGData(zipf, filelist) -> EEGData:

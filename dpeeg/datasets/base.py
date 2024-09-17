@@ -6,7 +6,7 @@
 from abc import ABC, abstractmethod
 from collections.abc import Generator, Iterable
 from typing import Any, TypeAlias, TypeVar, overload
-from copy import deepcopy, copy
+from copy import deepcopy
 
 import numpy as np
 from numpy import ndarray
@@ -22,8 +22,8 @@ class BaseData(ABC):
         pass
 
     def copy(self):
-        """Creates a shallow copy of the current object."""
-        return copy(self)
+        """Creates a deep copy of the current object."""
+        return deepcopy(self)
 
 
 _BaseData = TypeVar("_BaseData", bound=BaseData)
@@ -443,7 +443,7 @@ class EEGDataset(BaseDataset):
     ----------
     eegdataset : list or dict of eegdata, optional
         The eegdata of different subjects. If ``None``, initialize an empty
-        dataset.
+        dataset. If ``list``, sort by subject one.
     event_id : dict, optional
         The correspondence between labels and events.
     rename : str, optional
@@ -487,7 +487,9 @@ class EEGDataset(BaseDataset):
         elif isinstance(eegdataset, dict):
             self.eegdataset = eegdataset
         elif isinstance(eegdataset, list):
-            self.eegdataset = {sub: egd for sub, egd in enumerate(eegdataset)}
+            self.eegdataset = {
+                subject: egd for subject, egd in enumerate(eegdataset, start=1)
+            }
         else:
             raise TypeError(f"Input type {type(eegdataset)} cannot be parsed.")
 

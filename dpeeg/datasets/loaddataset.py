@@ -65,6 +65,8 @@ class LoadDataset(BaseDataset):
                 subjects, subject_list, verbose=verbose
             )
 
+        self._repr["subjects"] = len(self.subjects)
+
     def _get_single_subject_data(self, subject: int):
         subject_path = self.folder / f"sub_{subject}.egd"
         return load(subject_path)
