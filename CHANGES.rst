@@ -1,6 +1,20 @@
 Changelog
 =========
 
+v0.4.1
+----------------
+
+**Project maintenance**
+
+- Optimize the runtime logic of :doc:`./api/transforms`
+- Add :ref:`eeg_data` metrics transformer: ``Pearsonr``
+
+**Documentation**
+
+- Contents newly added in update version 0.4.1
+- Refine the k-fold cross-validation experiment instruction document
+
+
 v0.4.0
 ----------------
 

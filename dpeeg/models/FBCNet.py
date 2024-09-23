@@ -40,7 +40,7 @@ class FBCNet(nn.Module):
         Number of electrode channels.
     nTime : int
         Number of data sampling points.
-    cls : int
+    nCls : int
         Number of categories.
     bands : int
         The filter dimension of the input multi-view data.
@@ -60,7 +60,7 @@ class FBCNet(nn.Module):
         self,
         nCh: int,
         nTime: int,
-        cls: int,
+        nCls: int,
         bands: int = 9,
         m: int = 32,
         stride: int = 4,
@@ -87,7 +87,7 @@ class FBCNet(nn.Module):
 
         self.head = nn.Sequential(
             nn.Flatten(),
-            LinearWithNorm(m * bands * stride, cls, do_weight_norm=True, max_norm=0.5),
+            LinearWithNorm(m * bands * stride, nCls, do_weight_norm=True, max_norm=0.5),
             nn.LogSoftmax(dim=1),
         )
 
@@ -103,7 +103,7 @@ class FBCNet(nn.Module):
         Returns
         -------
         cls_prob : Tensor
-            Predicted class probability, shape `(batch_size, cls)`.
+            Predicted class probability, shape `(batch_size, nCls)`.
         """
         x = self.scb(x)
         x = x.reshape([*x.shape[:2], self.stride, x.shape[3] // self.stride])

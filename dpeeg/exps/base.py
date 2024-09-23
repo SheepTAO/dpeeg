@@ -5,6 +5,7 @@
 
 from pathlib import Path
 from abc import ABC, abstractmethod
+from inspect import getmro
 
 import torch
 from torchmetrics.aggregation import CatMetric, MeanMetric
@@ -79,8 +80,8 @@ class Experiment(ABC):
     def run(
         self,
         dataset: BaseDataset,
-        dataset_name: str | None = None,
         transforms: Transforms | None = None,
+        dataset_name: str | None = None,
         desc: str | None = None,
     ) -> dict:
         """Train models separately for each subject.
@@ -92,9 +93,6 @@ class Experiment(ABC):
         ----------
         dataset : EEG Data or Dataset
             The dataset used for the experimental test.
-        dataset_name : str, optional
-            The dataset name to use. If ``None``, The default name of the
-            dataset will be used as the folder to save experimental results.
         transforms : Transforms, optional
             Apply pre-transforms on dataset. Transformations will be apply
             during the experiment on each subject's dataset. The rationable
@@ -104,6 +102,9 @@ class Experiment(ABC):
             data manipulation after subject-independent experiment have
             concatenated the relevant data (Time for Space) or the experiment
             subject are ready, mitigating the risk of memory overflow.
+        dataset_name : str, optional
+            The dataset name to use. If ``None``, The default name of the
+            dataset will be used as the folder to save experimental results.
         desc : str, optional
             Add a short description to the current experiment.
 
@@ -180,17 +181,19 @@ class ClsExp(Experiment, ABC):
             verbose=verbose,
         )
 
-        trainer_type = type(trainer).__name__
+        trainer_type = [base.__name__ for base in getmro(type(trainer))]
         trainer_list = {
             "Classifier": self._run_sub_classifier,
             "ClassifierTwoStage": self._run_sub_classifier_two_stage,
         }
-        if trainer_type not in list(trainer_list.keys()):
+        inter = set(trainer_list) & set(trainer_type)
+        if len(inter) == 0:
             raise TypeError(
                 f"Trainer type {trainer_type} is not supported, "
                 f"only {iterable_to_str(trainer_list.keys())} are supported."
             )
-        self._run_sub_func = trainer_list[trainer_type]
+        else:
+            self._run_sub_func = trainer_list[inter.pop()]
 
     def _trans_eegdata(self, eegdata: BaseData) -> SplitEEGData:
         """Apply pre-transforms on eegdata.

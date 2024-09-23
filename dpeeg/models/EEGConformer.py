@@ -125,7 +125,7 @@ class TransformerEncoder(nn.Sequential):
 
 
 class ClassificationHead(nn.Sequential):
-    def __init__(self, in_features, cls):
+    def __init__(self, in_features, nCls):
         super().__init__(
             nn.Flatten(),
             nn.Linear(in_features, 256),
@@ -134,7 +134,7 @@ class ClassificationHead(nn.Sequential):
             nn.Linear(256, 32),
             nn.ELU(),
             nn.Dropout(0.3),
-            nn.Linear(32, cls),
+            nn.Linear(32, nCls),
             nn.LogSoftmax(dim=1),
         )
 
@@ -164,7 +164,7 @@ class EEGConformer(nn.Module):
         Number of electrode channels.
     nTime : int
         Number of data sampling points.
-    cls : int
+    nCls : int
         Number of categories.
     emb_size : int
         Embedding layer size.
@@ -191,7 +191,7 @@ class EEGConformer(nn.Module):
         self,
         nCh: int,
         nTime: int,
-        cls: int,
+        nCls: int,
         emb_size: int = 40,
         depth: int = 6,
         num_heads: int = 10,
@@ -207,7 +207,7 @@ class EEGConformer(nn.Module):
             depth, emb_size, num_heads, drop_p, forward_expansion, forward_drop_p
         )
         in_freatures = self._forward_transformer().size(1)
-        self.classification_head = ClassificationHead(in_freatures, cls)
+        self.classification_head = ClassificationHead(in_freatures, nCls)
 
     def _forward_transformer(self) -> torch.Tensor:
         x = torch.randn(1, 1, self.nCh, self.nTime)
@@ -227,7 +227,7 @@ class EEGConformer(nn.Module):
         Returns
         -------
         cls_prob : Tensor
-            Predicted class probability, shape `(batch_size, cls)`.
+            Predicted class probability, shape `(batch_size, nCls)`.
         """
         out = self.patch_embedding(x)
         out = self.transformer_encoder(out)

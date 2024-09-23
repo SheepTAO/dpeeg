@@ -9,8 +9,8 @@ import numpy as np
 from numpy import ndarray
 from mne.utils import verbose, logger
 
-from .base import Transforms
-from ..datasets.base import _DataVar
+from .base import Transforms, TransformsEGD
+from ..datasets.base import EEGData
 from ..utils import DPEEG_SEED, get_init_args
 from .functions import (
     crop,
@@ -27,13 +27,11 @@ class Identity(Transforms):
     def __init__(self) -> None:
         super().__init__("Identity()")
 
-    @verbose
-    def _apply(self, eegdata: _DataVar, verbose=None) -> _DataVar:
-        logger.info(f"  Apply {self} ...")
+    def _apply(self, eegdata):
         return eegdata
 
 
-class Crop(Transforms):
+class Crop(TransformsEGD):
     """Crop a time interval.
 
     Crop the eeg signal in terms of time. Default is `edata`.
@@ -71,22 +69,16 @@ class Crop(Transforms):
         self.tmax = tmax
         self.include_tmax = include_tmax
 
-    @verbose
-    def _apply(self, eegdata: _DataVar, verbose=None) -> _DataVar:
-        logger.info(f"  Apply {self} ...")
-
-        for egd, _ in eegdata._datas():
-            egd["edata"] = crop(
-                data=egd["edata"],
-                tmin=self.tmin,
-                tmax=self.tmax,
-                include_tmax=self.include_tmax,
-                verbose=verbose,
-            )
-        return eegdata
+    def _apply_egd(self, egd: EEGData, key: str | None):
+        egd["edata"] = crop(
+            data=egd["edata"],
+            tmin=self.tmin,
+            tmax=self.tmax,
+            include_tmax=self.include_tmax,
+        )
 
 
-class SlideWin(Transforms):
+class SlideWin(TransformsEGD):
     """Apply a sliding window to the dataset.
 
     This transform is only splits the time series (dim = -1) through the
@@ -119,22 +111,16 @@ class SlideWin(Transforms):
         self.win = win
         self.overlap = overlap
 
-    @verbose
-    def _apply(self, eegdata: _DataVar, verbose=None) -> _DataVar:
-        logger.info(f"  Apply {self} ...")
-
-        for egd, _ in eegdata._datas():
-            egd["edata"], egd["label"] = slide_win(
-                data=egd["edata"],
-                win=self.win,
-                overlap=self.overlap,
-                label=egd["label"],
-                verbose=verbose,
-            )
-        return eegdata
+    def _apply_egd(self, egd: EEGData, key: str | None):
+        egd["edata"], egd["label"] = slide_win(
+            data=egd["edata"],
+            win=self.win,
+            overlap=self.overlap,
+            label=egd["label"],
+        )
 
 
-class Unsqueeze(Transforms):
+class Unsqueeze(TransformsEGD):
     """Insert a dimension on the data.
 
     This transform is usually used to insert a empty dimension on signals.
@@ -164,16 +150,11 @@ class Unsqueeze(Transforms):
         self.key = key
         self.dim = dim
 
-    @verbose
-    def _apply(self, eegdata: _DataVar, verbose=None) -> _DataVar:
-        logger.info(f"  Apply {self} ...")
-
-        for egd, _ in eegdata._datas():
-            egd[self.key] = np.expand_dims(egd[self.key], self.dim)
-        return eegdata
+    def _apply_egd(self, egd: EEGData, key: str | None):
+        egd[self.key] = np.expand_dims(egd[self.key], self.dim)
 
 
-class Squeeze(Transforms):
+class Squeeze(TransformsEGD):
     """Remove a dimension on the data.
 
     Parameters
@@ -202,16 +183,43 @@ class Squeeze(Transforms):
         self.key = key
         self.dim = dim
 
-    @verbose
-    def _apply(self, eegdata: _DataVar, verbose=None) -> _DataVar:
-        logger.info(f"  Apply {self} ...")
-
-        for egd, _ in eegdata._datas():
-            egd[self.key] = np.squeeze(egd[self.key], self.dim)
-        return eegdata
+    def _apply_egd(self, egd: EEGData, key: str | None):
+        egd[self.key] = np.squeeze(egd[self.key], self.dim)
 
 
-class FilterBank(Transforms):
+class Transpose(TransformsEGD):
+    """Data dims transposed.
+
+    By default, the EEG data (``edata``) of eegdata are transposed.
+
+    Parameters
+    ----------
+    dims : tuple or list of int, optinal
+        A tuple or list contains a permutation of [0,1,...,N-1] where N is the
+        number of dims of the key values. The ``i``^th dim of the value will
+        correspond to the axis numbered ``dims[i]`` of the input. If not
+        specified, reverse the dims order by default.
+    key : str
+        The key of the eegdata value to be transformed.
+
+    Examples
+    --------
+    >>> eegdata = dpeeg.EEGData(edata=np.random.randn(16, 1, 3, 10),
+    ...                         label=np.random.randint(0, 3, 16))
+    >>> transforms.Transpose()(eegdata, verbose=False)
+    [edata=(10, 3, 16), label=(16,)]
+    """
+
+    def __init__(self, dims: list[int] | None = None, key: str = "edata"):
+        super().__init__(get_init_args(self, locals(), "rp"))
+        self.dims = dims
+        self.key = key
+
+    def _apply_egd(self, egd: EEGData, key: str | None):
+        egd[self.key] = np.transpose(egd[self.key], self.dims)
+
+
+class FilterBank(TransformsEGD):
     """Filter Bank.
 
     EEG data will be filtered according to different filtering frequencies and
@@ -283,6 +291,7 @@ class FilterBank(Transforms):
         self.transition_bandwidth = transition_bandwidth
         self.gpass = gpass
         self.gstop = gstop
+        self.bank_len = len(self.filter_bank)
 
     def _check_filter_bank(self, fb):
         if not isinstance(fb, list):
@@ -295,36 +304,28 @@ class FilterBank(Transforms):
                 )
         return fb
 
-    @verbose
-    def _apply(self, eegdata: _DataVar, verbose=None) -> _DataVar:
-        logger.info(f"  Apply {self} ...")
+    def _apply_egd(self, egd: EEGData, key: str | None):
+        trials = egd.trials()
+        data = np.empty((trials, self.bank_len, *egd["edata"].shape[1:]))
 
-        bank_len = len(self.filter_bank)
-        for egd, _ in eegdata._datas():
-            trials = egd.trials()
-            data = np.empty((trials, bank_len, *egd["edata"].shape[1:]))
+        for i, cutoff in enumerate(self.filter_bank):
+            filter_data = cheby2_filter(
+                data=egd["edata"],
+                freq=self.freq,
+                l_freq=cutoff[0],
+                h_freq=cutoff[1],
+                transition_bandwidth=self.transition_bandwidth,
+                gpass=self.gpass,
+                gstop=self.gstop,
+            )
+            data[:, i] = filter_data
 
-            for i, cutoff in enumerate(self.filter_bank):
-                filter_data = cheby2_filter(
-                    data=egd["edata"],
-                    freq=self.freq,
-                    l_freq=cutoff[0],
-                    h_freq=cutoff[1],
-                    transition_bandwidth=self.transition_bandwidth,
-                    gpass=self.gpass,
-                    gstop=self.gstop,
-                    verbose=verbose,
-                )
-                data[:, i] = filter_data
-
-            if bank_len == 1:
-                data = np.squeeze(data, 1)
-            egd["edata"] = data
-
-        return eegdata
+        if self.bank_len == 1:
+            data = np.squeeze(data, 1)
+        egd["edata"] = data
 
 
-class ApplyFunc(Transforms):
+class ApplyFunc(TransformsEGD):
     """Apply a custom function to data.
 
     Parameters
@@ -372,17 +373,12 @@ class ApplyFunc(Transforms):
         self.keys = keys
         self.kwargs = kwargs
 
-    @verbose
-    def _apply(self, eegdata: _DataVar, verbose=None) -> _DataVar:
-        logger.info(f"  Apply {self} ...")
-
-        for egd, key in eegdata._datas():
-            if (self.keys is None) or (key in self.keys):
-                self.func(egd, **self.kwargs)
-        return eegdata
+    def _apply_egd(self, egd: EEGData, key: str | None):
+        if (self.keys is None) or (key in self.keys):
+            self.func(egd, **self.kwargs)
 
 
-class LabelMapping(Transforms):
+class LabelMapping(TransformsEGD):
     """Rearrange the original label according to mapping rules.
 
     Parameters
@@ -420,21 +416,15 @@ class LabelMapping(Transforms):
         self.mapping = mapping
         self.order = order
 
-    @verbose
-    def _apply(self, eegdata: _DataVar, verbose=None) -> _DataVar:
-        logger.info(f"  Apply {self} ...")
-
-        for egd, _ in eegdata._datas():
-            egd["label"] = label_mapping(
-                label=egd["label"],
-                mapping=self.mapping,
-                order=self.order,
-                verbose=verbose,
-            )
-        return eegdata
+    def _apply_egd(self, egd: EEGData, key: str | None):
+        egd["label"] = label_mapping(
+            label=egd["label"],
+            mapping=self.mapping,
+            order=self.order,
+        )
 
 
-class PickLabel(Transforms):
+class PickLabel(TransformsEGD):
     """Pick a subset of data.
 
     Pick the required labels and data from the dataset and re-label them.
@@ -497,31 +487,24 @@ class PickLabel(Transforms):
         self.shuffle = shuffle
         self.seed = seed
 
-    @verbose
-    def _apply(self, eegdata: _DataVar, verbose=None) -> _DataVar:
-        logger.info(f"  Apply {self} ...")
+    def _apply_egd(self, egd: EEGData, key: str | None):
+        label = egd["label"]
 
-        for egd, _ in eegdata._datas():
-            label = egd["label"]
+        keys, values = [], []
+        for key, value in egd.items():
+            if (key != "label") and ((self.keys is None) or (key in self.keys)):
+                keys.append(key)
+                values.append(value)
 
-            keys, values = [], []
-            for key, value in egd.items():
-                if (key != "label") and ((self.keys is None) or (key in self.keys)):
-                    keys.append(key)
-                    values.append(value)
+        data, label = pick_label(
+            *values,
+            label=label,
+            pick=self.pick,
+            order=self.order,
+            shuffle=self.shuffle,
+            seed=self.seed,
+        )
 
-            data, label = pick_label(
-                *values,
-                label=label,
-                pick=self.pick,
-                order=self.order,
-                shuffle=self.shuffle,
-                seed=self.seed,
-                verbose=verbose,
-            )
-
-            egd["label"] = label
-            for i, key in enumerate(keys):
-                egd[key] = data[i]
-
-        return eegdata
+        egd["label"] = label
+        for i, key in enumerate(keys):
+            egd[key] = data[i]

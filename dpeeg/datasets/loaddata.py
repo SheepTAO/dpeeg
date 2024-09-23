@@ -12,10 +12,12 @@ from mne.channels import make_standard_montage
 from mne.io import RawArray
 from mne import create_info
 
-from dpeeg.datasets import download as dl
-from dpeeg.utils import DPEEG_DIR
+from .download import data_dl
+from ..utils import DPEEG_DIR
 
 
+GIGADB_URL = "ftp://parrot.genomics.cn/gigadb/pub/"
+PHYSIONET_URL = "https://physionet.org/files/"
 BNCI_URL = "http://bnci-horizon-2020.eu/database/data-sets/"
 
 
@@ -52,8 +54,12 @@ def load_data(
         dict containing the raw data.
     """
     dataset_list = {
-        "bciciv2a": {"url": BNCI_URL, "load": _load_data_bciciv2a},
-        "bciciv2b": {"url": BNCI_URL, "load": _load_data_bciciv2b},
+        "bciciv2a": {"url": BNCI_URL, "load": _load_bciciv2a},
+        "bciciv2b": {"url": BNCI_URL, "load": _load_bciciv2b},
+        "openbmi_mi": {
+            "url": f"{GIGADB_URL}10.5524/100001_101000/100542/",
+            "load": _load_openbmi_mi,
+        },
     }
 
     if dataset not in dataset_list.keys():
@@ -64,7 +70,7 @@ def load_data(
 
     dl_path = Path(DPEEG_DIR, "datasets") if path is None else Path(path)
     return dataset_list[dataset]["load"](
-        subject, dl_path / dataset, force_update, dataset_list[dataset]["url"]
+        subject, dl_path / dataset, dataset_list[dataset]["url"], force_update
     )
 
 
@@ -137,11 +143,11 @@ def _convert_mi(filename, ch_names, ch_types):
     return runs, event_id
 
 
-def _load_data_bciciv2a(
+def _load_bciciv2a(
     subject: int,
     path: str,
+    base_url: str,
     force_update: bool = False,
-    base_url=BNCI_URL,
 ):
     """Load data set 2a of the BCI Competition IV."""
     if (subject < 1) or (subject > 9):
@@ -157,19 +163,21 @@ def _load_data_bciciv2a(
     ch_types = ["eeg"] * 22 + ["eog"] * 3
 
     sessions = {}
-    for i, r in enumerate(["T", "E"]):
+    for i, r in enumerate(["T", "E"], start=1):
         url = f"{base_url}001-2014/A{subject:02d}{r}.mat"
-        filename = dl.data_dl(url, path, force_update)
+        filename = data_dl(url, path, force_update)
         runs, _ = _convert_mi(filename, ch_names, ch_types)
-        sessions[f"session_{i}"] = {f"run_{ii}": run for ii, run in enumerate(runs)}
+        sessions[f"session_{i}"] = {
+            f"run_{ii}": run for ii, run in enumerate(runs, start=1)
+        }
     return sessions
 
 
-def _load_data_bciciv2b(
+def _load_bciciv2b(
     subject: int,
     path: str,
+    base_url: str,
     force_updata: bool = False,
-    base_url=BNCI_URL,
 ):
     """Load data set 2b of the BCI Competition IV."""
     if (subject < 1) or (subject > 9):
@@ -179,11 +187,68 @@ def _load_data_bciciv2b(
     ch_types = ["eeg"] * 3 + ["eog"] * 3
 
     sessions = []
-    for i, r in enumerate(["T", "E"]):
+    for i, r in enumerate(["T", "E"], start=1):
         url = f"{base_url}004-2014/B{subject:02d}{r}.mat"
-        filename = dl.data_dl(url, path, force_updata)
+        filename = data_dl(url, path, force_updata)
         runs, _ = _convert_mi(filename, ch_names, ch_types)
         sessions.extend(runs)
 
-    sessions = {f"session_{ii}": {"run_0": run} for ii, run in enumerate(sessions)}
+    sessions = {
+        f"session_{ii}": {"run_1": run} for ii, run in enumerate(sessions, start=1)
+    }
+    return sessions
+
+
+def _load_openbmi_mi_run(data):
+    sfreq = data["fs"].item()
+
+    eeg_ch_names = [np.squeeze(c).item() for c in np.ravel(data["chan"])]
+    eeg_ch_types = ["eeg"] * len(eeg_ch_names)
+    emg_ch_names = [np.squeeze(c).item() for c in np.ravel(data["EMG_index"])]
+    emg_ch_types = ["emg"] * len(emg_ch_names)
+    raw_ch_names = eeg_ch_names + emg_ch_names + ["STI 014"]
+    raw_ch_types = eeg_ch_types + emg_ch_types + ["stim"]
+    info = create_info(raw_ch_names, sfreq, raw_ch_types)  # type: ignore
+
+    eeg = data["x"].transpose(1, 0) * 1e-6  # to load the signal in Volts
+    emg = data["EMG"].transpose(1, 0) * 1e-6  # to load the signal in Volts
+    event_times_in_samples = data["t"].squeeze()
+    event_id = data["y_dec"].squeeze()
+    stim = np.zeros(len(data["x"]))
+    for i_sample, id_class in zip(event_times_in_samples, event_id):
+        stim[i_sample] += id_class
+    raw_data = np.concatenate([eeg, emg, stim[None, :]])
+
+    raw = RawArray(data=raw_data, info=info, verbose=False)
+    raw.set_montage(make_standard_montage("standard_1005"))
+
+    return raw
+
+
+def _load_openbmi_mi_sess(filename):
+    mat = loadmat(filename)
+    train = _load_openbmi_mi_run(mat["EEG_MI_train"][0, 0])
+    test = _load_openbmi_mi_run(mat["EEG_MI_test"][0, 0])
+    return {"train": train, "test": test}
+
+
+def _load_openbmi_mi(
+    subject: int,
+    path: str,
+    base_url: str,
+    force_update: bool = False,
+):
+    """Load data set MI of the OpenBMI."""
+    if (subject < 1) or (subject > 54):
+        raise ValueError("Subject must be between 1 and 54. Got %d." % subject)
+
+    sessions = {}
+    for r in [1, 2]:
+        url = (
+            f"{base_url}session{r}/s{subject}/sess{r:02d}_"
+            f"subj{subject:02d}_EEG_MI.mat"
+        )
+        filename = data_dl(url, path, force_update)
+        sessions[f"session_{r}"] = _load_openbmi_mi_sess(filename)
+
     return sessions

@@ -42,6 +42,7 @@ Motor Imagery Datasets
 
    BCICIV2A
    BCICIV2B
+   OpenBMI_MI
 
 Load and Save
 ----------------------------------

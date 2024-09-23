@@ -343,10 +343,56 @@ class BCICIV2B(MIDataset):
     .. [1] R. Leeb, F. Lee, C. Keinrath, R. Scherer, H. Bischof,
         G. Pfurtscheller. Brain-computer communication: motivation, aim, and
         impact of exploring a virtual apartment. IEEE Transactions on Neural
-        Systems and Rehabilitation Engineering 15, 473–482, 2007.
+        Systems and Rehabilitation Engineering 15, 473-482, 2007.
     """
 
     _code = "bciciv2b"
     _interval = [3.0, 7.5]
     _subject_list = list(range(1, 10))
     _event_id = {"left_hand": 1, "right_hand": 2}
+
+
+class OpenBMI_MI(MIDataset):
+    """BMI/OpenBMI dataset for MI.
+
+    .. admonition:: Dataset summary
+
+        ====== ====== ======= ===== ======== ======
+        Subj   Chan   Time    Cls   Freq     Sess
+        ====== ====== ======= ===== ======== ======
+        54     62     4.0 s   2     1000 Hz  2
+        ====== ====== ======= ===== ======== ======
+
+    This data set consists of EEG data from 54 subjects of a study published in
+    [1]_. EEG signals were recorded with a sampling rate of 1,000 Hz and
+    collected with 62 Ag/AgCl electrodes. The EEG amplifier used in the
+    experiment was a BrainAmp (Brain Products; Munich, Germany). The channels
+    were nasion-referenced and grounded to electrode AFz. Additionally, an EMG
+    electrode recorded from each flexor digitorum profundus muscle with the
+    olecranon used as reference. The impedances of the EEG electrodes were
+    maintained below 10 k during the entire experiment.
+
+    MI paradigm The MI paradigm was designed following a well-established
+    system protocol. For all blocks, the first 3 s of each trial began with a
+    black fixation cross that appeared at the center of the monitor to prepare
+    subjects for the MI task. Afterwards, the subject performed the imagery
+    task of grasping with the appropriate hand for 4 s when the right or left
+    arrow appeared as a visual cue. After each task, the screen remained blank
+    for 6 s (± 1.5 s). The experiment consisted of training and test phases;
+    each phase had 100 trials with balanced right and left hand imagery tasks.
+    During the online test phase, the fixation cross appeared at the center of
+    the monitor and moved right or left, according to the real-time classifier
+    output of the EEG signal.
+
+    References
+    ----------
+    .. [1] Lee, M. H., Kwon, O. Y., Kim, Y. J., Kim, H. K., Lee, Y. E.,
+        Williamson, J., … Lee, S. W. (2019). EEG dataset and OpenBMI toolbox
+        for three BCI paradigms: An investigation into BCI illiteracy.
+        GigaScience, 8(5), 1-16. https://doi.org/10.1093/gigascience/giz002
+    """
+
+    _code = "openbmi_mi"
+    _interval = [0.0, 4.0]
+    _subject_list = list(range(1, 55))
+    _event_id = {"right_hand": 1, "left_hand": 2}

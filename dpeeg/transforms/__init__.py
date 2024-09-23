@@ -5,6 +5,7 @@ from .trans import (
     SlideWin,
     Unsqueeze,
     Squeeze,
+    Transpose,
     FilterBank,
     ApplyFunc,
     LabelMapping,
@@ -14,4 +15,10 @@ from .norm import (
     ZscoreNorm,
     MinMaxNorm,
 )
-from .aug import SegRecTime, SlideWinAug
+from .aug import (
+    SegRecTime,
+    SlideWinAug,
+)
+from .metrics import (
+    Pearsonr,
+)

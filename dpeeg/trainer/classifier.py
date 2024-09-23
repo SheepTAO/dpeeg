@@ -388,7 +388,7 @@ class Classifier(BaseClassifier):
         grad_acc: int = 1,
         batch_size: int = 32,
         max_epochs: int = 1000,
-        no_increase_epochs: int = 200,
+        no_increase_epochs: int = 50,
         var_check: Literal["train_loss", "train_inacc"] = "train_loss",
         load_best_state: bool = True,
         nGPU: int = 0,
@@ -461,6 +461,8 @@ class Classifier(BaseClassifier):
         best_model_param = deepcopy(self.model.state_dict())
 
         # initialize dataloader
+        self.trainset = trainset
+        self.testset = testset
         train_loader = self.data_loader(trainset)
         test_loader = self.data_loader(testset)
         train_ncls = trainset.ncls
@@ -728,6 +730,9 @@ class ClassifierTwoStage(BaseClassifier):
         best_optim_param = deepcopy(self.optimizer.state_dict())
 
         # initialize dataloader
+        self.trainset = trainset
+        self.validset = validset
+        self.testset = testset
         train_loader = self.data_loader(trainset)
         valid_loader = self.data_loader(validset)
         test_loader = self.data_loader(testset)

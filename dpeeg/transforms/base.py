@@ -102,28 +102,29 @@ class Transforms(ABC):
         2 [edata=(16, 1, 3, 10), label=(16,)]
         """
         if isinstance(eegdata, BaseData):
-            return self._apply(eegdata, verbose=verbose)
+            return self._apply(eegdata)
 
         elif isinstance(eegdata, BaseDataset):
             if iter:
-                return (
-                    (subject, self._apply(egd, verbose=verbose))
-                    for subject, egd in eegdata.items()
-                )
+                return ((subject, self._apply(egd)) for subject, egd in eegdata.items())
             else:
                 dataset = EEGDataset(
                     event_id=eegdata.event_id, rename=eegdata._repr["_obj_name"]
                 )
                 for subject, egd in eegdata.items():
                     logger.info(f"Transform subject {subject}")
-                    dataset[subject] = self._apply(egd, verbose=verbose)
+                    dataset[subject] = self._apply(egd)
                 return dataset
 
         else:
             raise TypeError("Unsupported eegdata type.")
 
+    def _apply_wrap(self, eegdata: BaseData) -> BaseData:
+        logger.info(f"Apply {self} ...")
+        return self._apply(eegdata)
+
     @abstractmethod
-    def _apply(self, eegdata: BaseData, verbose=None) -> _DataVar:
+    def _apply(self, eegdata: BaseData) -> BaseData:
         pass
 
     def __repr__(self) -> str:
@@ -132,6 +133,23 @@ class Transforms(ABC):
         else:
             class_name = self.__class__.__name__
             return f"{class_name} not implement attribute `self._repr`."
+
+
+class TransformsEGD(Transforms):
+    """This is a simple base class inherited from ``Transforms``, which only
+    overrides the ``_apply`` method. If the transformation is indifferent to
+    data types, one can inherit from this class and override the ``_apply_egd``
+    method.
+    """
+
+    def _apply(self, eegdata: BaseData) -> BaseData:
+        for egd, key in eegdata._datas():
+            self._apply_egd(egd, key)
+        return eegdata
+
+    @abstractmethod
+    def _apply_egd(self, egd: EEGData, key: str | None):
+        pass
 
 
 class Sequential(Transforms):
@@ -170,9 +188,12 @@ class Sequential(Transforms):
         self.trans: list[Transforms] = []
         self.appends(*transforms)
 
-    def _apply(self, eegdata: _DataAlias, verbose=None) -> _DataAlias:
+    def _apply_wrap(self, eegdata: BaseData) -> BaseData:
+        return self._apply(eegdata)
+
+    def _apply(self, eegdata: BaseData) -> BaseData:
         for tran in self.trans:
-            eegdata = tran._apply(eegdata, verbose=verbose)
+            eegdata = tran._apply_wrap(eegdata)
         return eegdata
 
     def __repr__(self) -> str:
@@ -293,23 +314,20 @@ class SplitTrainTest(Transforms):
         self.train_sessions = None if train_sessions is None else set(train_sessions)
         self.test_sessions = None if test_sessions is None else set(test_sessions)
 
-    @verbose
-    def _apply(self, eegdata: BaseData, verbose=None) -> SplitEEGData:
-        logger.info(f"  Apply {self} ...")
-
+    def _apply(self, eegdata: BaseData) -> SplitEEGData:
         if isinstance(eegdata, SplitEEGData):
             return eegdata
         elif isinstance(eegdata, MultiSessEEGData):
-            return self._apply_multi_sess_eegdata(eegdata, verbose)
+            return self._apply_multi_sess_eegdata(eegdata)
         elif isinstance(eegdata, EEGData):
-            return self._apply_eegdata(eegdata, verbose)
+            return self._apply_eegdata(eegdata)
         else:
             raise ValueError(
                 "Input should be `SplitEEGData`, `MultiSessEEGData` or `EEGData`, "
                 f"but got {type(eegdata)}."
             )
 
-    def _apply_eegdata(self, eegdata: EEGData, verbose=None) -> SplitEEGData:
+    def _apply_eegdata(self, eegdata: EEGData) -> SplitEEGData:
         from sklearn.model_selection import train_test_split
 
         label = eegdata["label"]
@@ -339,9 +357,7 @@ class SplitTrainTest(Transforms):
             egd.append(eegdata[session])
         return egd
 
-    def _apply_multi_sess_eegdata(
-        self, eegdata: MultiSessEEGData, verbose=None
-    ) -> SplitEEGData:
+    def _apply_multi_sess_eegdata(self, eegdata: MultiSessEEGData) -> SplitEEGData:
         sessions = set(eegdata.keys())
 
         if self.cross:
@@ -410,8 +426,11 @@ class SplitTrainTest(Transforms):
                             f"load {iterable_to_str(train_sessions)} as mixed."
                         )
 
-            data = self._merge_multi_sess_eegdata(eegdata, train_sessions)
-            data = self._apply_eegdata(data, verbose)
+            data = SplitEEGData(EEGData(), EEGData())
+            for session in train_sessions:
+                split = self._apply_eegdata(eegdata[session])
+                data["train"].append(split["train"])
+                data["test"].append(split["test"])
 
         return data
 
@@ -441,8 +460,7 @@ class ToEEGData(Transforms):
     def __init__(self) -> None:
         super().__init__("ToEEGData()")
 
-    @verbose
-    def _apply(self, eegdata: BaseData, verbose=None) -> EEGData:
+    def _apply(self, eegdata: BaseData) -> EEGData:
         logger.info(f"  Apply {self} ...")
 
         if isinstance(eegdata, EEGData):

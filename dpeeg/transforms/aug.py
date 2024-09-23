@@ -35,10 +35,7 @@ class Augmentation(Transforms):
         self.only_train = only_train
         self.strict = strict
 
-    @verbose
-    def _apply(self, eegdata: _BaseData, verbose=None) -> _BaseData:
-        logger.info(f"  Apply {self} ...")
-
+    def _apply(self, eegdata: _BaseData) -> _BaseData:
         if not isinstance(eegdata, SplitEEGData):
             if self.strict:
                 raise TypeError(
@@ -46,17 +43,17 @@ class Augmentation(Transforms):
                 )
             else:
                 for egd, _ in eegdata._datas():
-                    self._apply_aug(egd, "None", verbose)
+                    self._apply_aug(egd, "None")
         else:
             for egd, mode in eegdata._datas():
                 if (mode != "train") and self.only_train:
                     continue
-                self._apply_aug(egd, mode, verbose)
+                self._apply_aug(egd, mode)
 
         return eegdata
 
     @abstractmethod
-    def _apply_aug(self, eegdata: EEGData, mode: str, verbose=None) -> EEGData:
+    def _apply_aug(self, egd: EEGData, mode: str):
         pass
 
 
@@ -130,18 +127,15 @@ class SegRecTime(Augmentation):
         self.shuffle = shuffle
         self.seed = seed
 
-    def _apply_aug(self, eegdata: EEGData, mode: str, verbose=None) -> EEGData:
-        eegdata["edata"], eegdata["label"] = segmentation_and_reconstruction_time(
-            data=eegdata["edata"],
-            label=eegdata["label"],
+    def _apply_aug(self, egd: EEGData, mode: str):
+        egd["edata"], egd["label"] = segmentation_and_reconstruction_time(
+            data=egd["edata"],
+            label=egd["label"],
             samples=self.samples,
             multiply=self.multiply,
             shuffle=self.shuffle,
             seed=self.seed,
-            verbose=verbose,
         )
-
-        return eegdata
 
 
 class SlideWinAug(Augmentation):
@@ -199,22 +193,18 @@ class SlideWinAug(Augmentation):
         self.tmin = tmin
         self.tmax = tmin + win if tmax is None else tmax
 
-    def _apply_aug(self, eegdata: EEGData, mode: str, verbose=None) -> EEGData:
+    def _apply_aug(self, egd: EEGData, mode: str):
         if mode == "train":
-            eegdata["edata"], eegdata["label"] = slide_win(
-                data=eegdata["edata"],
+            egd["edata"], egd["label"] = slide_win(
+                data=egd["edata"],
                 win=self.win,
                 overlap=self.overlap,
-                label=eegdata["label"],
-                verbose=verbose,
+                label=egd["label"],
             )
         else:
-            eegdata["edata"] = crop(
-                data=eegdata["edata"],
+            egd["edata"] = crop(
+                data=egd["edata"],
                 tmin=self.tmin,
                 tmax=self.tmax,
                 include_tmax=False,
-                verbose=verbose,
             )
-
-        return eegdata

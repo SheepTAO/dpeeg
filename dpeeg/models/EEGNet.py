@@ -25,7 +25,7 @@ class EEGNet(nn.Module):
         Number of electrode channels.
     nTime : int
         Number of data sampling points.
-    cls : int
+    nCls : int
         Number of categories.
     F1 : int
         Number of temporal filters.
@@ -56,7 +56,7 @@ class EEGNet(nn.Module):
         self,
         nCh: int,
         nTime: int,
-        cls=4,
+        nCls: int,
         F1: int = 8,
         C1: int = 63,
         D: int = 2,
@@ -96,8 +96,8 @@ class EEGNet(nn.Module):
         self.fc = nn.Sequential(
             # Experimental results show that using linearwithnorm will lead to
             # performance degradation.
-            # LinearWithNorm(self.get_size(nCh, nTime), cls, bias=True, max_norm=0.25)
-            nn.Linear(self.get_size(nCh, nTime), cls, bias=True),
+            # LinearWithNorm(self.get_size(nCh, nTime), nCls, bias=True, max_norm=0.25)
+            nn.Linear(self.get_size(nCh, nTime), nCls, bias=True),
             nn.LogSoftmax(dim=1),
         )
 
@@ -120,7 +120,7 @@ class EEGNet(nn.Module):
         Returns
         -------
         cls_prob : Tensor
-            Predicted class probability, shape `(batch_size, cls)`.
+            Predicted class probability, shape `(batch_size, nCls)`.
         """
         out = self.filter(x)
         out = self.depthwise_conv(out)

@@ -160,7 +160,7 @@ def align_text(prefix: str, text: str, only_head: bool = True) -> str:
             (
                 f"{prefix}{line}"
                 if (i == 0) or (not only_head)
-                else f'{" " * len(prefix)}{line}'
+                else f"{' ' * len(prefix)}{line}"
             )
             for i, line in enumerate(text.splitlines())
         ]
