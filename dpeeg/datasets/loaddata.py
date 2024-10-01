@@ -5,6 +5,7 @@
 
 from pathlib import Path
 
+import mne
 import numpy as np
 from scipy.io import loadmat
 from numpy import ndarray
@@ -19,6 +20,7 @@ from ..utils import DPEEG_DIR
 GIGADB_URL = "ftp://parrot.genomics.cn/gigadb/pub/"
 PHYSIONET_URL = "https://physionet.org/files/"
 BNCI_URL = "http://bnci-horizon-2020.eu/database/data-sets/"
+GIN_URL = "https://web.gin.g-node.org/"
 
 
 def load_data(
@@ -60,6 +62,10 @@ def load_data(
             "url": f"{GIGADB_URL}10.5524/100001_101000/100542/",
             "load": _load_openbmi_mi,
         },
+        "high_gamma": {
+            "url": f"{GIN_URL}robintibor/high-gamma-dataset/raw/master/data",
+            "load": _load_high_gamma,
+        },
     }
 
     if dataset not in dataset_list.keys():
@@ -72,6 +78,13 @@ def load_data(
     return dataset_list[dataset]["load"](
         subject, dl_path / dataset, dataset_list[dataset]["url"], force_update
     )
+
+
+def _check_subject(subject: int, total_subject: int):
+    if (subject < 1) or (subject > total_subject):
+        raise ValueError(
+            f"Subject must be between 1 and {total_subject}. Got {subject}."
+        )
 
 
 def standardize_keys(d):
@@ -150,8 +163,7 @@ def _load_bciciv2a(
     force_update: bool = False,
 ):
     """Load data set 2a of the BCI Competition IV."""
-    if (subject < 1) or (subject > 9):
-        raise ValueError(f"Subject must be between 1 and 9. Got {subject}.")
+    _check_subject(subject, 9)
 
     # fmt: off
     ch_names = [
@@ -180,8 +192,7 @@ def _load_bciciv2b(
     force_updata: bool = False,
 ):
     """Load data set 2b of the BCI Competition IV."""
-    if (subject < 1) or (subject > 9):
-        raise ValueError("Subject must be between 1 and 9. Got %d." % subject)
+    _check_subject(subject, 9)
 
     ch_names = ["C3", "Cz", "C4", "EOG1", "EOG2", "EOG3"]
     ch_types = ["eeg"] * 3 + ["eog"] * 3
@@ -239,8 +250,7 @@ def _load_openbmi_mi(
     force_update: bool = False,
 ):
     """Load data set MI of the OpenBMI."""
-    if (subject < 1) or (subject > 54):
-        raise ValueError("Subject must be between 1 and 54. Got %d." % subject)
+    _check_subject(subject, 54)
 
     sessions = {}
     for r in [1, 2]:
@@ -250,5 +260,27 @@ def _load_openbmi_mi(
         )
         filename = data_dl(url, path, force_update)
         sessions[f"session_{r}"] = _load_openbmi_mi_sess(filename)
+
+    return sessions
+
+
+def _load_high_gamma(
+    subject: int,
+    path: str,
+    base_url: str,
+    force_update: bool = False,
+):
+    """Load data set of the High-Gamma Dataset."""
+    _check_subject(subject, 14)
+
+    sessions = {}
+    montage = make_standard_montage("standard_1005")
+    for i, r in enumerate(["train", "test"], start=1):
+        filename = data_dl(f"{base_url}/{r}/{subject:d}.edf", path, force_update)
+        raw = mne.io.read_raw_edf(
+            filename, infer_types=True, preload=True, verbose=False
+        )
+        raw.set_montage(montage)
+        sessions[f"session_{i}"] = raw
 
     return sessions

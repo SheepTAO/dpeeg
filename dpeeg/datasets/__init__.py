@@ -13,5 +13,6 @@ from .motor_imagery import (
     BCICIV2A,
     BCICIV2B,
     OpenBMI_MI,
+    HighGamma,
 )
 from .utils import save, load, save_dataset

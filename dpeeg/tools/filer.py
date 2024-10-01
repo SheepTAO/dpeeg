@@ -3,6 +3,7 @@
 # License: MIT
 # Copyright the dpeeg contributors.
 
+import logging
 from pathlib import Path
 import csv
 
@@ -21,7 +22,11 @@ class Filer:
     """
 
     def __init__(
-        self, path: str | Path, mode: str = "a", exist_ok: bool = False
+        self,
+        path: str | Path,
+        mode: str = "a",
+        exist_ok: bool = False,
+        verbose: str | None = None,
     ) -> None:
         self.path = Path(path)
         self.mode = mode

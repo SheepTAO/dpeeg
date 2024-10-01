@@ -281,6 +281,11 @@ class MultiSessEEGData(BaseData, dict):
 
         multi_sess_eegdata = { 'session_id': EEGData }
 
+    .. Warning::
+
+       Do not set the key value to the keywords "train" or "test"; otherwise,
+       please use ``SplitEEGData``.
+
     Parameters
     ----------
     data : list or dict of EEGData

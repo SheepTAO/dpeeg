@@ -113,6 +113,7 @@ class Transforms(ABC):
                 )
                 for subject, egd in eegdata.items():
                     logger.info(f"Transform subject {subject}")
+                    self.subject = subject
                     dataset[subject] = self._apply(egd)
                 return dataset
 
