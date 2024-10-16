@@ -44,6 +44,7 @@ Motor Imagery Datasets
    BCICIV2B
    OpenBMI_MI
    HighGamma
+   PhysioNet_MI
 
 Load and Save
 ----------------------------------

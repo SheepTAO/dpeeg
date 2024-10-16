@@ -16,7 +16,7 @@ class Logger:
 
     Parameters
     ----------
-    loger : str
+    logger : str
         Specify the logger name, creating it if necessary. If no name is
         specified, return the root logger.
     path : str, optional
@@ -32,13 +32,13 @@ class Logger:
 
     def __init__(
         self,
-        loger: str = "dpeeg_root",
+        logger: str = "dpeeg_root",
         path: str | None = None,
         mode: str = "a",
         clevel: int | str = logging.INFO,
         flevel: int | str | None = None,
     ) -> None:
-        self._logger = logging.getLogger(loger)
+        self._logger = logging.getLogger(logger)
         self._logger.propagate = False
         self._logger.setLevel(logging.DEBUG)
 

@@ -12,8 +12,10 @@ from ..datasets.base import SplitEEGData
 from ..transforms.base import ToEEGData, SplitTrainTest
 from ..tools import Filer
 from ..utils import DPEEG_SEED, get_init_args
+from ..tools.docs import fill_doc
 
 
+@fill_doc
 class KFold(ClsExp):
     r"""K-Fold cross validation experiment.
 
@@ -37,7 +39,7 @@ class KFold(ClsExp):
     shown in the figure below, which illustrates a 3-fold cross-validation
     experiment:
 
-    .. image:: _static/images/kfold_isolate_testset.png
+    .. image:: ../_static/images/kfold_isolate_testset.png
        :align: center
        :alt: kfold isolate testset
 
@@ -46,12 +48,8 @@ class KFold(ClsExp):
 
     Parameters
     ----------
-    trainer : Trainer
-        Trainer used for training module on dataset.
-    out_folder : str, optional
-        Store all experimental results in a folder named with the model class
-        name in the specified folder. Default is
-        '~/dpeeg/out/model/exp/dataset/timestamp'.
+    %(trainer)s
+    %(out_folder)s
     k : int, optional
         k of k-Fold.
     isolate_testset : bool
@@ -64,8 +62,7 @@ class KFold(ClsExp):
         Shuffle before kfold.
     seed : int
         Seed of random for review.
-    timestamp : bool
-        Output folders are timestamped.
+    %(timestamp)s
 
     Notes
     -----

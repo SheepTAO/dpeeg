@@ -12,8 +12,10 @@ from mne.utils import verbose, logger
 from .base import BaseDataset
 from .utils import check_inter_and_compl, load
 from ..utils import get_init_args
+from ..tools.docs import fill_doc
 
 
+@fill_doc
 class LoadDataset(BaseDataset):
     """Read a dataset from a local folder.
 
@@ -22,13 +24,10 @@ class LoadDataset(BaseDataset):
 
     Parameters
     ----------
-    folder : str | Path
+    folder : str, Path
         The path to the saved dataset.
-    subjects : list of int, optional
-        The list of subjects to be read, with all subjects being read by
-        default.
-    rename : str, optional
-        Rename the read dataset, with the default being to use the saved name.
+    %(subjects)s
+    %(rename)s
     """
 
     @verbose

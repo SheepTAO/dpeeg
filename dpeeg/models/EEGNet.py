@@ -2,11 +2,13 @@ import torch
 import torch.nn as nn
 
 from .utils import Conv2dWithNorm, LinearWithNorm
+from ..tools.docs import fill_doc
 
 
 __all__ = ["EEGNet"]
 
 
+@fill_doc
 class EEGNet(nn.Module):
     """EEGNet: A Compact Convolutional Neural Network for EEG-based
     Brain-Computer Interfaces (EEGNet).
@@ -21,12 +23,9 @@ class EEGNet(nn.Module):
 
     Parameters
     ----------
-    nCh : int
-        Number of electrode channels.
-    nTime : int
-        Number of data sampling points.
-    nCls : int
-        Number of categories.
+    %(nCh)s
+    %(nTime)s
+    %(nCls)s
     F1 : int
         Number of temporal filters.
     C1 : int

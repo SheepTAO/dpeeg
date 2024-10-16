@@ -46,12 +46,12 @@ class BaseClassifier(Trainer, ABC):
     def __init__(
         self,
         model: Module,
-        loss_fn: str | type[Module] = "NLLLoss",
+        loss_fn: str | Type[Module] = "NLLLoss",
         loss_fn_args: dict | None = None,
-        optimizer: str | type[Optimizer] = "Adam",
+        optimizer: str | Type[Optimizer] = "Adam",
         optimizer_args: dict | None = None,
         lr: float = 1e-3,
-        lr_sch: str | type[LRScheduler] | None = None,
+        lr_sch: str | Type[LRScheduler] | None = None,
         lr_sch_args: dict | None = None,
         grad_acc: int = 1,
         batch_size: int = 32,
@@ -242,7 +242,7 @@ class BaseClassifier(Trainer, ABC):
             self.optimizer = getattr(optim, self.optimizer_type)(
                 self.model.parameters(), **self.optimizer_args
             )
-        elif isinstance(self.optimizer_type, Optimizer):
+        elif issubclass(self.optimizer_type, Optimizer):
             self.optimizer = self.optimizer_type(
                 self.model.parameters(), self.optimizer_args
             )
@@ -258,7 +258,7 @@ class BaseClassifier(Trainer, ABC):
             self.lr_sch = getattr(optim.lr_scheduler, self.lr_sch_type)(
                 self.optimizer, **self.lr_sch_args
             )
-        elif isinstance(self.lr_sch_type, LRScheduler):
+        elif issubclass(self.lr_sch_type, LRScheduler):
             self.lr_sch = self.lr_sch_type(self.optimizer, **self.lr_sch_args)
         else:
             raise TypeError(f"lr_sch type ({type(self.lr_sch_type)}) is not supported.")

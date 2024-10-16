@@ -71,14 +71,3 @@ Data Augmentation
 
    SegRecTime
    SlideWinAug
-
-
-Compute Metrics
------------------------------
-
-.. autosummay::
-   :toctree: ../generated
-   :nosignatures:
-   :template: transform.rst
-
-   Pearsonr

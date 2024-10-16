@@ -2,6 +2,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from ..tools.docs import fill_doc
+
+
 __all__ = ["LightConvNet"]
 
 
@@ -79,6 +82,7 @@ class LightweightConv1d(nn.Module):
         return output
 
 
+@fill_doc
 class LightConvNet(nn.Module):
     """A Temporal Dependency Learning CNN With Attention Mechanism for MI-EEG
     Decoding (LightConvNet).
@@ -98,12 +102,9 @@ class LightConvNet(nn.Module):
 
     Parameters
     ----------
-    nCh : int
-        Number of electrode channels.
-    nTime : int
-        Number of data sampling points.
-    nCls : int
-        Number of categories.
+    %(nCh)s
+    %(nTime)s
+    %(nCls)s
     bands : int
         The filter dimension of the input multi-view data.
     embed_dim : int

@@ -3,6 +3,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from einops.layers.torch import Rearrange
 
+from ..tools.docs import fill_doc
+
+
 __all__ = ["MSVTNet", "JointCrossEntoryLoss"]
 
 
@@ -73,6 +76,7 @@ class ClsHead(nn.Sequential):
         super().__init__(nn.Flatten(), nn.Linear(linear_in, nCls), nn.LogSoftmax(dim=1))
 
 
+@fill_doc
 class MSVTNet(nn.Module):
     """MSVTNet: Multi-Scale Vision Transformer Neural Network for EEG-Based
     Motor Imagery Decoding (MSVTNet).
@@ -88,12 +92,9 @@ class MSVTNet(nn.Module):
 
     Parameters
     ----------
-    nCh : int
-        Number of electrode channels.
-    nTime : int
-        Number of data sampling points.
-    nCls : int
-        Number of categories.
+    %(nCh)s
+    %(nTime)s
+    %(nCls)s
     F : list of int
         Number of temporal filters per branch.
     C1 : list of int

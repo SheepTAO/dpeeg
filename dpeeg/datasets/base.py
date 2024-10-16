@@ -3,15 +3,26 @@
 # License: MIT
 # Copyright the dpeeg contributors.
 
+from pathlib import Path
 from abc import ABC, abstractmethod
 from collections.abc import Generator, Iterable
 from typing import Any, TypeAlias, TypeVar, overload
 from copy import deepcopy
 
+import mne
 import numpy as np
+from mne.io import Raw
+from mne import Epochs
+from tqdm import tqdm
 from numpy import ndarray
 
-from ..utils import get_init_args, iterable_to_str, mapping_to_str, _format_log
+from ..utils import (
+    get_init_args,
+    iterable_to_str,
+    mapping_to_str,
+    _format_log,
+    DPEEG_DIR,
+)
 
 
 class BaseData(ABC):
@@ -37,9 +48,9 @@ class EEGData(BaseData):
 
     Parameters
     ----------
-    edata : ndarray, optional
+    edata : array shape (n_trials, ...), optional
         EEG data.
-    label : ndarray, optional
+    label : array shape (n_trials, ...), optional
         The labels corresponding to the eeg data.
     strict : bool
         ``True`` means that the number of ``edata`` and ``label`` samples must
@@ -550,3 +561,222 @@ class EEGDataset(BaseDataset):
         )
         self._repr["eegdataset"] = eegdataset
         return _format_log(self._repr)
+
+
+DATA_PATH = Path(DPEEG_DIR) / "datasets"
+
+
+class _EEGDataset(BaseDataset):
+    """DPEEG EEG Dataset."""
+
+    def __init__(
+        self,
+        repr: dict,
+        subject_list: list[int],
+        interval: list[float],
+        event_id: dict[str, int],
+        subjects: list[int] | None = None,
+        tmin: float = 0.0,
+        tmax: float | None = None,
+        baseline: tuple[int, int] | None = None,
+        picks: list[str] | None = None,
+        resample: float | None = None,
+        unit_factor: float = 1e6,
+    ) -> None:
+        super().__init__(repr, event_id)
+        if tmax is not None and tmin >= tmax:
+            raise ValueError("tmax must be greater than tmin")
+
+        self.subjects = subject_list if subjects is None else subjects
+        if not (set(self.subjects) <= set(subject_list)):
+            raise KeyError(f"Subject must be between 1 and {subject_list[-1]}.")
+
+        self.interval = interval
+        self.event_id = event_id
+        self.unit_factor = unit_factor
+        self.tmin = tmin
+        self.tmax = tmax
+        self.baseline = baseline
+        self.picks = picks
+        self.resample = resample
+
+    def keys(self) -> list[int]:
+        return self.subjects
+
+    @abstractmethod
+    def _get_single_subject_raw(self, subject: int, verbose="ERROR"):
+        return NotImplementedError
+
+    def get_raw(
+        self, progressbar: bool = True, verbose="ERROR"
+    ) -> dict[int, dict[str, dict[str, Raw]]]:
+        """Return the raw correspoonding to a list of subjects.
+
+        The returned data is a dictionary with the following structure:
+
+            data = {'subject_id':
+                        {'session_id':
+                            {'run_id': Raw}
+                        }
+                    }
+
+        subjects are on top, then we have sessions, then runs.
+        A session is a recording done in a single day, without removing the EEG
+        cap. A session is constitued of at least one run. A run is a single
+        contigous recording. Some dataset break session in multiple runs.
+        """
+        subjects = tqdm(
+            self.subjects,
+            "Load Raw",
+            unit="sub",
+            dynamic_ncols=True,
+            disable=not progressbar,
+        )
+
+        data = {}
+        for subject in subjects:
+            data[subject] = self._get_single_subject_raw(subject, verbose)
+        return data
+
+    def _get_single_subject_epochs(
+        self, subject: int, verbose="ERROR"
+    ) -> dict[str, Epochs]:
+        data = {}
+        for session, runs in self._get_single_subject_raw(subject, verbose).items():  # type: ignore
+            epochs = []
+            for run, raw in runs.items():
+                proc = self._epochs_from_raw(raw)
+                if proc is None:
+                    # if the run did not contain any selected event go to next
+                    continue
+
+                epochs.append(proc)
+            data[session] = mne.concatenate_epochs(epochs, verbose=verbose)
+        return data
+
+    def get_epochs(
+        self, progressbar: bool = True, verbose="ERROR"
+    ) -> dict[int, dict[str, Epochs]]:
+        """Return the epochs correspoonding to a list of subjects.
+
+        The returned data is a dictionary with the following structure:
+
+            data = {'subject_id' :
+                        {'session_id' : Epochs}
+                    }
+
+        """
+        subjects = tqdm(
+            self.subjects,
+            "Load Epochs",
+            unit="sub",
+            dynamic_ncols=True,
+            disable=not progressbar,
+        )
+
+        data = {}
+        for subject in subjects:
+            data[subject] = self._get_single_subject_epochs(subject, verbose)
+        return data
+
+    def _get_single_subject_data(
+        self, subject: int, verbose="ERROR"
+    ) -> MultiSessEEGData:
+        sessions = self._get_single_subject_epochs(subject, verbose)
+
+        data = []
+        for session, epochs in sessions.items():
+            data.append(self._data_from_epochs(epochs, verbose))
+        return MultiSessEEGData(data)
+
+    def get_data(
+        self, progressbar: bool = True, verbose="ERROR"
+    ) -> dict[int, MultiSessEEGData]:
+        """Return the data correspoonding to a list of subjects.
+
+        The returned data is a dictionary with the following structure:
+
+            data = {'subject_id' :
+                        {'session_id' : EEGData}
+                    }
+        """
+        subjects = tqdm(
+            self.subjects,
+            "Load EEGData",
+            unit="sub",
+            dynamic_ncols=True,
+            disable=not progressbar,
+        )
+
+        data = {}
+        for subject in subjects:
+            data[subject] = self._get_single_subject_data(subject, verbose)
+        return data
+
+    def _epochs_from_raw(self, raw: Raw, verbose="ERROR") -> Epochs:
+        events, event_id = self._events_from_raw(raw, verbose)
+
+        # get interval
+        tmin = self.tmin + self.interval[0]
+        if self.tmax is None:
+            tmax = self.interval[1]
+        else:
+            tmax = self.tmax + self.interval[0]
+
+        # epoch data
+        baseline = self.baseline
+        if baseline is not None:
+            baseline = (
+                baseline[0] + self.interval[0],
+                baseline[1] + self.interval[1],
+            )
+            bmin = baseline[0] if baseline[0] < tmin else tmin
+            bmax = baseline[1] if baseline[1] > tmax else tmax
+        else:
+            bmin = tmin
+            bmax = tmax
+        epochs = mne.Epochs(
+            raw,
+            events,
+            event_id=event_id,
+            tmin=bmin,
+            tmax=bmax,
+            proj=False,
+            baseline=baseline,
+            preload=True,
+            event_repeated="drop",
+            verbose=verbose,
+        )
+        if bmin < tmin or bmax > tmax:
+            epochs.crop(tmin=tmin, tmax=tmax)
+        return epochs.crop(include_tmax=False)
+
+    def _data_from_epochs(self, epochs: Epochs, verbose="ERROR") -> EEGData:
+        if self.picks is None:
+            picks = mne.pick_types(epochs.info, eeg=True, stim=False)
+        else:
+            picks = mne.pick_channels(
+                epochs.info["ch_names"], include=self.picks, ordered=True
+            )
+        epochs.pick(picks, verbose=verbose)
+
+        if self.resample is not None:
+            epochs.resample(self.resample, verbose=verbose)
+
+        edata = self.unit_factor * epochs.get_data(copy=False)
+        label = epochs.events[:, -1]
+        return EEGData(edata, label)
+
+    def _events_from_raw(self, raw: Raw, verbose="ERROR"):
+        stim_channels = mne.utils._get_stim_channel(None, raw.info, raise_error=False)
+        if len(stim_channels) > 0:
+            events = mne.find_events(raw, shortest_event=0, verbose=verbose)
+            event_id = self.event_id
+        else:
+            events, event_id = mne.events_from_annotations(
+                raw, event_id=self.event_id, verbose=verbose  # type: ignore
+            )
+            # offset = int(self.interval[0] * raw.info["sfreq"])
+            # events[:, 0] -= offset  # return the original events onset
+
+        return events, event_id

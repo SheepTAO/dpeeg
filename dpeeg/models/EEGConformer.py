@@ -1,9 +1,11 @@
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
-from torch import Tensor
+from torch import Tensor, fill
 from einops import rearrange
 from einops.layers.torch import Rearrange
+
+from ..tools.docs import fill_doc
 
 
 __all__ = ["EEGConformer"]
@@ -139,6 +141,7 @@ class ClassificationHead(nn.Sequential):
         )
 
 
+@fill_doc
 class EEGConformer(nn.Module):
     """EEG Conformer: Convolutional Transformer for EEG Decoding and
     Visualization (EEG Conformer).
@@ -160,12 +163,9 @@ class EEGConformer(nn.Module):
 
     Parameters
     ----------
-    nCh : int
-        Number of electrode channels.
-    nTime : int
-        Number of data sampling points.
-    nCls : int
-        Number of categories.
+    %(nCh)s
+    %(nTime)s
+    %(nCls)s
     emb_size : int
         Embedding layer size.
     depth : int

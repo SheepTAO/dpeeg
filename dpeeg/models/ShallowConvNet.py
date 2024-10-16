@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 
 from .utils import Conv2dWithNorm, LinearWithNorm
+from ..tools.docs import fill_doc
+
 
 __all__ = ["ShallowConvNet"]
 
@@ -15,6 +17,7 @@ class Lambda(nn.Module):
         return self.func(x)
 
 
+@fill_doc
 class ShallowConvNet(nn.Module):
     """Deep Learning With Convolutional Neural Networks for EEG Decoding and
     Visualization (ShallowConvNet).
@@ -40,12 +43,9 @@ class ShallowConvNet(nn.Module):
 
     Parameters
     ----------
-    nCh : int
-        Number of electrode channels.
-    nTime : int
-        Number of data sampling points.
-    nCls : int
-        Number of categories.
+    %(nCh)s
+    %(nTime)s
+    %(nCls)s
     F : int
         The number of convolution channels.
     C : int

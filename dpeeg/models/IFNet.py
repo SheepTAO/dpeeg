@@ -3,6 +3,9 @@ import torch.nn as nn
 from torch.optim.adamw import AdamW
 from torch.nn.init import trunc_normal_, constant_
 
+from ..tools.docs import fill_doc
+
+
 __all__ = ["IFNet", "IFNetAdamW"]
 
 
@@ -13,6 +16,7 @@ class InterFre(nn.Module):
         return out
 
 
+@fill_doc
 class IFNet(nn.Module):
     """IFNet: An Interactive Frequency Convolutional Neural Network for
     Enhancing Motor Imagery Decoding From EEG (IFNet).
@@ -28,12 +32,9 @@ class IFNet(nn.Module):
 
     Parameters
     ----------
-    nCh : int
-        Number of electrode channels.
-    nTime : int
-        Number of data sampling points.
-    nCls : int
-        Number of categories.
+    %(nCh)s
+    %(nTime)s
+    %(nCls)s
     F : int
         Number of spectro-spatial filters.
     C : int

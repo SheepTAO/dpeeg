@@ -2,11 +2,13 @@ import torch
 import torch.nn as nn
 
 from .utils import Conv2dWithNorm, LinearWithNorm
+from ..tools.docs import fill_doc
 
 
 __all__ = ["DeepConvNet"]
 
 
+@fill_doc
 class DeepConvNet(nn.Module):
     """Deep Learning With Convolutional Neural Networks for EEG Decoding and
     Visualization (Deep ConvNet).
@@ -28,12 +30,9 @@ class DeepConvNet(nn.Module):
 
     Parameters
     ----------
-    nCh : int
-        Number of electrode channels.
-    nTime : int
-        Number of data sampling points.
-    nCls : int
-        Number of categories.
+    %(nCh)s
+    %(nTime)s
+    %(nCls)s
     dropout : float
         Dropout rate.
 

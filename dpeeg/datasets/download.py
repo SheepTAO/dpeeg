@@ -10,8 +10,8 @@ from pooch.downloaders import choose_downloader
 
 
 def data_dl(
-    url: str,
-    path: str,
+    url: str | Path,
+    path: str | Path,
     force_update: bool = False,
 ):
     """Download file from url to specified path.

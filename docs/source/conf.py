@@ -93,5 +93,16 @@ sphinx_gallery_conf = {
     "default_thumb_file": "_static/thumb.png",
 }
 
+# -- Sphinx-Copybutton configuration -----------------------------------------
+copybutton_prompt_text = r">>> |\.\.\. |\$ "
+copybutton_prompt_is_regexp = True
+
 # -- Intersphinx configuration -----------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/extensions/intersphinx.html
+
+intersphinx_mapping = {
+    "python": ("https://docs.python.org/{.major}".format(sys.version_info), None),
+    "numpy": ("https://numpy.org/doc/stable/", None),
+    "mne": ("http://mne.tools/stable", None),
+    "torch": ("https://pytorch.org/docs/main/", None),
+}

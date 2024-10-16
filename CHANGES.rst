@@ -7,12 +7,14 @@ v0.4.1
 **Project maintenance**
 
 - Optimize the runtime logic of :doc:`./api/transforms`
-- Add :ref:`eeg_data` metrics transformer: ``Pearsonr``
+- Add new datasets :class:`~dpeeg.datasets.HighGamma` and :class:`~dpeeg.datasets.PhysioNet_MI`
+- Modify the internal dataset reading logic
 
 **Documentation**
 
 - Contents newly added in update version 0.4.1
 - Refine the k-fold cross-validation experiment instruction document
+- Use ``mne`` document decorator to reduce duplication
 
 
 v0.4.0

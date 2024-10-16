@@ -2,6 +2,7 @@ import torch
 from torch import nn
 
 from .utils import Conv2dWithNorm, LinearWithNorm
+from ..tools.docs import fill_doc
 
 
 __all__ = ["FBCNet"]
@@ -25,6 +26,7 @@ class LogVarLayer(nn.Module):
         return torch.log(x)
 
 
+@fill_doc
 class FBCNet(nn.Module):
     """FBCNet: A Multi-view Convolutional Neural Network for Brain-Computer
     Interface (FBCNet).
@@ -36,12 +38,9 @@ class FBCNet(nn.Module):
 
     Parameters
     ----------
-    nCh : int
-        Number of electrode channels.
-    nTime : int
-        Number of data sampling points.
-    nCls : int
-        Number of categories.
+    %(nCh)s
+    %(nTime)s
+    %(nCls)s
     bands : int
         The filter dimension of the input multi-view data.
     m : int

@@ -9,10 +9,8 @@ from .base import (
     EEGDataset,
 )
 from .loaddataset import LoadDataset
-from .motor_imagery import (
-    BCICIV2A,
-    BCICIV2B,
-    OpenBMI_MI,
-    HighGamma,
-)
+from .bnci import BCICIV2A, BCICIV2B
+from .gigadb import OpenBMI_MI
+from .gin import HighGamma
+from .physionet import PhysioNet_MI
 from .utils import save, load, save_dataset

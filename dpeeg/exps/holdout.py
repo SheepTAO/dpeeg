@@ -7,8 +7,10 @@ from .base import ClsExp
 from ..trainer.classifier import BaseClassifier
 from ..transforms.base import SplitTrainTest
 from ..utils import get_init_args
+from ..tools.docs import fill_doc
 
 
+@fill_doc
 class HoldOut(ClsExp):
     """Holdout cross validation experiment.
 
@@ -18,14 +20,9 @@ class HoldOut(ClsExp):
 
     Parameters
     ----------
-    trainer : Trainer
-        Trainer used for training module on dataset.
-    out_folder : str, optional
-        Store all experimental results in a folder named with the model class
-        name in the specified folder. Default is
-        '~/dpeeg/out/model/exp/dataset/timestamp'.
-    timestamp : bool
-        Output folders are timestamped.
+    %(trainer)s
+    %(out_folder)s
+    %(timestamp)s
     """
 
     def __init__(
