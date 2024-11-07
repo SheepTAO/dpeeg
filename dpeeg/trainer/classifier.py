@@ -23,7 +23,6 @@ from torchmetrics.functional.classification.accuracy import multiclass_accuracy
 from torchmetrics.aggregation import MeanMetric, CatMetric
 
 from .base import Trainer
-from ..tools import Logger, Timer
 from ..utils import DPEEG_SEED
 from ..transforms.functions import to_tensor
 from .stopcriteria import ComposeStopCriteria
@@ -62,28 +61,24 @@ class BaseClassifier(Trainer, ABC):
         data_size: tuple | list | None = None,
         verbose: int | str = "INFO",
     ) -> None:
-        super().__init__(model)
-        self.model = model
-
-        self.loger = Logger("dpeeg_train", clevel=verbose)
-        self.timer = Timer()
+        super().__init__(model, verbose)
 
         # init trainer
         self.device = get_device(nGPU)
-        self.loger.info(
+        self.logger.info(
             f"Model will be trained on {self.device} "
             f"({get_device_name(self.device)})"
         )
         self.model.to(self.device)
 
         _set_torch_seed(seed)
-        self.loger.info(f"Set torch random seed = {seed}")
+        self.logger.info(f"Set torch random seed = {seed}")
 
         # summarize model structure
         self.model_arch = str(model) + "\n"
         depth = model_depth(self.model) if depth is None else depth
         self.model_arch += str(summary(model, data_size, depth=depth))
-        self.loger.info(self.model_arch)
+        self.logger.info(self.model_arch)
 
         # the type of optimizer, etc. selected
         self.loss_fn_type = loss_fn
@@ -210,7 +205,7 @@ class BaseClassifier(Trainer, ABC):
 
         return DataLoader(td, self.batch_size, True)
 
-    def _reset_fitter(self, log_dir: str) -> tuple[str, SummaryWriter, Logger]:
+    def _reset_fitter(self, log_dir: str) -> tuple[str, SummaryWriter]:
         """Reset the relevant parameters of the fitter.
 
         Reset the model's training parameters, learning rate schedule and
@@ -224,10 +219,12 @@ class BaseClassifier(Trainer, ABC):
 
         Returns
         -------
-        str, SummaryWriter, Logger:
-            Return the absolute file path and a new SummaryWriter object and
-            logger manager for the fitter.
+        str, SummaryWriter:
+            Return the absolute file path and new SummaryWriter object manager
+            for the fitter.
         """
+        self._reset_logger(log_dir)
+
         # reset parameters of nn.Moudle
         self.model.load_state_dict(self.train_details["orig_model_param"])
 
@@ -266,14 +263,8 @@ class BaseClassifier(Trainer, ABC):
         # create log writer
         log_dir = os.path.abspath(log_dir)
         writer = SummaryWriter(log_dir)
-        loger = Logger(
-            log_dir,
-            path=os.path.join(log_dir, "running.log"),
-            flevel="INFO",
-            clevel=self.verbose,
-        )
 
-        return log_dir, writer, loger
+        return log_dir, writer
 
     def get_acc(self, preds: Tensor, target: Tensor, ncls: int) -> Tensor:
         """Easy for program to caculate the accuarcy."""
@@ -454,7 +445,7 @@ class Classifier(BaseClassifier):
             Returns the training set and test set results (including true
             labels, predicted labels and accuracy).
         """
-        log_dir, writer, loger = self._reset_fitter(log_dir)
+        log_dir, writer = self._reset_fitter(log_dir)
 
         # check the best model
         best_var = float("inf")
@@ -470,8 +461,8 @@ class Classifier(BaseClassifier):
 
         # start the training
         self.timer.start()
-        loger.info(f"[Training...] - [{self.timer.ctime()}]")
-        loger.info(f"[Train/Test] - [{trainset.trials()}/{testset.trials()}]")
+        self.logger.info(f"[Training...] - [{self.timer.ctime()}]")
+        self.logger.info(f"[Train/Test] - [{trainset.trials()}/{testset.trials()}]")
 
         stopcri = ComposeStopCriteria(
             {
@@ -506,8 +497,10 @@ class Classifier(BaseClassifier):
             writer.add_scalars(
                 "train", {"loss": train_loss, "acc": train_acc}, monitors["epoch"]
             )
-            loger.info(f'-->Epoch : {monitors["epoch"]}')
-            loger.info(f"  \u21b3train Loss/Acc = {train_loss:.4f}/{train_acc:.4f}")
+            self.logger.info(f'-->Epoch : {monitors["epoch"]}')
+            self.logger.info(
+                f"  \u21b3train Loss/Acc = {train_loss:.4f}/{train_acc:.4f}"
+            )
 
             # select best model
             if self.load_best_state and monitors[self.var_check] <= best_var:
@@ -520,7 +513,7 @@ class Classifier(BaseClassifier):
 
         # report the checkpoint time of end and compute cost time
         h, m, s = self.timer.stop()
-        loger.info(f"[Train Finish] - [Cost Time = {h}H:{m}M:{s:.2f}S]")
+        self.logger.info(f"[Train Finish] - [Cost Time = {h}H:{m}M:{s:.2f}S]")
 
         # load the best model and evaulate this model in testset
         self.model.load_state_dict(best_model_param)
@@ -537,8 +530,8 @@ class Classifier(BaseClassifier):
         test_acc = self.get_acc(test_preds, test_target, train_ncls)
         results["test"] = {"preds": test_preds, "target": test_target, "acc": test_acc}
 
-        loger.info(f"Loss: Train={train_loss:.4f} | Test={test_loss:.4f}")
-        loger.info(f"Acc:  Train={train_acc:.4f} | Test={test_acc:.4f}")
+        self.logger.info(f"Loss: Train={train_loss:.4f} | Test={test_loss:.4f}")
+        self.logger.info(f"Acc:  Train={train_acc:.4f} | Test={test_acc:.4f}")
 
         self.train_details["results"] = results
         self.train_details["best_model_param"] = best_model_param
@@ -722,7 +715,7 @@ class ClassifierTwoStage(BaseClassifier):
             Returns the training set, validation set, and test set results
             (including true labels, predicted labels and accuracy).
         """
-        log_dir, writer, loger = self._reset_fitter(log_dir)
+        log_dir, writer = self._reset_fitter(log_dir)
 
         # check the best model
         best_var = float("inf")
@@ -742,8 +735,8 @@ class ClassifierTwoStage(BaseClassifier):
 
         # start the training
         self.timer.start()
-        loger.info(f"[Training...] - [{self.timer.ctime()}]")
-        loger.info(
+        self.logger.info(f"[Training...] - [{self.timer.ctime()}]")
+        self.logger.info(
             f"[Train/Valid/Test] - "
             f"[{trainset.trials()}/{validset.trials()}/{testset.trials()}]"
         )
@@ -809,8 +802,8 @@ class ClassifierTwoStage(BaseClassifier):
                 monitors["global_epoch"],
             )
             # print the epoch info
-            loger.info(f'-->Epoch : {monitors["epoch"]}')
-            loger.info(
+            self.logger.info(f'-->Epoch : {monitors["epoch"]}')
+            self.logger.info(
                 f"  \u21b3train Loss/Acc = {train_loss:.4f}/{train_acc:.4f}"
                 f" | valid Loss/Acc = {valid_loss:.4f}/{valid_acc:.4f}"
             )
@@ -837,8 +830,10 @@ class ClassifierTwoStage(BaseClassifier):
                         train_loss = monitors["best_train_loss"]
                         epoch = monitors["best_epoch"]
 
-                    loger.info("[Early Stopping Reached] -> Training on full set.")
-                    loger.info(f"[Epoch = {epoch} | Loss = {train_loss:.4f}]")
+                    self.logger.info(
+                        "[Early Stopping Reached] -> Training on full set."
+                    )
+                    self.logger.info(f"[Epoch = {epoch} | Loss = {train_loss:.4f}]")
 
                     # combine the train and valid dataset
                     train_loader = self.data_loader(trainset, validset)
@@ -878,7 +873,7 @@ class ClassifierTwoStage(BaseClassifier):
 
         # report the checkpoint time of end and compute cost time
         h, m, s = self.timer.stop()
-        loger.info(f"[Train Finish] - [Cost Time = {h}H:{m}M:{s:.2f}S]")
+        self.logger.info(f"[Train Finish] - [Cost Time = {h}H:{m}M:{s:.2f}S]")
 
         # load the best model and evaulate this model in testset
         self.model.load_state_dict(best_model_param)
@@ -906,11 +901,11 @@ class ClassifierTwoStage(BaseClassifier):
             "acc": test_acc,
         }
 
-        loger.info(
+        self.logger.info(
             f"Loss: Train={train_loss:.4f} | Valid={valid_loss:.4f} | "
             f"test={test_loss:.4f}"
         )
-        loger.info(
+        self.logger.info(
             f"Acc:  Train={train_acc:.4f} | Valid={valid_acc:.4f} | "
             f"Test={test_acc:.4f}"
         )

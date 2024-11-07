@@ -4,7 +4,7 @@ from mne.channels import make_standard_montage
 from mne.io import RawArray
 from mne import create_info
 
-from .base import _EEGDataset, DATA_PATH
+from .base import EpochsDataset, DATA_PATH
 from .download import data_dl
 from ..utils import get_init_args
 from ..tools.docs import fill_doc
@@ -14,7 +14,7 @@ URL = "ftp://parrot.genomics.cn/gigadb/pub/"
 
 
 @fill_doc
-class OpenBMI_MI(_EEGDataset):
+class OpenBMI_MI(EpochsDataset):
     """BMI/OpenBMI dataset for MI.
 
     .. admonition:: Dataset summary

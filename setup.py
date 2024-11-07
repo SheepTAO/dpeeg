@@ -14,6 +14,8 @@ install_requires = [
     "torchmetrics>=1.0.0",
     "torchinfo>=1.5.0",
     "tensorboard",
+    "pandas>=1.5.2",
+    "openpyxl",
 ]
 
 with open("README.md", "r", encoding="utf-8") as f:

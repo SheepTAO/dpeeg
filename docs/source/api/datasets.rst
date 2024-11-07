@@ -46,6 +46,16 @@ Motor Imagery Datasets
    HighGamma
    PhysioNet_MI
 
+Major Depression Dataset
+**********************************
+
+.. autosummary::
+   :toctree: ../generated
+   :nosignatures:
+   :template: eegdataset.rst
+
+   MODMA_128_Resting
+
 Load and Save
 ----------------------------------
 

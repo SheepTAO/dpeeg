@@ -3,7 +3,9 @@
 # License: MIT
 # Copyright the dpeeg contributors.
 
-import os, sys, logging
+import sys
+import logging
+from pathlib import Path
 
 
 class Logger:
@@ -33,7 +35,7 @@ class Logger:
     def __init__(
         self,
         logger: str = "dpeeg_root",
-        path: str | None = None,
+        path: str | Path | None = None,
         mode: str = "a",
         clevel: int | str = logging.INFO,
         flevel: int | str | None = None,
@@ -47,9 +49,11 @@ class Logger:
         self._sh.setFormatter(shfmt)
         self._sh.setLevel(clevel)
         self._logger.addHandler(self._sh)
-        if flevel != None:
-            assert path != None, "path cannot be empty."
-            self._fh = logging.FileHandler(os.path.abspath(path), mode)
+        if flevel is not None:
+            assert path is not None, "path cannot be empty when use filer."
+            path = Path(path).absolute()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            self._fh = logging.FileHandler(str(path), mode)
             fhfmt = logging.Formatter(
                 "[%(asctime)s] [%(levelname)8s]: %(message)s",
                 datefmt="%Y-%m-%d %H:%M:%S",

@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 from typing import overload, Literal
 
 from mne.utils import verbose, logger
+import test
 
 from ..datasets.base import (
     _DataAlias,
@@ -32,10 +33,11 @@ class Transforms(ABC):
     the transformed data of each subject. Transformation methods that inherit
     from this base class only need to override the `_apply` function.
 
-    Parameters
+    Attributes
     ----------
-    repr : str
-        Basic information on the transformation method.
+    subject : int, None
+        When the input type is a dataset, if refers to the subject currently
+        being operated on. Otherwise, it is None.
     """
 
     def __init__(self, repr: str | None = None) -> None:
@@ -64,12 +66,12 @@ class Transforms(ABC):
 
         Parameters
         ----------
-        eegdata : eegdata or eegdataset
+        eegdata : :ref:`eeg_data`, :ref:`eeg_dataset`
             Apply data transformation to eegdata or eegdataset.
         iter : bool
-            Valid when the input type is eegdataset. `True` means directly
-            returning the entire transformed dataset, `False` means iteratively
-            returning the transformed data of each subject.
+            Valid when the input type is eegdataset. ``False`` means directly
+            returning the entire transformed dataset, ``True`` means
+            iteratively returning the transformed data of each subject.
 
         Examples
         --------
@@ -102,26 +104,29 @@ class Transforms(ABC):
         2 [edata=(16, 1, 3, 10), label=(16,)]
         """
         if isinstance(eegdata, BaseData):
-            return self._apply(eegdata)
+            return self._apply_wrap(eegdata, None)
 
         elif isinstance(eegdata, BaseDataset):
             if iter:
-                return ((subject, self._apply(egd)) for subject, egd in eegdata.items())
+                return (
+                    (subject, self._apply_wrap(egd, subject))
+                    for subject, egd in eegdata.items()
+                )
             else:
                 dataset = EEGDataset(
                     event_id=eegdata.event_id, rename=eegdata._repr["_obj_name"]
                 )
                 for subject, egd in eegdata.items():
                     logger.info(f"Transform subject {subject}")
-                    self.subject = subject
-                    dataset[subject] = self._apply(egd)
+                    dataset[subject] = self._apply_wrap(egd, subject)
                 return dataset
 
         else:
             raise TypeError("Unsupported eegdata type.")
 
-    def _apply_wrap(self, eegdata: BaseData) -> BaseData:
+    def _apply_wrap(self, eegdata: BaseData, subject: int | None) -> BaseData:
         logger.info(f"Apply {self} ...")
+        self.subject = subject
         return self._apply(eegdata)
 
     @abstractmethod
@@ -160,7 +165,7 @@ class Sequential(Transforms):
 
     Parameters
     ----------
-    transforms : sequential of ``Transforms``
+    transforms : sequential of :doc:`../api/transforms`
         Sequential of transforms to compose.
 
     Examples
@@ -189,12 +194,17 @@ class Sequential(Transforms):
         self.trans: list[Transforms] = []
         self.appends(*transforms)
 
-    def _apply_wrap(self, eegdata: BaseData) -> BaseData:
+    def __getitem__(self, key):
+        """Return the transform of key."""
+        return self.trans[key]
+
+    def _apply_wrap(self, eegdata: BaseData, subject: int | None) -> BaseData:
+        self.subject = subject
         return self._apply(eegdata)
 
     def _apply(self, eegdata: BaseData) -> BaseData:
         for tran in self.trans:
-            eegdata = tran._apply_wrap(eegdata)
+            eegdata = tran._apply_wrap(eegdata, self.subject)
         return eegdata
 
     def __repr__(self) -> str:
@@ -228,43 +238,44 @@ class SplitTrainTest(Transforms):
     """Split the data into training and testing sets.
 
     Split different types of input data. For inputs that are already
-    `SplitEEGData`, no processing is done. For inputs that are
-    `MultiSessEEGData`, data can be split by session or merged and then split.
-    For `EEGData` inputs, data is split proportionally.
+    :class:`.SplitEEGData`, no processing is done. For inputs that are
+    :class:`.MultiSessEEGData`, data can be split by session or merged and then
+    split. For :class:`.EEGData` inputs, data is split proportionally.
 
     Parameters
     ----------
     test_size : float
         The proportion of the test set. Default use stratified fashion.
     cross : bool
-        `True` indicates that data from multiple sessions will be split into
-        training and test sets, working in conjunction with `train_sessions`
-        and `test_sessions`. `False` indicates that data from multiple sessions
-        will be merged and then split into training and test sets, working with
-        `train_sessions`. These parameter are only effective when the input
-        data type is `MultiSessEEGData`; they are ignored for other types.
+        ``True`` indicates that data from multiple sessions will be split into
+        training and test sets, working in conjunction with ``train_sessions``
+        and ``test_sessions``. ``False`` indicates that data from multiple
+        sessions will be merged and then split into training and test sets,
+        working with ``train_sessions``. These parameter are only effective
+        when the input data type is ``MultiSessEEGData``; they are ignored for
+        other types.
     train_sessions : list of str, optional
         Session data to be used as the training set.
-        If `cross=False`, `train_sessions` represents the sessions to be mixed
-        and split (If `None`, all session data will be used.).
-        If `cross=True`, `train_sessions` must be specified and represents the
-        sessions to be used as the training set.
+        If ``cross=False``, ``train_sessions`` represents the sessions to be
+        mixed and split (If ``None``, all session data will be used.).
+        If ``cross=True``, ``train_sessions`` must be specified and represents
+        the sessions to be used as the training set.
     test_sessions : list of str, optional
         Session data to be used as the test set.
-        If `cross=False`, this parameter is ignored.
-        If `cross=True`, `test_sessions` represents the sessions to be used as
-        the test set (If `None`, the complement of `train_sessions` will be
-        used as the test set.).
+        If ``cross=False``, this parameter is ignored.
+        If ``cross=True``, ``test_sessions`` represents the sessions to be used
+        as the test set (If ``None``, the complement of `train_sessions` will
+        be used as the test set.).
     keys : list of str, optional
-        The key of the eegdata value to be split. If `None`, all data will be
+        The key of the eegdata value to be split. If ``None``, all data will be
         split, and it is necessary to ensure the uniformity of the data
-        samples. Ignored when `cross=True`.
+        samples. Ignored when ``cross=True``.
     seed : int
         Random seed when splitting.
 
     Returns
     -------
-    split_eegdata : eegdata or dataset (split)
+    split_eegdata : :class:`.SplitEEGData`
         Split eegdata or dataset.
 
     Examples
@@ -437,19 +448,22 @@ class SplitTrainTest(Transforms):
 
 
 class ToEEGData(Transforms):
-    """Convert different types of eegdata to `EEGData`.
+    """Convert different types of eegdata to :class:`.EEGData`.
+
+    Merge all internal EEGData data of SplitEEGData and MultiSessEEGData
+    together. This is done by calling :meth:`.EEGData.append`.
 
     Examples
     --------
-    Convert `SpliteEEGData` to `EEGData`:
+    Convert :class:`.SplitEEGData` to :class:`.EEGData`:
 
-    >>> >>> eegdata = dpeeg.EEGData(edata=np.random.randn(16, 3, 10),
+    >>> eegdata = dpeeg.EEGData(edata=np.random.randn(16, 3, 10),
     ...                             label=np.random.randint(0, 3, 16))
     >>> split_eegdata = dpeeg.SplitEEGData(eegdata, eegdata)
     >>> transforms.ToEEGData()(split_eegdata, verbose=False)
     [edata=(32, 3, 10), label=(32,)]
 
-    Conver `MultiSessEEGData` to `EEGData`:
+    Convert :class:`.MultiSessEEGData` to :class:`.EEGData`:
 
     >>> eegdata = dpeeg.EEGData(edata=np.random.randn(16, 3, 10),
     ...                         label=np.random.randint(0, 3, 16))
@@ -462,13 +476,13 @@ class ToEEGData(Transforms):
         super().__init__("ToEEGData()")
 
     def _apply(self, eegdata: BaseData) -> EEGData:
-        logger.info(f"  Apply {self} ...")
-
         if isinstance(eegdata, EEGData):
             return eegdata
         elif isinstance(eegdata, MultiSessEEGData):
+            logger.info(f" `MultiSessEEGData` to `EEGData`")
             return self._apply_multi_sess_eegdata(eegdata)
         elif isinstance(eegdata, SplitEEGData):
+            logger.info(f" `SplitEEGData` to `EEGData`")
             return self._apply_split_eegdata(eegdata)
         else:
             raise ValueError(
@@ -487,3 +501,144 @@ class ToEEGData(Transforms):
         for tmp_egd, _ in eegdata._datas():
             egd.append(tmp_egd)
         return egd
+
+
+def merge_subjects(
+    eegdata: BaseDataset,
+    subjects: list[int] | set[int],
+    prefix: str = "",
+    ret_eegdata: bool = True,
+):
+    if len(prefix) != 0:
+        prefix = f"{prefix}_"
+
+    multi_sess_eegdata = MultiSessEEGData({})
+    for subject in subjects:
+        egd = eegdata[subject]
+        ps = f"{prefix}{subject}"
+
+        if isinstance(egd, EEGData):
+            multi_sess_eegdata[ps] = egd
+        elif isinstance(egd, MultiSessEEGData):
+            for k, v in egd.items():
+                multi_sess_eegdata[f"{ps}_{k}"] = v
+        elif isinstance(egd, SplitEEGData):
+            multi_sess_eegdata[f"{ps}_train"] = egd["train"]
+            multi_sess_eegdata[f"{ps}_test"] = egd["test"]
+
+    if ret_eegdata:
+        return ToEEGData()._apply_multi_sess_eegdata(multi_sess_eegdata)
+    else:
+        return multi_sess_eegdata
+
+
+@overload
+def split_subjects(
+    eegdata: BaseDataset,
+    test_subjects: list[int] | None = None,
+    ret_eegdata: Literal[True] = True,
+    verbose=None,
+) -> EEGData | SplitEEGData:
+    pass
+
+
+@overload
+def split_subjects(
+    eegdata: BaseDataset,
+    test_subjects: list[int] | None = None,
+    ret_eegdata: Literal[False] = False,
+    verbose=None,
+) -> MultiSessEEGData:
+    pass
+
+
+@verbose
+def split_subjects(
+    eegdata: BaseDataset,
+    test_subjects: list[int] | None = None,
+    ret_eegdata: bool = True,
+    verbose=None,
+):
+    """Split the dataset by subjects.
+
+    Splitting the dataset at the subject level is different from the
+    :class:`.SplitTrainTest` transformation. The former splits the data of all
+    subjects in the entire dataset (similar to cross-subject), while the latter
+    splits the data of each subject. The eegdata of different subjects are
+    converted through :class:`ToEEGData` when ``ret_eegdata=True``.
+
+    Parameters
+    ----------
+    eegdata : :ref:`eeg_dataset`
+        Input eeg dataset.
+    test_subjects : list of int, optional
+        The list of subjects in the test set. If ``None``, the subject data of
+        the entire dataset will be merged.
+    ret_eegdata : bool
+        Transform the merged inter-subject data into :class:`.EEGData` type. If
+        ``False``, return labeled MultiSessEEGData. For specific usage, please
+        refer to the example.
+
+
+    .. attention::
+        Since this transformation will change the structure of the entire
+        dataset, it cannot be used with :class:`Sequential`. It is often used
+        at the begining or end of preprocessing the dataset.
+
+    Examples
+    --------
+    Since the input is a dataset type, first define a dataset with 2 subjects.
+    Here, merge the data of all subjects:
+
+    >>> from dpeeg.datasets import EEGDataset
+    >>>
+    >>> eegdata = dpeeg.EEGData(edata=np.random.randn(16, 3, 10),
+    ...                         label=np.random.randint(0, 3, 16))
+    >>> multi_sess_eegdata = dpeeg.MultiSessEEGData([eegdata, eegdata])
+    >>> eegdataset = EEGDataset([eegdata, eegdata, multi_sess_eegdata])
+    >>> transforms.split_subjects(eegdataset, verbose=False)
+    [edata=(64, 3, 10), label=(64,)]
+
+    set ``train_subjects`` parameters to split the dataset:
+
+    >>> transforms.split_subjects(eegdataset, [1, 2], verbose=False)
+    Train: [edata=(32, 3, 10), label=(32,)]
+    Test : [edata=(32, 3, 10), label=(32,)]
+
+    set ``ret_eegdata`` to return the labeled MultiSessEEGData:
+
+    >>> transforms.split_subjects(eegdataset, [3], False, verbose=False)
+    {'train_1': [edata=(16, 3, 10), label=(16,)],
+     'train_2': [edata=(16, 3, 10), label=(16,)],
+     'test_3_session_1': [edata=(16, 3, 10), label=(16,)],
+     'test_3_session_2': [edata=(16, 3, 10), label=(16,)]}
+    """
+    if not isinstance(eegdata, BaseDataset):
+        raise TypeError(f"Input must be dataset.")
+
+    if test_subjects is None:
+        logger.info("Merge all subject eegdata.")
+        return merge_subjects(eegdata, eegdata.keys(), ret_eegdata=ret_eegdata)
+    else:
+        subjects = set(eegdata.keys())
+        te_subjects = set(test_subjects)
+        inter = subjects & te_subjects
+        compl = subjects - inter
+
+        if len(inter) == 0:
+            raise ValueError(
+                f"Cannot find {iterable_to_str(te_subjects)} subjects, "
+                f"the dataset contains {iterable_to_str(compl)} subjects."
+            )
+
+        logger.info("Split the subject eegdata.")
+        if ret_eegdata:
+            tr_egd = merge_subjects(eegdata, compl, ret_eegdata=True)
+            te_egd = merge_subjects(eegdata, inter, ret_eegdata=True)
+            ret_egd = SplitEEGData(tr_egd, te_egd)  # type: ignore
+        else:
+            ret_egd = MultiSessEEGData([])
+            ret_egd.update(merge_subjects(eegdata, compl, "train", False))
+            ret_egd.update(merge_subjects(eegdata, inter, "test", False))
+
+        return ret_egd

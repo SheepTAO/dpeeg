@@ -9,8 +9,9 @@ from .base import (
     EEGDataset,
 )
 from .loaddataset import LoadDataset
+from .utils import save, load, save_dataset
 from .bnci import BCICIV2A, BCICIV2B
 from .gigadb import OpenBMI_MI
 from .gin import HighGamma
 from .physionet import PhysioNet_MI
-from .utils import save, load, save_dataset
+from .ukds import MODMA_128_Resting

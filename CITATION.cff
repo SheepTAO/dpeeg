@@ -5,6 +5,7 @@ authors:
   given-names: "Tao"
   orcid: "https://orcid.org/0009-0000-1703-6454"
 title: "dpeeg: Deep learning with EEG"
+doi: 10.5281/zenodo.13989420
 date-released: 2024-01-01
 url: "https://github.com/SheepTAO/dpeeg"
 license: "MIT"

@@ -20,7 +20,7 @@ class LoadDataset(BaseDataset):
     """Read a dataset from a local folder.
 
     This will read the dataset that has already been saved from the local
-    folder. Ensure that the dataset is saved by ``dpeeg.savedataset``.
+    folder. Use with :class:`dpeeg.save_dataset`.
 
     Parameters
     ----------

@@ -5,7 +5,7 @@ from mne.channels import make_standard_montage
 from mne.io import RawArray
 from mne import create_info
 
-from .base import _EEGDataset, DATA_PATH
+from .base import EpochsDataset, DATA_PATH
 from .download import data_dl
 from ..utils import get_init_args
 from ..tools.docs import fill_doc
@@ -84,7 +84,7 @@ def _convert_mi(filename, ch_names, ch_types, verbose):
 
 
 @fill_doc
-class BCICIV2A(_EEGDataset):
+class BCICIV2A(EpochsDataset):
     """Dataset IIA from BCI Competition IV.
 
     .. admonition:: Dataset summary
@@ -191,7 +191,7 @@ class BCICIV2A(_EEGDataset):
 
 
 @fill_doc
-class BCICIV2B(_EEGDataset):
+class BCICIV2B(EpochsDataset):
     """Dataset IIB from BCI Competition IV.
 
     .. admonition:: Dataset summary

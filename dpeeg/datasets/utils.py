@@ -92,7 +92,7 @@ def save(
     file : str, Path
         Filename where the eegdata will be saved, a '.egd' extension will be
         appended to the filename if it does not already have one.
-    eegdata : eegdata
+    eegdata : :ref:`eeg_data`
         An eegdata to be saved.
     compress : bool
         If ``True``, use standard ZIP compression.
@@ -135,6 +135,7 @@ def save_dataset(
 
     The eegdata in the dataset is stored separately by subject, and a `.json`
     formatted file describing the basic information of the dataset is saved.
+    Use :class:`dpeeg.datasets.LoadDataset` to read the saved dataset.
 
     Parameters
     ----------

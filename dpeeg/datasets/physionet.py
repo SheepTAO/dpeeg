@@ -2,7 +2,7 @@ import numpy as np
 from mne.io import read_raw_edf
 from mne.channels import make_standard_montage
 
-from .base import _EEGDataset, DATA_PATH
+from .base import EpochsDataset, DATA_PATH
 from .download import data_dl
 from ..utils import get_init_args
 from ..tools.docs import fill_doc
@@ -12,7 +12,7 @@ URL = "https://physionet.org/files/"
 
 
 @fill_doc
-class PhysioNet_MI(_EEGDataset):
+class PhysioNet_MI(EpochsDataset):
     """Physionet Motor Imagery dataset.
 
     .. admonition:: Dataset summary

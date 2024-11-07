@@ -22,12 +22,39 @@ docdict = BunchConst()
 # fmt: off
 
 # %%
+# A
+
+docdict["aug_only_train"] = """
+only_train : bool
+    If True, data augmentation is performed only on the training set.
+"""
+
+docdict["aug_strict"] = """
+strict : bool
+    If False, allow the input data to be unsplit. In this case, data
+    augmentation will be applied to all data. Please ensure that this operation
+    does not cause data leakage according to the method of data augmentation.
+"""
+
+# %%
 # B
 
 docdict["baseline"] = """
 baseline : tuple of int, optional
     The time interval to consider as “baseline” when applying baseline
     correction. If ``None``, do not apply baseline correction.
+"""
+
+# %%
+# E
+
+docdict["eegdata_set"] = """
+eegdata : :ref:`eeg_data`, :ref:`eeg_dataset`
+    The basic types are eegdata and eegdataset.
+"""
+
+docdict["trans_ret"] = """
+
 """
 
 # %%
@@ -105,6 +132,16 @@ trainer : Trainer
 docdict["timestamp"] = """
 timestamp : bool
     Output folders are timestamped.
+"""
+
+docdict["train_for_test"] = """
+train_for_test : bool
+    If True, normalize the test set using the values in the training set.
+"""
+
+docdict["raw_tmin_tmax"] = """
+tmin-tmax : float
+    Start and end time of the raw in seconds. Default to use all data.
 """
 
 # fmt: on

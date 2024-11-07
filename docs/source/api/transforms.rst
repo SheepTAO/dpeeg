@@ -30,6 +30,7 @@ Core
    Sequential
    SplitTrainTest
    ToEEGData
+   split_subjects
 
 Commonly
 -----------------------------
@@ -71,3 +72,4 @@ Data Augmentation
 
    SegRecTime
    SlideWinAug
+   GaussTime

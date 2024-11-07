@@ -40,8 +40,11 @@ class Experiment(ABC):
     Notes
     -----
     The training results of all models for each subject will be saved under the
-    `out_folder` directory.
+    ``out_folder`` directory.
     """
+
+    # Special control properties
+    _is_eeg_dataset = False  # Input data type must be a eeg dataset
 
     def __init__(
         self,
@@ -79,7 +82,7 @@ class Experiment(ABC):
 
     def run(
         self,
-        dataset: BaseDataset,
+        dataset: BaseDataset | BaseData,
         transforms: Transforms | None = None,
         dataset_name: str | None = None,
         desc: str | None = None,
@@ -91,8 +94,8 @@ class Experiment(ABC):
 
         Parameters
         ----------
-        dataset : EEG Data or Dataset
-            The dataset used for the experimental test.
+        dataset : :ref:`eeg_data` or :ref:`eeg_dataset`
+            The data or dataset used for the experimental test.
         transforms : Transforms, optional
             Apply pre-transforms on dataset. Transformations will be apply
             during the experiment on each subject's dataset. The rationable
@@ -113,16 +116,30 @@ class Experiment(ABC):
         Return a dict of all subjects and corresponding experimental results.
         """
 
-        if dataset_name:
-            self.data_folder = self.out_folder / dataset_name
+        if isinstance(dataset, BaseDataset):
+            self.data_folder = (
+                self.out_folder / dataset_name
+                if dataset_name
+                else self.out_folder / dataset._repr["_obj_name"]
+            )
+
+        elif isinstance(dataset, BaseData):
+            if self._is_eeg_dataset:
+                raise RuntimeError("Experiments only support eeg dataset.")
+            else:
+                self.data_folder = (
+                    self.out_folder / dataset_name if dataset_name else self.out_folder
+                )
+
         else:
-            self.data_folder = self.out_folder / dataset._repr["_obj_name"]
+            raise TypeError("Input dataset must be eeg data or dataset.")
 
         if self.timestamp:
             self.data_folder = self.data_folder / Timer.cdate()
         self.data_folder.mkdir(parents=True, exist_ok=False)
         self.logger.info(f"Results saved in `{self.data_folder}`")
 
+        # Experimental Resources
         self.dataset = dataset
         self.transforms = transforms
 
@@ -143,9 +160,7 @@ class Experiment(ABC):
 
         h, m, s = self.timer.stop()
         torch.save(results, self.data_folder / f"results.pt")
-        self.logger.info(
-            f"\n[All Subjects Finished] - [Cost Time = {h}H:{m}M:{s:.2f}S]"
-        )
+        self.logger.info(f"\n[Experiment Finished] - [Cost Time = {h}H:{m}M:{s:.2f}S]")
         self.logger.info("=" * 50)
 
         return results
@@ -211,17 +226,17 @@ class ClsExp(Experiment, ABC):
 
         return eegdata
 
-    def _process_sub_dataset(self, subject: int):
+    def _process_sub_dataset(self, dataset: BaseDataset, subject: int):
         """Preprocess each subject's dataset.
 
         Different preprocessing operations are performed on the dataset accord-
         ing to different experimental requirement. By default, eegdata for each
         subject in the dataset is returned.
         """
-        return self.dataset[subject]
+        return dataset[subject]
 
     @abstractmethod
-    def _run_sub(self, eegdata: BaseData, sub_folder: Path):
+    def _run_sub(self, eegdata: BaseData, sub_folder: Path) -> dict:
         """Train a model on the specified subject data.
 
         This function will be called by `_run` function to conduct experiments
@@ -245,16 +260,26 @@ class ClsExp(Experiment, ABC):
         pass
 
     def _run(self) -> dict:
+        if isinstance(self.dataset, BaseDataset):
+            return self._run_eegdata_set(self.dataset)
+        else:
+            return self._run_eegdata(self.dataset)
+
+    def _run_eegdata(self, dataset: BaseData) -> dict:
+        acc, preds, target, detail = self._run_sub(dataset, self.data_folder)
+        return {"acc": acc, "preds": preds, "target": target, "detail": detail}
+
+    def _run_eegdata_set(self, dataset: BaseDataset) -> dict:
         result = {}
         acc_metric = MeanMetric()
         preds_metric = CatMetric()
         target_metric = CatMetric()
 
-        for subject in self.dataset.keys():
+        for subject in dataset.keys():
             self.logger.info(f"\n[Subject-{subject} Training ...]")
             self.logger.info("-" * 50)
 
-            eegdata = self._process_sub_dataset(subject)
+            eegdata = self._process_sub_dataset(dataset, subject)
             sub_folder = self.data_folder / f"sub{subject}"
             sub_folder.mkdir(parents=True, exist_ok=False)
             acc, preds, target, subject_result = self._run_sub(eegdata, sub_folder)  # type: ignore

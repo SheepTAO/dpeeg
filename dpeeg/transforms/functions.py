@@ -194,8 +194,9 @@ def z_score_norm(
     mean: ndarray | None = None,
     std: ndarray | None = None,
     dim: int | None = None,
+    ret: bool = False,
     verbose=None,
-) -> ndarray | tuple[ndarray, ndarray]:
+):
     r"""Z-score normalization.
 
     .. math::
@@ -218,16 +219,23 @@ def z_score_norm(
         the statistics of the current sample for normalization.
     dim : int, optional
         The dimension to normalize. If None, the entire data is normalized.
+    ret : bool, optional
+        Returns the corresponding calculated parameter.
 
     Returns
     -------
     ndarray
-        Normalized data.
+        Normalized data. Mean and std of data if ``ret`` is True.
     """
     keepdims = False if dim is None else True
     mean = np.mean(data, dim, keepdims=keepdims) if mean is None else mean
     std = np.std(data, dim, keepdims=keepdims) if std is None else std
-    return (data - mean) / std
+    data = (data - mean) / std
+
+    if ret:
+        return data, mean, std
+    else:
+        return data
 
 
 @verbose
@@ -236,8 +244,9 @@ def min_max_norm(
     min: ndarray | None = None,
     max: ndarray | None = None,
     dim: int | None = None,
+    ret: bool = False,
     verbose=None,
-) -> ndarray:
+):
     r"""Min-max normalization.
 
     .. math::
@@ -266,12 +275,17 @@ def min_max_norm(
     Returns
     -------
     ndarray
-        Normalized data.
+        Normalized data. Minimum and maximum of data if ``ret`` is True.
     """
     keepdims = False if dim is None else True
     minimum = np.min(data, dim, keepdims=keepdims) if min is None else min
     maximum = np.max(data, dim, keepdims=keepdims) if max is None else max
-    return (data - minimum) / (maximum - minimum)
+    data = (data - minimum) / (maximum - minimum)
+
+    if ret:
+        return data, minimum, maximum
+    else:
+        return data
 
 
 @verbose
@@ -346,7 +360,6 @@ def segmentation_and_reconstruction_time(
     label: ndarray,
     samples: int = 125,
     multiply: float = 1.0,
-    shuffle: bool = True,
     seed: int = DPEEG_SEED,
     verbose=None,
 ) -> tuple[ndarray, ndarray]:
@@ -369,8 +382,6 @@ def segmentation_and_reconstruction_time(
         250Hz data is segmented by 0.5s.
     multiply : float
         Data expansion multiple of relative metadata, 1 means doubled.
-    shuffle : bool
-        Whether or not to shuffle the data after picking.
     seed : int
         Controls the shuffling applied to the data after picking.
 
@@ -417,11 +428,10 @@ def segmentation_and_reconstruction_time(
     aug_data = np.concatenate(aug_data)
     aug_label = np.concatenate(aug_label)
 
-    if shuffle:
-        rng = np.random.RandomState(seed)
-        shuffle_idx = rng.permutation(aug_label.shape[0])
-        aug_data = aug_data[shuffle_idx]
-        aug_label = aug_label[shuffle_idx]
+    rng = np.random.RandomState(seed)
+    shuffle_idx = rng.permutation(aug_label.shape[0])
+    aug_data = aug_data[shuffle_idx]
+    aug_label = aug_label[shuffle_idx]
 
     return aug_data, aug_label
 
@@ -514,7 +524,7 @@ def label_mapping(
     order: bool = True,
     verbose=None,
 ) -> ndarray:
-    """Rearrange the original label according to mapping rules.
+    """Update the original label according to mapping rules.
 
     Parameters
     ----------
@@ -523,7 +533,7 @@ def label_mapping(
     mapping : ndarray (2, label_num)
         Label mapping relationship. The first row is the original label, and
         the second row is the mapped label. If ``None``, the label will be
-        reordered in ascending order starting from 0.
+        updated in ascending order starting from 0.
     order : bool
         Force the new labels to start incrementing from 0.
 
@@ -739,3 +749,55 @@ def erds_time(
     erds = ((avg_power - ref_avg_power) / ref_avg_power) * 100
 
     return erds, avg_power
+
+
+def np_flatten(data: np.ndarray, start_dim: int = 0, end_dim: int | None = -1):
+    """NumPy implementation of ``torch.flatten``."""
+    size = data.shape
+    s_size = size[:start_dim]
+    e_size = size[end_dim:] if end_dim else ()
+    return data.reshape(*s_size, -1, *e_size)
+
+
+@verbose
+def gaussian_noise_time(
+    data: ndarray,
+    label: ndarray,
+    mean: float,
+    std: float,
+    seed: int = DPEEG_SEED,
+    verbose=None,
+) -> tuple[ndarray, ndarray]:
+    """Randomly add white Gaussian noise.
+
+    Add Gaussian noise to the raw data as new data.
+
+    Parameters
+    ----------
+    data : ndarray (N, ..., T)
+        Add Gaussian white noise to the last dimension of the data. Shape as
+        `(N, ..., T)`, with `N` the number of data and `T` the last dimension
+        of the data.
+    label : ndarray (N,)
+        The label corresponding to the data. Shape as `(N)`.
+    mean : float
+        Mean of the noise distribution.
+    std : float
+        Standard deviation to use for the additive noise.
+    """
+    size = data.shape
+    data = np_flatten(data)
+    rng = np.random.RandomState(seed)
+
+    new_data = np.empty_like(data)
+    for i in range(data.shape[0]):
+        noise = rng.normal(loc=mean, scale=std, size=data[i].shape)
+        new_data[i] = data[i] + noise
+    aug_data = np.concatenate([data.reshape(size), new_data.reshape(size)])
+    aug_label = np.concatenate([label, label])
+
+    shuffle_idx = rng.permutation(aug_label.shape[0])
+    aug_data = aug_data[shuffle_idx]
+    aug_label = aug_label[shuffle_idx]
+
+    return aug_data, aug_label

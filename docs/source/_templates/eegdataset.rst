@@ -3,3 +3,4 @@
 
 .. autoclass:: {{ fullname }}
    :members:
+   :inherited-members:

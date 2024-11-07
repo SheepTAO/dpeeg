@@ -3,6 +3,7 @@
 # License: MIT
 # Copyright the dpeeg contributors.
 
+from email.policy import strict
 from pathlib import Path
 from abc import ABC, abstractmethod
 from collections.abc import Generator, Iterable
@@ -195,7 +196,7 @@ class EEGData(BaseData):
             the specified dimensions in the order given in the list and
             dictionary.
         ignore : bool
-            If `True`, add new key-value pairs from the new eegdata.
+            If ``True``, add new key-value pairs from the new eegdata.
 
         Examples
         --------
@@ -295,7 +296,7 @@ class MultiSessEEGData(BaseData, dict):
     .. Warning::
 
        Do not set the key value to the keywords "train" or "test"; otherwise,
-       please use ``SplitEEGData``.
+       please use :class:`~SplitEEGData`.
 
     Parameters
     ----------
@@ -566,39 +567,43 @@ class EEGDataset(BaseDataset):
 DATA_PATH = Path(DPEEG_DIR) / "datasets"
 
 
-class _EEGDataset(BaseDataset):
-    """DPEEG EEG Dataset."""
+class RawDataset(BaseDataset):
+    """DPEEG Raw EEG Dataset.
+
+    Datasets with ``mne.io.Raw`` as the base class, such as depression, use
+    whether the subject suffers from depression as the label. The ``get_raw()``
+    is used to obtain the raw EEG data of the subject, and ``get_data()`` is
+    used to obtain data in the form of ``EEGData``. Since the raw EEGs of these
+    datasets often have no labels, when calling ``get_data()``, you need to
+    manually set the label through ``_set_label()`` according to different
+    datasets (the label here is in units of run).
+    """
 
     def __init__(
         self,
         repr: dict,
         subject_list: list[int],
-        interval: list[float],
-        event_id: dict[str, int],
+        event_id: dict[str, int] | None = None,
         subjects: list[int] | None = None,
         tmin: float = 0.0,
         tmax: float | None = None,
-        baseline: tuple[int, int] | None = None,
         picks: list[str] | None = None,
         resample: float | None = None,
         unit_factor: float = 1e6,
     ) -> None:
         super().__init__(repr, event_id)
+        self.subjects = subject_list if subjects is None else subjects
         if tmax is not None and tmin >= tmax:
             raise ValueError("tmax must be greater than tmin")
 
-        self.subjects = subject_list if subjects is None else subjects
         if not (set(self.subjects) <= set(subject_list)):
             raise KeyError(f"Subject must be between 1 and {subject_list[-1]}.")
 
-        self.interval = interval
-        self.event_id = event_id
-        self.unit_factor = unit_factor
         self.tmin = tmin
         self.tmax = tmax
-        self.baseline = baseline
         self.picks = picks
         self.resample = resample
+        self.unit_factor = unit_factor
 
     def keys(self) -> list[int]:
         return self.subjects
@@ -614,11 +619,7 @@ class _EEGDataset(BaseDataset):
 
         The returned data is a dictionary with the following structure:
 
-            data = {'subject_id':
-                        {'session_id':
-                            {'run_id': Raw}
-                        }
-                    }
+            data = {'subject_id': {'session_id': {'run_id': Raw}}}
 
         subjects are on top, then we have sessions, then runs.
         A session is a recording done in a single day, without removing the EEG
@@ -637,6 +638,103 @@ class _EEGDataset(BaseDataset):
         for subject in subjects:
             data[subject] = self._get_single_subject_raw(subject, verbose)
         return data
+
+    def _set_label(self, subject: int):
+        return np.empty(0)
+
+    def _get_single_subject_data(self, subject: int, verbose="ERROR"):
+        data = []
+        for session, runs in self._get_single_subject_raw(subject, verbose).items():  # type: ignore
+            raws = []
+            for run, raw in runs.items():
+                if self.resample:
+                    raw.resample(self.resample, verbose=verbose)
+
+                if self.picks is None:
+                    picks = mne.pick_types(raw.info, eeg=True, stim=False)
+                else:
+                    picks = mne.pick_channels(
+                        raw.info["ch_names"], include=self.picks, ordered=True
+                    )
+
+                raws.append(
+                    np.expand_dims(
+                        raw.get_data(
+                            picks=picks,
+                            tmin=self.tmin,
+                            tmax=self.tmax,
+                            verbose=verbose,
+                        ),
+                        axis=0,
+                    )
+                )
+
+            edata = np.concatenate(raws, axis=-1) * self.unit_factor
+            label = self._set_label(subject)
+            data.append(EEGData(edata, label))
+        return MultiSessEEGData(data)
+
+    def get_data(
+        self, progressbar: bool = True, verbose="ERROR"
+    ) -> dict[int, MultiSessEEGData]:
+        """Return the data correspoonding to a list of subjects.
+
+        The returned data is a dictionary with the following structure:
+
+            data = {'subject_id' : {'session_id' : EEGData}}
+        """
+        subjects = tqdm(
+            self.subjects,
+            "Load EEGData",
+            unit="sub",
+            dynamic_ncols=True,
+            disable=not progressbar,
+        )
+
+        data = {}
+        for subject in subjects:
+            data[subject] = self._get_single_subject_data(subject, verbose)
+        return data
+
+
+class EpochsDataset(RawDataset):
+    """DPEEG Epochs EEG Dataset.
+
+    Datasets with ``mne.Epochs`` as the base class, such as motor imagery,
+    where each subject performs a different imagery task. ``get_raw()`` is used
+    to obtain the raw EEG data of each subject, ``get_epochs()`` is used to
+    obtain the Epochs of each subject, and ``get_data()`` is used to obtain the
+    ``EEGData`` of each subject.
+    """
+
+    def __init__(
+        self,
+        repr: dict,
+        subject_list: list[int],
+        interval: list[float],
+        event_id: dict[str, int],
+        subjects: list[int] | None = None,
+        tmin: float = 0.0,
+        tmax: float | None = None,
+        baseline: tuple[int, int] | None = None,
+        picks: list[str] | None = None,
+        resample: float | None = None,
+        unit_factor: float = 1e6,
+    ) -> None:
+        super().__init__(
+            repr=repr,
+            subject_list=subject_list,
+            event_id=event_id,
+            subjects=subjects,
+            tmin=tmin,
+            tmax=tmax,
+            picks=picks,
+            resample=resample,
+            unit_factor=unit_factor,
+        )
+
+        self.interval = interval
+        self.baseline = baseline
 
     def _get_single_subject_epochs(
         self, subject: int, verbose="ERROR"
@@ -661,10 +759,7 @@ class _EEGDataset(BaseDataset):
 
         The returned data is a dictionary with the following structure:
 
-            data = {'subject_id' :
-                        {'session_id' : Epochs}
-                    }
-
+            data = {'subject_id' : {'session_id' : Epochs}}
         """
         subjects = tqdm(
             self.subjects,
@@ -688,30 +783,6 @@ class _EEGDataset(BaseDataset):
         for session, epochs in sessions.items():
             data.append(self._data_from_epochs(epochs, verbose))
         return MultiSessEEGData(data)
-
-    def get_data(
-        self, progressbar: bool = True, verbose="ERROR"
-    ) -> dict[int, MultiSessEEGData]:
-        """Return the data correspoonding to a list of subjects.
-
-        The returned data is a dictionary with the following structure:
-
-            data = {'subject_id' :
-                        {'session_id' : EEGData}
-                    }
-        """
-        subjects = tqdm(
-            self.subjects,
-            "Load EEGData",
-            unit="sub",
-            dynamic_ncols=True,
-            disable=not progressbar,
-        )
-
-        data = {}
-        for subject in subjects:
-            data[subject] = self._get_single_subject_data(subject, verbose)
-        return data
 
     def _epochs_from_raw(self, raw: Raw, verbose="ERROR") -> Epochs:
         events, event_id = self._events_from_raw(raw, verbose)

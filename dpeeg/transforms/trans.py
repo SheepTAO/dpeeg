@@ -89,9 +89,9 @@ class SlideWin(TransformsEGD):
     Parameters
     ----------
     win : int
-        The size of the sliding window.
+        The size of the sliding window (sampling point).
     overlap : int
-        The amount of overlap between adjacent sliding windows.
+        The amount of overlap between adjacent windows (sampling point).
 
     Returns
     -------
@@ -196,7 +196,7 @@ class Transpose(TransformsEGD):
     ----------
     dims : tuple or list of int, optinal
         A tuple or list contains a permutation of [0,1,...,N-1] where N is the
-        number of dims of the key values. The ``i``^th dim of the value will
+        number of dims of the key values. The ``i`` ^th dim of the value will
         correspond to the axis numbered ``dims[i]`` of the input. If not
         specified, reverse the dims order by default.
     key : str
@@ -379,14 +379,14 @@ class ApplyFunc(TransformsEGD):
 
 
 class LabelMapping(TransformsEGD):
-    """Rearrange the original label according to mapping rules.
+    """Update the original label according to mapping rules.
 
     Parameters
     ----------
     mapping : ndarray (2, label_num), optional
         Label mapping relationship. The first row is the original label, and
         the second row is the mapped label. If ``None``, the label will be
-        reordered in ascending order starting from zero.
+        updated in ascending order starting from zero.
     order : bool
         Force the new labels to start incrementing from zero.
 

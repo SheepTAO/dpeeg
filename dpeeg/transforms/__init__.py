@@ -1,4 +1,4 @@
-from .base import Sequential, SplitTrainTest, ToEEGData
+from .base import Sequential, SplitTrainTest, ToEEGData, split_subjects
 from .trans import (
     Identity,
     Crop,
@@ -18,6 +18,7 @@ from .norm import (
 from .aug import (
     SegRecTime,
     SlideWinAug,
+    GaussTime,
 )
 from .metrics import (
     Pearsonr,

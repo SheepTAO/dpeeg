@@ -1,7 +1,7 @@
 from mne.channels import make_standard_montage
 from mne.io import read_raw_edf
 
-from .base import DATA_PATH, _EEGDataset
+from .base import DATA_PATH, EpochsDataset
 from .download import data_dl
 from ..utils import get_init_args
 from ..tools.docs import fill_doc
@@ -11,7 +11,7 @@ URL = "https://web.gin.g-node.org/"
 
 
 @fill_doc
-class HighGamma(_EEGDataset):
+class HighGamma(EpochsDataset):
     """High-gamma dataset described in Schirrmeister et al. 2017.
 
     .. admonition:: Dataset summary

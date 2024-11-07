@@ -1,4 +1,4 @@
-__version__ = "0.4.1"
+__version__ = "0.4.2"
 
 from .datasets import EEGData, MultiSessEEGData, SplitEEGData, save, load
 from . import transforms, exps, models, trainer, tools
