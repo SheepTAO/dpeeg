@@ -173,7 +173,7 @@ class BCICIV2A(EpochsDataset):
         self._data_url = f"{URL}001-2014/"
         self._data_path = DATA_PATH / "bciciv2a"
 
-    def _get_single_subject_raw(self, subject: int, verbose="ERROR"):
+    def _get_subject_raw(self, subject: int, verbose="ERROR"):
         sessions = {}
         for i, r in enumerate(["T", "E"], start=1):
             filename = data_dl(
@@ -292,7 +292,7 @@ class BCICIV2B(EpochsDataset):
         self._data_url = f"{URL}004-2014/"
         self._data_path = DATA_PATH / "bciciv2b"
 
-    def _get_single_subject_raw(self, subject: int, verbose="ERROR"):
+    def _get_subject_raw(self, subject: int, verbose="ERROR"):
         sessions = []
         for i, r in enumerate(["T", "E"], start=1):
             filename = data_dl(

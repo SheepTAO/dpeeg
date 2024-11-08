@@ -1,6 +1,18 @@
 Changelog
 =========
 
+v0.4.3
+----------------
+
+**Project maintenance**
+
+- Add ``register_raw_hook`` method to facilitate preprocessing using ``mne``
+
+**Documentation**
+
+- Fix some document errors
+
+
 v0.4.2
 ----------------
 

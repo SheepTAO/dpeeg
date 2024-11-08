@@ -92,7 +92,7 @@ class HighGamma(EpochsDataset):
         self._data_url = f"{URL}robintibor/high-gamma-dataset/raw/master/data/"
         self._data_path = DATA_PATH / "high_gamma"
 
-    def _get_single_subject_raw(self, subject: int, verbose="ERROR"):
+    def _get_subject_raw(self, subject: int, verbose="ERROR"):
         sessions = {}
         montage = make_standard_montage("standard_1005")
         for i, r in enumerate(["train", "test"], start=1):

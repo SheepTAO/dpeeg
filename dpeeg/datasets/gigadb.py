@@ -119,7 +119,7 @@ class OpenBMI_MI(EpochsDataset):
         test = self._load_run(mat["EEG_MI_test"][0, 0], verbose)
         return {"train": train, "test": test}
 
-    def _get_single_subject_raw(self, subject: int, verbose="ERROR"):
+    def _get_subject_raw(self, subject: int, verbose="ERROR"):
         sessions = {}
         for r in [1, 2]:
             filename = data_dl(

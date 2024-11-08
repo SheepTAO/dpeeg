@@ -60,7 +60,7 @@ net = dpeeg.models.EEGNet(nCh=22, nTime=1000, nCls=4)
 #
 # .. note::
 #    The dataset is not split during initialization, so we usually need to use
-#    :class:`~dpeeg.transforms.SplitTraintTest` to divide the dataset.
+#    :class:`~dpeeg.transforms.SplitTrainTest` to divide the dataset.
 
 trans = transforms.Sequential(
     transforms.SplitTrainTest(

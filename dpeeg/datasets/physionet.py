@@ -142,7 +142,7 @@ class PhysioNet_MI(EpochsDataset):
         raw.set_montage(self._montage)
         return raw
 
-    def _get_single_subject_raw(self, subject: int, verbose="ERROR"):
+    def _get_subject_raw(self, subject: int, verbose="ERROR"):
         session = {}
 
         # hand runs

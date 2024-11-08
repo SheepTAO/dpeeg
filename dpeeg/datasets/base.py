@@ -3,10 +3,9 @@
 # License: MIT
 # Copyright the dpeeg contributors.
 
-from email.policy import strict
 from pathlib import Path
 from abc import ABC, abstractmethod
-from collections.abc import Generator, Iterable
+from collections.abc import Generator, Iterable, Callable
 from typing import Any, TypeAlias, TypeVar, overload
 from copy import deepcopy
 
@@ -432,23 +431,23 @@ class BaseDataset(ABC):
         pass
 
     @abstractmethod
-    def _get_single_subject_data(self, subject: int) -> _DataVar:
+    def _get_subject_data(self, subject: int) -> _DataVar:
         pass
 
     def __getitem__(self, subject: int):
         """Get the subject's eegdata."""
-        return self._get_single_subject_data(subject)
+        return self._get_subject_data(subject)
 
     def __len__(self) -> int:
         return len(self.keys())
 
     def values(self):
         for subject in self.keys():
-            yield self._get_single_subject_data(subject)
+            yield self._get_subject_data(subject)
 
     def items(self):
         for subject in self.keys():
-            subject_data = self._get_single_subject_data(subject)
+            subject_data = self._get_subject_data(subject)
             yield subject, subject_data
 
     def __repr__(self) -> str:
@@ -474,9 +473,9 @@ class EEGDataset(BaseDataset):
     Notes
     -----
     The dataset supports different subjects with different eegdata types (such
-    as ``EEGData``, ``MultiSessEEGData`` and ``SplitEEGData``), but it is
-    recommended to unify the eegdata types of all subjects when performing
-    transformation and training models to avoid unpredictable errors.
+    as :class:`EEGData`, :class:`MultiSessEEGData` and :class:`SplitEEGData`),
+    but it is recommended to unify the eegdata types of all subjects when
+    performing transformation and training model to avoid unpredictable errors.
     """
 
     @overload
@@ -527,14 +526,14 @@ class EEGDataset(BaseDataset):
         """
         self.eegdataset[subject] = eegdata
 
-    def _get_single_subject_data(self, subject: int):
+    def _get_subject_data(self, subject: int):
         return self.eegdataset[subject]
 
     def get_data(self):
         """Returns the eegdata of all subjects."""
         data = {}
         for subject in self.keys():
-            data[subject] = self._get_single_subject_data(subject)
+            data[subject] = self._get_subject_data(subject)
         return data
 
     def keys(self):
@@ -599,6 +598,7 @@ class RawDataset(BaseDataset):
         if not (set(self.subjects) <= set(subject_list)):
             raise KeyError(f"Subject must be between 1 and {subject_list[-1]}.")
 
+        self.raw_hook = None
         self.tmin = tmin
         self.tmax = tmax
         self.picks = picks
@@ -609,8 +609,21 @@ class RawDataset(BaseDataset):
         return self.subjects
 
     @abstractmethod
-    def _get_single_subject_raw(self, subject: int, verbose="ERROR"):
-        return NotImplementedError
+    def _get_subject_raw(
+        self, subject: int, verbose="ERROR"
+    ) -> dict[str, dict[str, Raw]]:
+        pass
+
+    def _get_subject_preprocess_raw(self, subject: int, verbose="ERROR"):
+        sessions = self._get_subject_raw(subject, verbose)
+        # Preprocess the raw if the hook exists
+        if self.raw_hook:
+            for session, runs in sessions.items():
+                for run in runs.keys():
+                    subject_id = f"subject_{subject}:{session}:{run}"
+                    runs[run] = self.raw_hook(subject_id, runs[run])
+
+        return sessions
 
     def get_raw(
         self, progressbar: bool = True, verbose="ERROR"
@@ -636,15 +649,47 @@ class RawDataset(BaseDataset):
 
         data = {}
         for subject in subjects:
-            data[subject] = self._get_single_subject_raw(subject, verbose)
+            data[subject] = self._get_subject_preprocess_raw(subject, verbose)
         return data
+
+    def register_raw_hook(self, hook: Callable[[str, Raw], Raw]):
+        """Register a raw data preprocessing hook function.
+
+        The registered hook function will be applied to the Raw data to perform
+        some pre-processing operations.
+
+        Parameters
+        ----------
+        hook : Callable[[str, Raw], Raw]
+            A callable function that takes a subject id (subject:session:run)
+            and the corresponding subject data as arguments, and returns the
+            subject data.
+
+        See Also
+        --------
+        `mne.io.Raw <https://mne.tools/stable/generated/mne.io.Raw.html>`_
+
+        Examples
+        --------
+        To preprocess raw data, such as applying a notch filter, it can be done
+        by registering a hook function:
+
+        >>> dataset = dpeeg.datasets.BCICIV2A(subjects=[1])
+        >>> func = lambda _, raw: raw.notch_filter(50)
+        >>> dataset.register_raw_hook(func)
+        >>> dataset.get_raw()
+        """
+        if not callable(hook):
+            raise TypeError("hook must be a callable.")
+
+        self.raw_hook = hook
 
     def _set_label(self, subject: int):
         return np.empty(0)
 
-    def _get_single_subject_data(self, subject: int, verbose="ERROR"):
+    def _get_subject_data(self, subject: int, verbose="ERROR"):
         data = []
-        for session, runs in self._get_single_subject_raw(subject, verbose).items():  # type: ignore
+        for session, runs in self._get_subject_preprocess_raw(subject, verbose).items():  # type: ignore
             raws = []
             for run, raw in runs.items():
                 if self.resample:
@@ -693,7 +738,7 @@ class RawDataset(BaseDataset):
 
         data = {}
         for subject in subjects:
-            data[subject] = self._get_single_subject_data(subject, verbose)
+            data[subject] = self._get_subject_data(subject, verbose)
         return data
 
 
@@ -736,11 +781,9 @@ class EpochsDataset(RawDataset):
         self.interval = interval
         self.baseline = baseline
 
-    def _get_single_subject_epochs(
-        self, subject: int, verbose="ERROR"
-    ) -> dict[str, Epochs]:
+    def _get_subject_epochs(self, subject: int, verbose="ERROR") -> dict[str, Epochs]:
         data = {}
-        for session, runs in self._get_single_subject_raw(subject, verbose).items():  # type: ignore
+        for session, runs in self._get_subject_preprocess_raw(subject, verbose).items():  # type: ignore
             epochs = []
             for run, raw in runs.items():
                 proc = self._epochs_from_raw(raw)
@@ -771,13 +814,11 @@ class EpochsDataset(RawDataset):
 
         data = {}
         for subject in subjects:
-            data[subject] = self._get_single_subject_epochs(subject, verbose)
+            data[subject] = self._get_subject_epochs(subject, verbose)
         return data
 
-    def _get_single_subject_data(
-        self, subject: int, verbose="ERROR"
-    ) -> MultiSessEEGData:
-        sessions = self._get_single_subject_epochs(subject, verbose)
+    def _get_subject_data(self, subject: int, verbose="ERROR") -> MultiSessEEGData:
+        sessions = self._get_subject_epochs(subject, verbose)
 
         data = []
         for session, epochs in sessions.items():

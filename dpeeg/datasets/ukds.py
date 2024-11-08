@@ -114,7 +114,7 @@ class MODMA_128_Resting(RawDataset):
         df.index += 1
         return df
 
-    def _get_single_subject_raw(self, subject: int, verbose="ERROR"):
+    def _get_subject_raw(self, subject: int, verbose="ERROR"):
         path_folder = self._parse_zip()
         path_list = sorted(path_folder.glob("*.mat"))
 
