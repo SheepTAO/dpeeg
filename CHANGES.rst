@@ -7,6 +7,7 @@ v0.4.3
 **Project maintenance**
 
 - Add ``register_raw_hook`` method to facilitate preprocessing using ``mne``
+- Add new dataset :class:`~dpeeg.datasets.Ofner2017`
 
 **Documentation**
 

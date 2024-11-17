@@ -71,10 +71,8 @@ class PhysioNet_MI(EpochsDataset):
     %(baseline)s
     %(picks)s
     %(resample)s
-    imagined: bool (default True)
-        if True, return runs corresponding to motor imagination.
-    executed: bool (default False)
-        if True, return runs corresponding to motor execution.
+    %(imagined)s
+    %(executed)s
     %(rename)s
     """
 
@@ -90,6 +88,9 @@ class PhysioNet_MI(EpochsDataset):
         executed: bool = False,
         rename: str | None = None,
     ) -> None:
+        if (not imagined) and (not executed):
+            raise AttributeError("At least one of imagined and executed is True")
+
         super().__init__(
             repr=get_init_args(self, locals(), rename=rename, ret_dict=True),
             subject_list=list(range(1, 110)),

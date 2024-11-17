@@ -45,6 +45,7 @@ Motor Imagery Datasets
    OpenBMI_MI
    HighGamma
    PhysioNet_MI
+   Ofner2017
 
 Major Depression Dataset
 **********************************

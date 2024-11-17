@@ -57,6 +57,19 @@ docdict["trans_ret"] = """
 
 """
 
+docdict["executed"] = """
+executed: bool
+    if True, return runs corresponding to motor execution.
+"""
+
+# %%
+# I
+
+docdict["imagined"] = """
+imagined: bool
+    if True, return runs corresponding to motor imagination.
+"""
+
 # %%
 # N
 
