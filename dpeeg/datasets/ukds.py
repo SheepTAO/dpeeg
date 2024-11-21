@@ -90,14 +90,8 @@ class MODMA_128_Resting(RawDataset):
         )
 
     def _parse_zip(self):
-        path_zip = data_dl(self._data_url, self._data_path)
-
-        # Extract the zip file if it hasn't been extracted yet
+        data_dl(self._data_url, self._data_path, processor="unzip")
         path_folder = self._data_path / "EEG_128channels_resting_lanzhou_2015"
-        if not path_folder.exists():
-            print("The first read requires decompressing all data.")
-            with ZipFile(path_zip, "r") as zipf:
-                zipf.extractall(self._data_path)
 
         return path_folder
 

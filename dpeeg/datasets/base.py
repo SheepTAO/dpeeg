@@ -560,6 +560,10 @@ class EEGDataset(BaseDataset):
             f", type={iterable_to_str(self._eegdata_type(), symbol='|')}"
         )
         self._repr["eegdataset"] = eegdataset
+        if self._repr.get("transforms"):
+            trans_repr = map(str, self._repr["transforms"])
+            self._repr["transforms"] = "\n".join(trans_repr)
+
         return _format_log(self._repr)
 
 

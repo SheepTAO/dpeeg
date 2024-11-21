@@ -7,7 +7,6 @@ from abc import ABC, abstractmethod
 from typing import overload, Literal
 
 from mne.utils import verbose, logger
-import test
 
 from ..datasets.base import (
     _DataAlias,
@@ -116,6 +115,11 @@ class Transforms(ABC):
                 dataset = EEGDataset(
                     event_id=eegdata.event_id, rename=eegdata._repr["_obj_name"]
                 )
+                if eegdata._repr.get("transforms"):
+                    dataset._repr["transforms"] = [*eegdata._repr["transforms"], self]
+                else:
+                    dataset._repr["transforms"] = [self]
+
                 for subject, egd in eegdata.items():
                     logger.info(f"Transform subject {subject}")
                     dataset[subject] = self._apply_wrap(egd, subject)

@@ -8,9 +8,6 @@ from ..utils import get_init_args
 from ..tools.docs import fill_doc
 
 
-URL = "https://zenodo.org/record/"
-
-
 @fill_doc
 class Ofner2017(EpochsDataset):
     """Upper limb motor imagery dataset from Ofner et al 2017.
@@ -106,9 +103,10 @@ class Ofner2017(EpochsDataset):
             baseline=baseline,
             picks=picks,
             resample=resample,
+            unit_factor=1,
         )
         self._data_path = DATA_PATH / "ofner2017"
-        self._data_url = f"{URL}834976/files/"
+        self._data_url = "doi:10.5281/zenodo.834976"
 
         self._eog = ["eog-l", "eog-m", "eog-r"]
         self._montage = make_standard_montage("standard_1005")
@@ -125,7 +123,7 @@ class Ofner2017(EpochsDataset):
             data = {}
             for run in range(1, 11):
                 filename = data_dl(
-                    f"{self._data_url}motor{session}_subject{subject}_run{run}.gdf",
+                    f"{self._data_url}/motor{session}_subject{subject}_run{run}.gdf",
                     path=self._data_path,
                     force_update=False,
                 )

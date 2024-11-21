@@ -1,21 +1,24 @@
 Changelog
 =========
 
-v0.4.3
-----------------
+v0.4.3 (2024-)
+-------------------------------------------------------------------------------
 
 **Project maintenance**
 
 - Add ``register_raw_hook`` method to facilitate preprocessing using ``mne``
-- Add new dataset :class:`~dpeeg.datasets.Ofner2017`
+- Add new dataset :class:`~dpeeg.datasets.Ofner2017`, 
+  :class:`~dpeeg.datasets.MI_2`
+- :class:`~dpeeg.EEGDataset` supports recording the applied 
+  :doc:`./api/transforms`
 
 **Documentation**
 
 - Fix some document errors
 
 
-v0.4.2
-----------------
+v0.4.2 (2024-11-07)
+-------------------------------------------------------------------------------
 
 **Project maintenance**
 
@@ -32,8 +35,8 @@ v0.4.2
 - Supplement the cross-references in the document to improve readability
 
 
-v0.4.1
-----------------
+v0.4.1 (2024-10-16)
+-------------------------------------------------------------------------------
 
 **Project maintenance**
 
@@ -49,8 +52,8 @@ v0.4.1
 - Use ``mne`` document decorator to reduce duplication
 
 
-v0.4.0
-----------------
+v0.4.0 (2024-09-07)
+-------------------------------------------------------------------------------
 
 **Documentation**
 

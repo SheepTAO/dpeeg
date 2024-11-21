@@ -588,7 +588,7 @@ def label_mapping(
 def pick_label(
     *data: ndarray,
     label: ndarray,
-    pick: ndarray,
+    pick: ndarray | list,
     order: bool = False,
     shuffle: bool = True,
     seed: int = DPEEG_SEED,

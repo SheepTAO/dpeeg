@@ -16,6 +16,7 @@ install_requires = [
     "tensorboard",
     "pandas>=1.5.2",
     "openpyxl",
+    "pymatreader",  # for mne.io.read_raw_eeglab when mne <= 1.8
 ]
 
 with open("README.md", "r", encoding="utf-8") as f:

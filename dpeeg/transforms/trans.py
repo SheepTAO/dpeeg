@@ -431,7 +431,7 @@ class PickLabel(TransformsEGD):
 
     Parameters
     ----------
-    pick : ndarray
+    pick : list of int
         Label to include.
     keys : list of str, optional
         The key of the eegdata value to be transformed, if required. Applies to
@@ -474,7 +474,7 @@ class PickLabel(TransformsEGD):
 
     def __init__(
         self,
-        pick: ndarray,
+        pick: list[int],
         keys: list[str] | None = None,
         order: bool = True,
         shuffle: bool = True,
