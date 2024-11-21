@@ -2,7 +2,7 @@ import numpy as np
 from mne.io import read_raw_edf
 from mne.channels import make_standard_montage
 
-from .base import EpochsDataset, DATA_PATH
+from .base import EpochsDataset
 from .download import data_dl
 from ..utils import get_init_args
 from ..tools.docs import fill_doc
@@ -93,6 +93,7 @@ class PhysioNet_MI(EpochsDataset):
 
         super().__init__(
             repr=get_init_args(self, locals(), rename=rename, ret_dict=True),
+            sign="physionet_mi",
             subject_list=list(range(1, 110)),
             interval=[0.0, 3.0],
             event_id={
@@ -109,7 +110,6 @@ class PhysioNet_MI(EpochsDataset):
             picks=picks,
             resample=resample,
         )
-        self._data_path = DATA_PATH / "physionet_mi"
         self._data_url = f"{URL}eegmmidb/1.0.0/"
 
         # fmt: off
@@ -133,7 +133,7 @@ class PhysioNet_MI(EpochsDataset):
     def _load_run(self, subject, run, verbose):
         filename = data_dl(
             f"{self._data_url}S{subject:03d}/S{subject:03d}R{run:02d}.edf",
-            self._data_path,
+            self.get_dataset_path(),
             force_update=False,
         )
         raw = read_raw_edf(filename, preload=True, verbose=verbose)

@@ -5,7 +5,7 @@ from mne.channels import make_standard_montage
 from mne.io import RawArray
 from mne import create_info
 
-from .base import EpochsDataset, DATA_PATH
+from .base import EpochsDataset
 from .download import data_dl
 from ..utils import get_init_args
 from ..tools.docs import fill_doc
@@ -152,6 +152,7 @@ class BCICIV2A(EpochsDataset):
     ) -> None:
         super().__init__(
             repr=get_init_args(self, locals(), rename=rename, ret_dict=True),
+            sign="bciciv2a",
             subject_list=list(range(1, 10)),
             interval=[2.0, 6.0],
             event_id={"left_hand": 1, "right_hand": 2, "feet": 3, "tongue": 4},
@@ -171,14 +172,13 @@ class BCICIV2A(EpochsDataset):
         # fmt: on
         self._ch_types = ["eeg"] * 22 + ["eog"] * 3
         self._data_url = f"{URL}001-2014/"
-        self._data_path = DATA_PATH / "bciciv2a"
 
     def _get_subject_raw(self, subject: int, verbose="ERROR"):
         sessions = {}
         for i, r in enumerate(["T", "E"], start=1):
             filename = data_dl(
                 f"{self._data_url}A{subject:02d}{r}.mat",
-                self._data_path,
+                self.get_dataset_path(),
                 force_update=False,
             )
             runs, _ = _convert_mi(
@@ -277,6 +277,7 @@ class BCICIV2B(EpochsDataset):
     ) -> None:
         super().__init__(
             repr=get_init_args(self, locals(), rename=rename, ret_dict=True),
+            sign="bciciv2b",
             subject_list=list(range(1, 10)),
             interval=[3.0, 7.5],
             event_id={"left_hand": 1, "right_hand": 2},
@@ -290,14 +291,13 @@ class BCICIV2B(EpochsDataset):
         self._ch_names = ["C3", "Cz", "C4", "EOG1", "EOG2", "EOG3"]
         self._ch_types = ["eeg"] * 3 + ["eog"] * 3
         self._data_url = f"{URL}004-2014/"
-        self._data_path = DATA_PATH / "bciciv2b"
 
     def _get_subject_raw(self, subject: int, verbose="ERROR"):
         sessions = []
         for i, r in enumerate(["T", "E"], start=1):
             filename = data_dl(
                 f"{self._data_url}B{subject:02d}{r}.mat",
-                self._data_path,
+                self.get_dataset_path(),
                 force_update=False,
             )
             runs, _ = _convert_mi(

@@ -4,7 +4,7 @@ from mne.channels import make_standard_montage
 from mne.io import RawArray
 from mne import create_info
 
-from .base import EpochsDataset, DATA_PATH
+from .base import EpochsDataset
 from .download import data_dl
 from ..utils import get_init_args
 from ..tools.docs import fill_doc
@@ -75,6 +75,7 @@ class OpenBMI_MI(EpochsDataset):
     ) -> None:
         super().__init__(
             repr=get_init_args(self, locals(), rename=rename, ret_dict=True),
+            sign="openbmi_mi",
             subject_list=list(range(1, 55)),
             interval=[0.0, 4.0],
             event_id={"right_hand": 1, "left_hand": 2},
@@ -86,7 +87,6 @@ class OpenBMI_MI(EpochsDataset):
             resample=resample,
         )
         self._data_url = f"{URL}10.5524/100001_101000/100542/"
-        self._data_path = DATA_PATH / "openbmi_mi"
 
     def _load_run(self, data, verbose):
         sfreq = data["fs"].item()
@@ -124,7 +124,7 @@ class OpenBMI_MI(EpochsDataset):
         for r in [1, 2]:
             filename = data_dl(
                 f"{self._data_url}session{r}/s{subject}/sess{r:02d}_subj{subject:02d}_EEG_MI.mat",
-                self._data_path,
+                self.get_dataset_path(),
                 force_update=False,
             )
             sessions[f"session_{r}"] = self._load_sess(filename, verbose)

@@ -1,7 +1,7 @@
 from mne.channels import make_standard_montage
 from mne.io import read_raw_edf
 
-from .base import DATA_PATH, EpochsDataset
+from .base import EpochsDataset
 from .download import data_dl
 from ..utils import get_init_args
 from ..tools.docs import fill_doc
@@ -79,6 +79,7 @@ class HighGamma(EpochsDataset):
     ) -> None:
         super().__init__(
             repr=get_init_args(self, locals(), rename=rename, ret_dict=True),
+            sign="high_gamma",
             subject_list=list(range(1, 15)),
             interval=[0.0, 4.0],
             event_id={"right_hand": 1, "left_hand": 2, "rest": 3, "feet": 4},
@@ -90,7 +91,6 @@ class HighGamma(EpochsDataset):
             resample=resample,
         )
         self._data_url = f"{URL}robintibor/high-gamma-dataset/raw/master/data/"
-        self._data_path = DATA_PATH / "high_gamma"
 
     def _get_subject_raw(self, subject: int, verbose="ERROR"):
         sessions = {}
@@ -98,7 +98,7 @@ class HighGamma(EpochsDataset):
         for i, r in enumerate(["train", "test"], start=1):
             filename = data_dl(
                 f"{self._data_url}{r}/{subject:d}.edf",
-                self._data_path / r,
+                self.get_dataset_path() / r,
                 force_update=False,
             )
             raw = read_raw_edf(

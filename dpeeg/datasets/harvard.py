@@ -5,7 +5,7 @@ import numpy as np
 from scipy.io import loadmat
 from mne.io import read_raw_eeglab, read_raw_cnt
 
-from .base import EpochsDataset, DATA_PATH, MultiSessEEGData, EEGData
+from .base import EpochsDataset, MultiSessEEGData, EEGData
 from .download import data_dl
 from ..utils import get_init_args
 from ..tools.docs import fill_doc
@@ -102,6 +102,7 @@ class MI_2(EpochsDataset):
     ) -> None:
         super().__init__(
             repr=get_init_args(self, locals(), rename=rename, ret_dict=True),
+            sign="mi_2",
             subject_list=list(range(1, 26)),
             interval=[0, 4],
             event_id={"rest": 0, "hand": 1, "elbow": 2},
@@ -112,7 +113,6 @@ class MI_2(EpochsDataset):
             picks=picks,
             resample=resample,
         )
-        self._data_path = DATA_PATH / "mi_2"
         self._data_url = "doi:10.7910/DVN/RBN3XG/"
         self.stage = stage
 
@@ -135,7 +135,7 @@ class MI_2(EpochsDataset):
             sessions = {}
             for session in range(1, 20):
                 url = f"{self._data_url}sub-{subject:03d}_ses-{session:02d}_task"
-                path = self._data_path / "sourcedata" / f"sub{subject:03d}"
+                path = self.get_dataset_path() / "sourcedata" / f"sub{subject:03d}"
                 task_type = "motorimagery" if session < 16 else "rest"
                 filename = data_dl(f"{url}-{task_type}_eeg.cnt", path, False)
 
@@ -153,7 +153,7 @@ class MI_2(EpochsDataset):
             sessions = {}
             for session in range(1, 20):
                 url = f"{self._data_url}sub-{subject:03d}_ses-{session:02d}_task"
-                path = self._data_path / f"sub{subject:03d}"
+                path = self.get_dataset_path() / f"sub{subject:03d}"
 
                 task_type = "motorimagery" if session < 16 else "rest"
                 file_ext = [
@@ -178,7 +178,7 @@ class MI_2(EpochsDataset):
         elif self.stage == "trial":
             filename = data_dl(
                 f"{self._data_url}sub-{subject:03d}_task-motorimagery_eeg.mat",
-                path=self._data_path / "derivatives",
+                path=self.get_dataset_path() / "derivatives",
                 force_update=False,
             )
             data = loadmat(filename)

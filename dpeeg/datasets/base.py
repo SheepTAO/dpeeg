@@ -13,6 +13,8 @@ import mne
 import numpy as np
 from mne.io import Raw
 from mne import Epochs
+from mne import get_config, set_config
+from mne.datasets.utils import _get_path
 from tqdm import tqdm
 from numpy import ndarray
 
@@ -580,11 +582,17 @@ class RawDataset(BaseDataset):
     datasets often have no labels, when calling ``get_data()``, you need to
     manually set the label through ``_set_label()`` according to different
     datasets (the label here is in units of run).
+
+    Parameters
+    ----------
+    sign : str
+        Signifier of dataset.
     """
 
     def __init__(
         self,
         repr: dict,
+        sign: str,
         subject_list: list[int],
         event_id: dict[str, int] | None = None,
         subjects: list[int] | None = None,
@@ -603,6 +611,8 @@ class RawDataset(BaseDataset):
             raise KeyError(f"Subject must be between 1 and {subject_list[-1]}.")
 
         self.raw_hook = None
+        self.sign_data = f"DPEEG_{sign.lower()}_data"
+        self.sign_path = f"DPEEG_DATASETS_{sign.upper()}_PATH"
         self.tmin = tmin
         self.tmax = tmax
         self.picks = picks
@@ -611,6 +621,47 @@ class RawDataset(BaseDataset):
 
     def keys(self) -> list[int]:
         return self.subjects
+
+    # This code is from
+    # https://github.com/NeuroTechX/moabb/blob/develop/moabb/datasets/download.py (BSD)
+    def get_dataset_path(self) -> Path:
+        """Returns the dataset path allowing for changes in MNE_DATA config."""
+        if get_config(self.sign_path) is None:
+            if get_config("MNE_DATA") is None:
+                path_def = Path.home() / "mne_data"
+                print(
+                    "MNE_DATA is not already configured. It will be set to default"
+                    f"location in the home directory - {str(path_def)}\n"
+                    "All datasets will be downloaded to this location, if anything is"
+                    "already downloaded, please move manually to this location"
+                )
+                if not path_def.is_dir():
+                    path_def.mkdir(parents=True)
+                set_config("MNE_DATA", str(path_def))
+            set_config(self.sign_path, Path(get_config("MNE_DATA")) / self.sign_data)  # type: ignore
+        return Path(get_config(self.sign_path))  # type: ignore
+
+    def set_dataset_path(self, path: str | Path | None = None) -> Path:
+        """Set the data storage location.
+
+        Parameters
+        ----------
+        path : None, str, Path
+            Location of where to look for the data storing location.
+            If None, the environment variable or config parameter
+            ``MNE_DATA_PATH`` is used. If it doesn't exist,
+            the "~/mne_data" directory is used.
+
+        Returns
+        -------
+        path : Path
+            Return the old data storage location.
+        """
+        old_dataset_path = self.get_dataset_path()
+        if path is None:
+            path = Path(get_config("MNE_DATA"))  # type: ignore
+        set_config(self.sign_path, Path(path).absolute() / self.sign_data)
+        return old_dataset_path
 
     @abstractmethod
     def _get_subject_raw(
@@ -759,6 +810,7 @@ class EpochsDataset(RawDataset):
     def __init__(
         self,
         repr: dict,
+        sign: str,
         subject_list: list[int],
         interval: list[float],
         event_id: dict[str, int],
@@ -772,6 +824,7 @@ class EpochsDataset(RawDataset):
     ) -> None:
         super().__init__(
             repr=repr,
+            sign=sign,
             subject_list=subject_list,
             event_id=event_id,
             subjects=subjects,

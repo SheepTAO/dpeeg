@@ -11,6 +11,7 @@ v0.4.3 (2024-)
   :class:`~dpeeg.datasets.MI_2`
 - :class:`~dpeeg.EEGDataset` supports recording the applied 
   :doc:`./api/transforms`
+- Online datasets support setting storage location
 
 **Documentation**
 

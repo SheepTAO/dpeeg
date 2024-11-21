@@ -2,7 +2,7 @@ import numpy as np
 from mne.io import read_raw_gdf
 from mne.channels import make_standard_montage
 
-from .base import DATA_PATH, EpochsDataset
+from .base import EpochsDataset
 from .download import data_dl
 from ..utils import get_init_args
 from ..tools.docs import fill_doc
@@ -86,6 +86,7 @@ class Ofner2017(EpochsDataset):
 
         super().__init__(
             repr=get_init_args(self, locals(), rename=rename, ret_dict=True),
+            sign="ofner2017",
             subject_list=list(range(1, 16)),
             interval=[0, 3],
             event_id={
@@ -105,7 +106,6 @@ class Ofner2017(EpochsDataset):
             resample=resample,
             unit_factor=1,
         )
-        self._data_path = DATA_PATH / "ofner2017"
         self._data_url = "doi:10.5281/zenodo.834976"
 
         self._eog = ["eog-l", "eog-m", "eog-r"]
@@ -124,7 +124,7 @@ class Ofner2017(EpochsDataset):
             for run in range(1, 11):
                 filename = data_dl(
                     f"{self._data_url}/motor{session}_subject{subject}_run{run}.gdf",
-                    path=self._data_path,
+                    path=self.get_dataset_path(),
                     force_update=False,
                 )
 

@@ -1,12 +1,11 @@
 import numpy as np
 import pandas as pd
-from zipfile import ZipFile
 from scipy.io import loadmat
 from mne.channels import make_standard_montage
 from mne import create_info
 from mne.io import RawArray
 
-from .base import RawDataset, DATA_PATH
+from .base import RawDataset
 from .download import data_dl
 from ..utils import get_init_args
 from ..tools.docs import fill_doc
@@ -72,6 +71,7 @@ class MODMA_128_Resting(RawDataset):
 
         super().__init__(
             repr=get_init_args(self, locals(), rename=rename, ret_dict=True),
+            sign="modma",
             subject_list=list(range(1, 54)),
             event_id={"major_depressive_disorder": 1, "healthy_controls": 2},
             subjects=subjects,
@@ -83,15 +83,14 @@ class MODMA_128_Resting(RawDataset):
         self._data_url = (
             f"{URL}854301/4/854301_EEG_128Channels_Resting_Lanzhou_2015.zip"
         )
-        self._data_path = DATA_PATH / "modma"
         self._montage = make_standard_montage("GSN-HydroCel-129")
         self._info = create_info(
             ch_names=self._montage.ch_names, sfreq=250.0, ch_types="eeg"
         )
 
     def _parse_zip(self):
-        data_dl(self._data_url, self._data_path, processor="unzip")
-        path_folder = self._data_path / "EEG_128channels_resting_lanzhou_2015"
+        data_dl(self._data_url, self.get_dataset_path(), processor="unzip")
+        path_folder = self.get_dataset_path() / "EEG_128channels_resting_lanzhou_2015"
 
         return path_folder
 
