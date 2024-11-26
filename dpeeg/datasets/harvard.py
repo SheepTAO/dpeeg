@@ -20,7 +20,7 @@ class MI_2(EpochsDataset):
         ====== ====== ======= ===== ======== ======
         Subj   Chan   Time    Cls   Freq     Sess
         ====== ====== ======= ===== ======== ======
-        25     64     4 s     3     1000 Hz  19
+        25     62     4 s     3     1000 Hz  19
         ====== ====== ======= ===== ======== ======
 
     This data set was collected from 25 right-handed healthy subjects (19

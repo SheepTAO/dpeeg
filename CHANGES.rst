@@ -12,6 +12,7 @@ v0.4.3 (2024-)
 - :class:`~dpeeg.EEGDataset` supports recording the applied 
   :doc:`./api/transforms`
 - Online datasets support setting storage location
+- :class:`~dpeeg.transforms.SlideWin` add ``flatten`` parameters
 
 **Documentation**
 

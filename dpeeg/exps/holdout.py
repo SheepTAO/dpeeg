@@ -28,7 +28,7 @@ class HoldOut(ClsExp):
     def __init__(
         self,
         trainer: BaseClassifier,
-        out_folder: str | None = None,
+        out_folder: str,
         timestamp: bool = True,
         verbose: int | str = "INFO",
     ) -> None:

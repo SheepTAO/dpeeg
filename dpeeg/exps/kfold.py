@@ -75,7 +75,7 @@ class KFold(ClsExp):
     def __init__(
         self,
         trainer: BaseClassifier,
-        out_folder: str | None = None,
+        out_folder: str,
         k: int = 5,
         isolate_testset: bool = True,
         shuffle: bool = True,

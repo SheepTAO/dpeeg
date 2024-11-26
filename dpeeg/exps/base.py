@@ -16,7 +16,7 @@ from ..transforms.base import Transforms
 from ..trainer.base import Trainer
 from ..trainer.classifier import BaseClassifier
 from ..tools import Logger, Timer, Filer
-from ..utils import DPEEG_DIR, iterable_to_str, _format_log, _format_log_kv
+from ..utils import iterable_to_str, _format_log, _format_log_kv
 
 
 class Experiment(ABC):
@@ -30,8 +30,8 @@ class Experiment(ABC):
         Trainer used for training module on dataset.
     out_folder : str, optional
         Store all experimental results in a folder named with the model class
-        name in the specified folder. Default is
-        '~/dpeeg/out/model/exp/dataset/timestamp'.
+        name in the specified folder.
+        Like 'out_folder/model/exp/dataset/timestamp'.
     timestamp : bool
         Output folders are timestamped.
     verbose : int, str
@@ -50,7 +50,7 @@ class Experiment(ABC):
         self,
         repr: dict,
         trainer: Trainer,
-        out_folder: str | None = None,
+        out_folder: str,
         timestamp: bool = True,
         verbose: int | str = "INFO",
     ) -> None:
@@ -67,11 +67,7 @@ class Experiment(ABC):
         # set output folder
         net = trainer.model.__class__.__name__
         exp = self.__class__.__name__
-        self.out_folder = (
-            Path(out_folder).absolute().joinpath(net, exp)
-            if out_folder
-            else Path(DPEEG_DIR).joinpath("out", net, exp)
-        )
+        self.out_folder = Path(out_folder).absolute().joinpath(net, exp)
 
     @abstractmethod
     def _run(self) -> dict:
@@ -184,7 +180,7 @@ class ClsExp(Experiment, ABC):
         self,
         repr: dict,
         trainer: BaseClassifier,
-        out_folder: str | None = None,
+        out_folder: str,
         timestamp: bool = True,
         verbose: int | str = "INFO",
     ) -> None:

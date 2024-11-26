@@ -92,6 +92,9 @@ class SlideWin(TransformsEGD):
         The size of the sliding window (sampling point).
     overlap : int
         The amount of overlap between adjacent windows (sampling point).
+    flatten : bool
+        If True, return each window as a separate sample. If False, concatenate
+        windowed data along one dimension.
 
     Returns
     -------
@@ -104,18 +107,25 @@ class SlideWin(TransformsEGD):
     ...                         label=np.random.randint(0, 3, 16))
     >>> transforms.SlideWin(3, 1)(eegdata, verbose=False)
     [edata=(64, 3, 3), label=(64,)]
+
+    Or concatenate the window data as a new sample:
+
+    >>> eegdata = transforms.SlideWin(2, flatten=False)(eegdata, verbose=False)
+    [edata=(16, 5, 3, 2), label=(16,)]
     """
 
-    def __init__(self, win: int, overlap: int = 0) -> None:
+    def __init__(self, win: int, overlap: int = 0, flatten: bool = True) -> None:
         super().__init__(get_init_args(self, locals(), format="rp"))
         self.win = win
         self.overlap = overlap
+        self.flatten = flatten
 
     def _apply_egd(self, egd: EEGData, key: str | None):
         egd["edata"], egd["label"] = slide_win(
             data=egd["edata"],
             win=self.win,
             overlap=self.overlap,
+            flatten=self.flatten,
             label=egd["label"],
         )
 

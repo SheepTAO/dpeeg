@@ -15,7 +15,6 @@ import numpy as np
 
 
 DPEEG_SEED: int = 42  # Life, the Universe and Everything
-DPEEG_DIR = os.path.join(os.path.expanduser("~"), "dpeeg")
 
 
 def set_log_level(verbose=None, return_old_level=False):

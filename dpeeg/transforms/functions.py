@@ -293,6 +293,7 @@ def slide_win(
     data: ndarray,
     win: int,
     overlap: int = 0,
+    flatten: bool = True,
     label: ndarray | None = None,
     verbose=None,
 ) -> tuple[ndarray, ndarray | None]:
@@ -310,6 +311,9 @@ def slide_win(
         The size of the sliding window.
     overlap : int
         The amount of overlap between adjacent sliding windows.
+    flatten : bool
+        If True, return each window as a separate sample. If False, concatenate
+        windowed data along one dimension.
     label : ndarray (N,), None
         The label of the data. If not None, label will update with sliding window.
 
@@ -329,7 +333,7 @@ def slide_win(
     if overlap >= win:
         raise ValueError(f"overlap={overlap} should be less than win={win}.")
 
-    if isinstance(label, ndarray) and len(data) != len(label):
+    if (label is not None) and (len(data) != len(label)):
         raise ValueError("The number of label and data must be the same.")
 
     end = win
@@ -341,16 +345,17 @@ def slide_win(
     sld_num = 0
     data_list = []
     while end <= times:
-        data_list.append(data[..., end - win : end])
+        sld = data[..., end - win : end]
+        data_list.append(sld if flatten else np.expand_dims(sld, axis=1))
         sld_num += 1
         end += win - overlap
 
-    data = np.concatenate(data_list)
-    shuffle = np.random.permutation(len(data))
-    data = data[shuffle]
-    if isinstance(label, ndarray):
-        label = np.repeat(label, sld_num)
-        label = label[shuffle]
+    if flatten:
+        data = np.concatenate(data_list)
+        if label is not None:
+            label = np.repeat(label, sld_num)
+    else:
+        data = np.concatenate(data_list, axis=1)
     return data, label
 
 

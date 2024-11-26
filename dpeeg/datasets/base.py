@@ -23,7 +23,6 @@ from ..utils import (
     iterable_to_str,
     mapping_to_str,
     _format_log,
-    DPEEG_DIR,
 )
 
 
@@ -386,30 +385,30 @@ class SplitEEGData(BaseData):
                 f"the test data shape {test.shape}."
             )
 
-        self.data = {"train": train, "test": test}
+        self._data = {"train": train, "test": test}
 
     def __setitem__(self, key: str, value: EEGData) -> None:
         if key not in ["train", "test"]:
             raise KeyError("The key must be train or test")
-        self.data[key] = value
+        self._data[key] = value
 
     def __getitem__(self, key: str) -> EEGData:
-        return self.data[key]
+        return self._data[key]
 
     def trials(self) -> tuple[int, int]:
         """Returns the number of trials for training and testing data
         respectively.
         """
-        train_trials = len(self.data["train"]["label"])
-        test_trials = len(self.data["test"]["label"])
+        train_trials = len(self._data["train"]["label"])
+        test_trials = len(self._data["test"]["label"])
         return train_trials, test_trials
 
     def _datas(self) -> Generator[tuple[EEGData, str], None, None]:
-        for mode, eegdata in self.data.items():
+        for mode, eegdata in self._data.items():
             yield eegdata, mode
 
     def __repr__(self) -> str:
-        return f"Train: {self.data['train']}\n" f"Test : {self.data['test']}"
+        return f"Train: {self._data['train']}\n" f"Test : {self._data['test']}"
 
 
 _DataAlias: TypeAlias = EEGData | MultiSessEEGData | SplitEEGData
@@ -569,9 +568,6 @@ class EEGDataset(BaseDataset):
         return _format_log(self._repr)
 
 
-DATA_PATH = Path(DPEEG_DIR) / "datasets"
-
-
 class RawDataset(BaseDataset):
     """DPEEG Raw EEG Dataset.
 
@@ -611,7 +607,7 @@ class RawDataset(BaseDataset):
             raise KeyError(f"Subject must be between 1 and {subject_list[-1]}.")
 
         self.raw_hook = None
-        self.sign_data = f"DPEEG_{sign.lower()}_data"
+        self.sign_data = f"DPEEG-{sign.lower()}-data"
         self.sign_path = f"DPEEG_DATASETS_{sign.upper()}_PATH"
         self.tmin = tmin
         self.tmax = tmax
