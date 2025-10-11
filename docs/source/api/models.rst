@@ -4,7 +4,7 @@ Models
 .. currentmodule:: dpeeg.models
 
 Motor Imagery
-------------------------
+------------------------------------------------------------------------------
 
 .. autosummary::
    :toctree: ../generated
@@ -20,8 +20,18 @@ Motor Imagery
    EEGConformer
    MSVTNet
 
+Event-Related Potentials
+------------------------------------------------------------------------------
+
+.. autosummary::
+   :toctree: ../generated
+   :nosignatures:
+   :template: models.rst
+
+   EEGInception
+
 Utils
-------------------------
+------------------------------------------------------------------------------
 
 .. currentmodule:: dpeeg.models.utils
 
@@ -32,3 +42,4 @@ Utils
 
    Conv2dWithNorm
    LinearWithNorm
+   LogVarLayer

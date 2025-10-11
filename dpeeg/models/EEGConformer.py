@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
-from torch import Tensor, fill
+from torch import Tensor
 from einops import rearrange
 from einops.layers.torch import Rearrange
 
@@ -144,7 +144,7 @@ class ClassificationHead(nn.Sequential):
 @fill_doc
 class EEGConformer(nn.Module):
     """EEG Conformer: Convolutional Transformer for EEG Decoding and
-    Visualization (EEG Conformer).
+    Visualization
 
     EEG Conformer [1]_ is proposed to encapsulate local and global features in
     a unified EEG classification framework. The architecture comprises three
@@ -209,6 +209,7 @@ class EEGConformer(nn.Module):
         in_freatures = self._forward_transformer().size(1)
         self.classification_head = ClassificationHead(in_freatures, nCls)
 
+    @torch.no_grad()
     def _forward_transformer(self) -> torch.Tensor:
         x = torch.randn(1, 1, self.nCh, self.nTime)
         x = self.patch_embedding(x)

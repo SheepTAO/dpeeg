@@ -7,10 +7,9 @@ from pathlib import Path
 from abc import ABC, abstractmethod
 from inspect import getmro
 
-import torch
-from torchmetrics.aggregation import CatMetric, MeanMetric
+import numpy as np
 
-import dpeeg
+from .. import __version__
 from ..datasets.base import SplitEEGData, BaseDataset, BaseData
 from ..transforms.base import Transforms
 from ..trainer.base import Trainer
@@ -56,7 +55,9 @@ class Experiment(ABC):
     ) -> None:
         repr.pop("trainer")
         self._repr = repr
+        self._buffers = {}
         self.trainer = trainer
+        self.trainer._set_controller(self)
         self.timestamp = timestamp
         self.verbose = verbose
 
@@ -65,9 +66,29 @@ class Experiment(ABC):
         self.timer = Timer()
 
         # set output folder
-        net = trainer.model.__class__.__name__
+        net = (
+            trainer.model
+            if isinstance(trainer.model, str)
+            else trainer.model.__class__.__name__
+        )
         exp = self.__class__.__name__
         self.out_folder = Path(out_folder).absolute().joinpath(net, exp)
+
+    def register_buffer(self, name: str, value):
+        """Register a property in the buffer for access by trainer."""
+        self._buffers[name] = value
+
+    def access_buffer(self, name: str):
+        """Access the registered property, and raise a KeyError if the property
+        does not exist.
+        """
+        value = self._buffers.get(name)
+        if value is None:
+            raise KeyError(
+                f"Property '{name}' not found in {self.__class__.__name__}. "
+                f"Registered property are: {self._buffers.keys()}"
+            )
+        return value
 
     @abstractmethod
     def _run(self) -> dict:
@@ -141,21 +162,23 @@ class Experiment(ABC):
 
         self.filer = Filer(self.data_folder / "summary.txt")
         self.filer.write(f"[Start Time]: {self.timer.ctime()}\n")
-        self.filer.write(f"[DPEEG Version]: {dpeeg.__version__}\n")
+        self.filer.write(f"[DPEEG Version]: {__version__}\n")
         self.filer.write(f"[Description]: {desc}\n")
         self.filer.write(str(dataset) + "\n")
         self.filer.write(_format_log_kv("Transforms", transforms) + "\n")
-        self.filer.write(_format_log_kv("Trainer", self.trainer) + "\n")
+        self.filer.write(str(self.trainer) + "\n")
         self.filer.write(str(self) + "\n")
 
         self.timer.start()
         self.logger.info("=" * 50)
+        self.logger.info(f"[Experiment Start] - [{self.timer.ctime()}]")
 
         # Start the experiment for all subjects.
-        results = self._run()
+        results = {"dpeeg_version": __version__, "time": self.timer.ctime()}
+        results["results"] = self._run()  # type: ignore
+        np.save(self.data_folder / "result", results)  # type: ignore
 
         h, m, s = self.timer.stop()
-        torch.save(results, self.data_folder / f"results.pt")
         self.logger.info(f"\n[Experiment Finished] - [Cost Time = {h}H:{m}M:{s:.2f}S]")
         self.logger.info("=" * 50)
 
@@ -203,8 +226,14 @@ class ClsExp(Experiment, ABC):
                 f"Trainer type {trainer_type} is not supported, "
                 f"only {iterable_to_str(trainer_list.keys())} are supported."
             )
+        elif len(inter) != 1:
+            raise NameError(
+                f"Multiple trainers found: {inter}. "
+                "Avoid using built-in trainer names from dpeeg."
+            )
         else:
-            self._run_sub_func = trainer_list[inter.pop()]
+            self.trainer_type = inter.pop()
+            self._run_sub_func = trainer_list[self.trainer_type]
 
     def _trans_eegdata(self, eegdata: BaseData) -> SplitEEGData:
         """Apply pre-transforms on eegdata.
@@ -257,47 +286,43 @@ class ClsExp(Experiment, ABC):
 
     def _run(self) -> dict:
         if isinstance(self.dataset, BaseDataset):
-            return self._run_eegdata_set(self.dataset)
+            result = self._run_eegdata_set(self.dataset)
+            result["exp_type"] = self.__class__.__name__
         else:
-            return self._run_eegdata(self.dataset)
+            result = self._run_eegdata(self.dataset)
+            result["exp_type"] = "none"
+        result["trainer_type"] = self.trainer_type
+        return result
 
     def _run_eegdata(self, dataset: BaseData) -> dict:
-        acc, preds, target, detail = self._run_sub(dataset, self.data_folder)
-        return {"acc": acc, "preds": preds, "target": target, "detail": detail}
+        acc, result = self._run_sub(dataset, self.data_folder)
+        return result
 
     def _run_eegdata_set(self, dataset: BaseDataset) -> dict:
         result = {}
-        acc_metric = MeanMetric()
-        preds_metric = CatMetric()
-        target_metric = CatMetric()
+        acc = []
 
         for subject in dataset.keys():
             self.logger.info(f"\n[Subject-{subject} Training ...]")
             self.logger.info("-" * 50)
 
+            self.register_buffer("subject", subject)
             eegdata = self._process_sub_dataset(dataset, subject)
             sub_folder = self.data_folder / f"sub{subject}"
             sub_folder.mkdir(parents=True, exist_ok=False)
-            acc, preds, target, subject_result = self._run_sub(eegdata, sub_folder)  # type: ignore
+            subject_acc, subject_result = self._run_sub(eegdata, sub_folder)  # type: ignore
             result[f"subject_{subject}"] = subject_result
+            acc.append(subject_acc)
 
-            acc_metric.update(acc)
-            preds_metric.update(preds)
-            target_metric.update(target)
+            self.filer.write(f"Subject_{subject} Acc = {subject_acc*100:.2f}%\n")
 
-            self.filer.write(f"Subject_{subject} Acc = {acc*100:.2f}%\n")
-
-        acc = acc_metric.compute()
-        self.filer.write(f"Model Acc = {acc*100:.2f}%\n")
-
+        model_acc = np.mean(acc) * 100
+        model_std = np.std(acc) * 100
+        self.filer.write(
+            f"Model Acc\u00b1Std = {model_acc:.2f}\u00b1{model_std:.2f}%\n"
+        )
         self.logger.info("-" * 50)
-        self.logger.info(f"[Model Acc = {acc*100:.2f}%]")
-
-        result.update(
-            {
-                "acc": acc,
-                "preds": preds_metric.compute(),
-                "target": target_metric.compute(),
-            }
+        self.logger.info(
+            f"[Model Acc\u00b1Std = {model_acc:.2f}\u00b1{model_std:.2f}%]"
         )
         return result

@@ -92,12 +92,6 @@ def set_seed(seed: int = DPEEG_SEED, ret_old_seed: bool = False) -> None | int:
         return old_seed
 
 
-def unpacked(*args) -> list:
-    """Positional arguments are unpacked as lists."""
-    result = [X for X in args]
-    return result
-
-
 def mapping_to_str(mapping: Mapping, kv_symbol: str = "=", symbol: str = ", ") -> str:
     """Convert a mapping (e.g., dict) into a string format.
 

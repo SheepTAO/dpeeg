@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 
-from .utils import Conv2dWithNorm, LinearWithNorm
+from .utils import Conv2dWithNorm, LinearWithNorm, LogVarLayer
 from ..tools.docs import fill_doc
 
 
@@ -16,20 +16,10 @@ class swish(nn.Module):
         return x * torch.sigmoid(x)
 
 
-class LogVarLayer(nn.Module):
-    def __init__(self, dim):
-        super(LogVarLayer, self).__init__()
-        self.dim = dim
-
-    def forward(self, x):
-        x = torch.clamp(x.var(dim=self.dim, keepdim=True), 1e-6, 1e6)
-        return torch.log(x)
-
-
 @fill_doc
 class FBCNet(nn.Module):
     """FBCNet: A Multi-view Convolutional Neural Network for Brain-Computer
-    Interface (FBCNet).
+    Interface
 
     FBCNet [1]_ employs a multi-view data representation followed by spatial
     filtering to extract spectro-spatially discriminative features. In FBCNet,

@@ -20,7 +20,7 @@ Usage can be referenced from the following examples:
 .. currentmodule:: dpeeg.transforms
 
 Core
------------------------------
+------------------------------------------------------------------------------
 
 .. autosummary::
    :toctree: ../generated
@@ -33,7 +33,7 @@ Core
    split_subjects
 
 Commonly
------------------------------
+------------------------------------------------------------------------------
 
 .. autosummary::
    :toctree: ../generated
@@ -52,7 +52,7 @@ Commonly
    PickLabel
 
 Normalization
------------------------------
+------------------------------------------------------------------------------
 
 .. autosummary::
    :toctree: ../generated
@@ -63,7 +63,7 @@ Normalization
    MinMaxNorm
 
 Data Augmentation
------------------------------
+------------------------------------------------------------------------------
 
 .. autosummary::
    :toctree: ../generated

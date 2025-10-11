@@ -19,7 +19,7 @@ class InterFre(nn.Module):
 @fill_doc
 class IFNet(nn.Module):
     """IFNet: An Interactive Frequency Convolutional Neural Network for
-    Enhancing Motor Imagery Decoding From EEG (IFNet).
+    Enhancing Motor Imagery Decoding From EEG
 
     Inspired by the concept of cross-frequency coupling and its correlation
     with different behavioral tasks, IFNet [1]_ explores cross-frequency

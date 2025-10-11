@@ -85,7 +85,7 @@ def save(
     eegdata: BaseData,
     compress: bool = False,
 ):
-    """Archive eegdata into a file in '.egd' format.
+    """Archive eegdata into a file in `'.egd'` format.
 
     Parameters
     ----------
@@ -221,7 +221,7 @@ def _load_SplitEEGData(zipf, filelist) -> SplitEEGData:
 
 
 def load(file: str | Path):
-    """Load eegdata from `.egd` file."""
+    """Load eegdata from `'.egd'` file."""
     import zipfile
     import json
 

@@ -72,7 +72,5 @@ class Timer:
 
     @staticmethod
     def cdate() -> str:
-        """Get the current date and time in the 'year-month-day_hour:minute'
-        format.
-        """
-        return datetime.now().strftime("%y-%m-%d_%H:%M")
+        """Get the current date and time in the 'y-m-d_H:M:S' format."""
+        return datetime.now().strftime("%y-%m-%d_%H:%M:%S")

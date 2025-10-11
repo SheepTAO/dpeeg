@@ -64,10 +64,7 @@ class HoldOut(ClsExp):
 
     def _run_sub(self, eegdata, sub_folder):
         self.logger.info(f"\n# ---------- {sub_folder.name} ---------- #")
-        result = self._run_sub_func(self._trans_eegdata(eegdata), sub_folder)
-        return (
-            result["test"]["acc"],
-            result["test"]["preds"],
-            result["test"]["target"],
-            result,
-        )
+        eegdata = self._trans_eegdata(eegdata)
+        self.register_buffer("eegdata", eegdata)
+        result = self._run_sub_func(eegdata, sub_folder)
+        return result["test"]["acc"], result

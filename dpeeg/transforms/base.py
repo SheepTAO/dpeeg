@@ -18,7 +18,7 @@ from ..datasets.base import (
     MultiSessEEGData,
     SplitEEGData,
 )
-from ..utils import unpacked, DPEEG_SEED, get_init_args, iterable_to_str
+from ..utils import DPEEG_SEED, get_init_args, iterable_to_str
 
 
 class Transforms(ABC):
@@ -222,7 +222,7 @@ class Sequential(Transforms):
 
     def appends(self, *transforms: Transforms) -> None:
         """Append transforms to the last of composes."""
-        trans = unpacked(*transforms)
+        trans = [tran for tran in transforms]
         for tran in trans:
             if isinstance(tran, Sequential):
                 self.trans.extend(tran.get_transforms())

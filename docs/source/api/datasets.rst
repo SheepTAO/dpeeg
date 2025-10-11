@@ -4,7 +4,7 @@ EEG Data and Dataset
 .. _eeg_data:
 
 EEG Data
-----------------------------------
+------------------------------------------------------------------------------
 
 .. currentmodule:: dpeeg
 
@@ -22,7 +22,7 @@ EEG Data
 .. _eeg_dataset:
 
 EEG Dataset
-----------------------------------
+------------------------------------------------------------------------------
 
 .. autosummary::
    :toctree: ../generated
@@ -33,7 +33,7 @@ EEG Dataset
    LoadDataset
 
 Motor Imagery Datasets
-**********************************
+******************************************************************************
 
 .. autosummary::
    :toctree: ../generated
@@ -49,7 +49,7 @@ Motor Imagery Datasets
    MI_2
 
 Major Depression Dataset
-**********************************
+******************************************************************************
 
 .. autosummary::
    :toctree: ../generated
@@ -59,7 +59,7 @@ Major Depression Dataset
    MODMA_128_Resting
 
 Load and Save
-----------------------------------
+------------------------------------------------------------------------------
 
 .. currentmodule:: dpeeg
 

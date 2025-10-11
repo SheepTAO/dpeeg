@@ -8,6 +8,7 @@ from abc import abstractmethod, ABC
 from copy import deepcopy
 
 import torch
+import numpy as np
 import torch.nn as nn
 from torch import optim
 from torch import Tensor
@@ -23,12 +24,12 @@ from torchmetrics.functional.classification.accuracy import multiclass_accuracy
 from torchmetrics.aggregation import MeanMetric, CatMetric
 
 from .base import Trainer
-from ..utils import DPEEG_SEED
 from ..transforms.functions import to_tensor
 from .stopcriteria import ComposeStopCriteria
 from .utils import get_device, get_device_name, model_depth
-from ..utils import _set_torch_seed, mapping_to_str
+from ..utils import get_init_args
 from ..datasets.base import EEGData
+from ..tools.docs import fill_doc
 
 
 cudnn.benchmark = False
@@ -44,8 +45,9 @@ class BaseClassifier(Trainer, ABC):
 
     def __init__(
         self,
-        model: Module,
-        loss_fn: str | Type[Module] = "NLLLoss",
+        repr: dict,
+        model: Module | str,
+        loss_fn: str | Type[Module] | Module = "NLLLoss",
         loss_fn_args: dict | None = None,
         optimizer: str | Type[Optimizer] = "Adam",
         optimizer_args: dict | None = None,
@@ -55,30 +57,26 @@ class BaseClassifier(Trainer, ABC):
         grad_acc: int = 1,
         batch_size: int = 32,
         nGPU: int = 0,
-        seed: int = DPEEG_SEED,
         keep_data_gpu: bool = True,
         depth: int | None = None,
         data_size: tuple | list | None = None,
         verbose: int | str = "INFO",
     ) -> None:
-        super().__init__(model, verbose)
+        # update model architecture info
+        if isinstance(model, Module):
+            model_arch = str(model) + "\n"
+            depth = model_depth(model) if depth is None else depth
+            model_arch += str(summary(model, data_size, depth=depth, device="cpu"))
+            repr["model"] = model_arch
+        super().__init__(repr, model, verbose)
 
-        # init trainer
         self.device = get_device(nGPU)
         self.logger.info(
-            f"Model will be trained on {self.device} "
-            f"({get_device_name(self.device)})"
+            f"Model will be trained on {self.device} ({get_device_name(self.device)})"
         )
-        self.model.to(self.device)
-
-        _set_torch_seed(seed)
-        self.logger.info(f"Set torch random seed = {seed}")
-
-        # summarize model structure
-        self.model_arch = str(model) + "\n"
-        depth = model_depth(self.model) if depth is None else depth
-        self.model_arch += str(summary(model, data_size, depth=depth))
-        self.logger.info(self.model_arch)
+        if isinstance(model, Module):
+            self.model.to(self.device)
+            self.orig_model_param = deepcopy(self.model.state_dict())
 
         # the type of optimizer, etc. selected
         self.loss_fn_type = loss_fn
@@ -93,26 +91,8 @@ class BaseClassifier(Trainer, ABC):
         self.optimizer_args["lr"] = lr
         self.grad_acc = grad_acc
         self.batch_size = batch_size
-        self.seed = seed
         self.keep_data_gpu = keep_data_gpu
         self.verbose = verbose
-
-        # set experimental details
-        self.train_details = {
-            "type": self.__class__.__name__,
-            "train_param": {
-                "seed": seed,
-                "loss_fn": str(loss_fn),
-                "loss_fn_args": loss_fn_args,
-                "optimizer": str(optimizer),
-                "optimizer_args": optimizer_args,
-                "lr_sch": str(lr_sch),
-                "lr_sch_args": lr_sch_args,
-                "batch_size": batch_size,
-                "grad_acc": grad_acc,
-            },
-            "orig_model_param": deepcopy(self.model.state_dict()),
-        }
 
     def fit_epoch(self, train_loader: DataLoader) -> None:
         """Fit one epoch to train model.
@@ -205,6 +185,56 @@ class BaseClassifier(Trainer, ABC):
 
         return DataLoader(td, self.batch_size, True)
 
+    def reset_model(self) -> Module:
+        if not isinstance(self.model, Module):
+            raise NotImplementedError(
+                "When the model is initialized as str, "
+                "the `reset_model` method must be implemented."
+            )
+        self.model.load_state_dict(self.orig_model_param)
+        return self.model
+
+    def reset_loss_fn(self) -> Module:
+        if isinstance(self.loss_fn_type, str):
+            loss_fn = getattr(nn, self.loss_fn_type)(**self.loss_fn_args)
+        elif isinstance(self.loss_fn_type, Module):
+            loss_fn = self.loss_fn_type
+        elif issubclass(self.loss_fn_type, Module):
+            loss_fn = self.loss_fn_type(**self.loss_fn_args)
+        else:
+            raise TypeError(
+                f"Loss_fn type ({type(self.loss_fn_type)}) is not supported."
+            )
+        return loss_fn
+
+    def reset_optimizer(self) -> Optimizer:
+        if isinstance(self.optimizer_type, str):
+            optimizer = getattr(optim, self.optimizer_type)(
+                self.model.parameters(), **self.optimizer_args
+            )
+        elif issubclass(self.optimizer_type, Optimizer):
+            optimizer = self.optimizer_type(
+                self.model.parameters(), self.optimizer_args
+            )
+        else:
+            raise TypeError(
+                f"Optimizer type ({type(self.optimizer_type)}) is not supported."
+            )
+        return optimizer
+
+    def reset_lr_sch(self):
+        if self.lr_sch_type is None:
+            lr_sch = None
+        elif isinstance(self.lr_sch_type, str):
+            lr_sch = getattr(optim.lr_scheduler, self.lr_sch_type)(
+                self.optimizer, **self.lr_sch_args
+            )
+        elif issubclass(self.lr_sch_type, LRScheduler):
+            lr_sch = self.lr_sch_type(self.optimizer, **self.lr_sch_args)
+        else:
+            raise TypeError(f"Lr_sch type ({type(self.lr_sch_type)}) is not supported.")
+        return lr_sch
+
     def _reset_fitter(self, log_dir: str) -> tuple[str, SummaryWriter]:
         """Reset the relevant parameters of the fitter.
 
@@ -224,41 +254,12 @@ class BaseClassifier(Trainer, ABC):
             for the fitter.
         """
         self._reset_logger(log_dir)
-
-        # reset parameters of nn.Moudle
-        self.model.load_state_dict(self.train_details["orig_model_param"])
-
-        # create loss function
-        if isinstance(self.loss_fn_type, str):
-            self.loss_fn = getattr(nn, self.loss_fn_type)(**self.loss_fn_args)
-        else:
-            self.loss_fn = self.loss_fn_type(**self.loss_fn_args)
-
-        # create optimizer
-        if isinstance(self.optimizer_type, str):
-            self.optimizer = getattr(optim, self.optimizer_type)(
-                self.model.parameters(), **self.optimizer_args
-            )
-        elif issubclass(self.optimizer_type, Optimizer):
-            self.optimizer = self.optimizer_type(
-                self.model.parameters(), self.optimizer_args
-            )
-        else:
-            raise TypeError(
-                f"Optimizer type ({type(self.optimizer_type)}) is not supported."
-            )
-
-        # create lr_scheduler
-        if self.lr_sch_type is None:
-            self.lr_sch = None
-        elif isinstance(self.lr_sch_type, str):
-            self.lr_sch = getattr(optim.lr_scheduler, self.lr_sch_type)(
-                self.optimizer, **self.lr_sch_args
-            )
-        elif issubclass(self.lr_sch_type, LRScheduler):
-            self.lr_sch = self.lr_sch_type(self.optimizer, **self.lr_sch_args)
-        else:
-            raise TypeError(f"lr_sch type ({type(self.lr_sch_type)}) is not supported.")
+        self.model = self.reset_model()
+        self.model.to(self.device)
+        self.loss_fn = self.reset_loss_fn()
+        self.loss_fn.to(self.device)
+        self.optimizer = self.reset_optimizer()
+        self.lr_sch = self.reset_lr_sch()
 
         # create log writer
         log_dir = os.path.abspath(log_dir)
@@ -269,34 +270,6 @@ class BaseClassifier(Trainer, ABC):
     def get_acc(self, preds: Tensor, target: Tensor, ncls: int) -> Tensor:
         """Easy for program to caculate the accuarcy."""
         return multiclass_accuracy(preds, target, ncls, "micro")
-
-    def __repr__(self) -> str:
-        s = "[Model architecture]:\n" + self.model_arch + "\n"
-
-        s += f"[Loss function]: {self.loss_fn_type}"
-        if self.loss_fn_args:
-            s += f"({mapping_to_str(self.loss_fn_args)})\n"
-        else:
-            s += "\n"
-
-        s += f"[Optimizer]: {self.optimizer_type}"
-        if self.optimizer_args:
-            s += f"({mapping_to_str(self.optimizer_args)})\n"
-        else:
-            s += "\n"
-
-        if self.lr_sch_type:
-            s += f"[Lr scheduler]: {self.lr_sch_type}"
-            if self.lr_sch_args:
-                s += f"({mapping_to_str(self.lr_sch_args)})\n"
-            else:
-                s += "\n"
-
-        s += f"[Grad Acc]: {self.grad_acc}\n"
-        s += f"[Batch Size]: {self.batch_size}\n"
-        s += f"[Seed]: {self.seed}\n"
-
-        return s
 
 
 class Classifier(BaseClassifier):
@@ -368,7 +341,7 @@ class Classifier(BaseClassifier):
 
     def __init__(
         self,
-        model: Module,
+        model: Module | str,
         loss_fn: str | Type[Module] = "NLLLoss",
         loss_fn_args: dict | None = None,
         optimizer: str | Type[Optimizer] = "Adam",
@@ -383,13 +356,13 @@ class Classifier(BaseClassifier):
         var_check: Literal["train_loss", "train_inacc"] = "train_loss",
         load_best_state: bool = True,
         nGPU: int = 0,
-        seed: int = DPEEG_SEED,
         keep_data_gpu: bool = True,
         depth: int | None = None,
         data_size: tuple | list | None = None,
         verbose: int | str = "INFO",
     ) -> None:
         super().__init__(
+            get_init_args(self, locals(), ret_dict=True),
             model,
             loss_fn,
             loss_fn_args,
@@ -401,7 +374,6 @@ class Classifier(BaseClassifier):
             grad_acc,
             batch_size,
             nGPU,
-            seed,
             keep_data_gpu,
             depth,
             data_size,
@@ -411,17 +383,8 @@ class Classifier(BaseClassifier):
         self.no_increase_epochs = no_increase_epochs
         self.var_check = var_check
         self.load_best_state = load_best_state
-        self.train_details.update(
-            {
-                "train_param": {
-                    "max_epochs": max_epochs,
-                    "no_increase_epochs": no_increase_epochs,
-                    "var_check": var_check,
-                    "load_best_state": load_best_state,
-                }
-            }
-        )
 
+    @fill_doc
     def fit(
         self,
         trainset: EEGData,
@@ -436,8 +399,7 @@ class Classifier(BaseClassifier):
             Dataset used for training.
         testset : EEGData
             Dataset used to evaluate the model.
-        log_dir : str
-            The path to save the training log.
+        %(log_dir)s
 
         Returns
         -------
@@ -480,14 +442,11 @@ class Classifier(BaseClassifier):
             }
         )
         monitors = {"epoch": 0, "train_loss": float("inf"), "train_inacc": 1}
-
         while not stopcri(monitors):
 
             # train one epoch
             self.fit_epoch(train_loader)
             monitors["epoch"] += 1
-
-            # evaluate the training and validation accuracy
             train_preds, train_target, train_loss = self.predict(train_loader)
             train_acc = self.get_acc(train_preds, train_target, train_ncls)
             monitors["train_inacc"] = 1 - train_acc
@@ -508,41 +467,32 @@ class Classifier(BaseClassifier):
                 best_model_param = deepcopy(self.model.state_dict())
 
         writer.close()
-        if not self.load_best_state:
-            best_model_param = deepcopy(self.model.state_dict())
-
-        # report the checkpoint time of end and compute cost time
         h, m, s = self.timer.stop()
         self.logger.info(f"[Train Finish] - [Cost Time = {h}H:{m}M:{s:.2f}S]")
 
-        # load the best model and evaulate this model in testset
+        if not self.load_best_state:
+            best_model_param = deepcopy(self.model.state_dict())
         self.model.load_state_dict(best_model_param)
 
         results = {}
         train_preds, train_target, train_loss = self.predict(train_loader)
         train_acc = self.get_acc(train_preds, train_target, train_ncls)
         results["train"] = {
-            "preds": train_preds,
-            "target": train_target,
-            "acc": train_acc,
+            "preds": train_preds.numpy(),
+            "target": train_target.numpy(),
+            "acc": train_acc.item(),
         }
         test_preds, test_target, test_loss = self.predict(test_loader)
         test_acc = self.get_acc(test_preds, test_target, train_ncls)
-        results["test"] = {"preds": test_preds, "target": test_target, "acc": test_acc}
+        results["test"] = {
+            "preds": test_preds.numpy(),
+            "target": test_target.numpy(),
+            "acc": test_acc.item(),
+        }
 
         self.logger.info(f"Loss: Train={train_loss:.4f} | Test={test_loss:.4f}")
         self.logger.info(f"Acc:  Train={train_acc:.4f} | Test={test_acc:.4f}")
-
-        self.train_details["results"] = results
-        self.train_details["best_model_param"] = best_model_param
-
-        # store the training details
-        train_details_path = os.path.join(log_dir, f"train_details.pt")
-        torch.save(self.train_details, train_details_path)
-
-        # store the best model parameters
-        best_checkpoiont_path = os.path.join(log_dir, f"best_checkpoint.pth")
-        torch.save(best_model_param, best_checkpoiont_path)
+        torch.save(best_model_param, os.path.join(log_dir, f"best_model_param.pth"))
 
         return results
 
@@ -629,8 +579,8 @@ class ClassifierTwoStage(BaseClassifier):
 
     def __init__(
         self,
-        model: Module,
-        loss_fn: str | Type[Module] = "NLLLoss",
+        model: Module | str,
+        loss_fn: str | Type[Module] | Module = "NLLLoss",
         loss_fn_args: dict | None = None,
         optimizer: str | Type[Optimizer] = "Adam",
         optimizer_args: dict | None = None,
@@ -646,13 +596,13 @@ class ClassifierTwoStage(BaseClassifier):
         var_check: Literal["valid_inacc", "valid_loss"] = "valid_inacc",
         load_best_state: bool = True,
         nGPU: int = 0,
-        seed: int = DPEEG_SEED,
         keep_data_gpu: bool = True,
         depth: int | None = None,
         data_size: tuple | list | None = None,
         verbose: int | str = "INFO",
     ) -> None:
         super().__init__(
+            get_init_args(self, locals(), ret_dict=True),
             model,
             loss_fn,
             loss_fn_args,
@@ -664,7 +614,6 @@ class ClassifierTwoStage(BaseClassifier):
             grad_acc,
             batch_size,
             nGPU,
-            seed,
             keep_data_gpu,
             depth,
             data_size,
@@ -676,19 +625,8 @@ class ClassifierTwoStage(BaseClassifier):
         self.second_stage = second_stage
         self.var_check = var_check
         self.load_best_state = load_best_state
-        self.train_details.update(
-            {
-                "train_param": {
-                    "max_epochs_s1": max_epochs_s1,
-                    "max_epochs_s2": max_epochs_s2,
-                    "no_increase_epochs": no_increase_epochs,
-                    "second_stage": second_stage,
-                    "var_check": var_check,
-                    "load_best_state": load_best_state,
-                }
-            }
-        )
 
+    @fill_doc
     def fit(
         self,
         trainset: EEGData,
@@ -706,8 +644,7 @@ class ClassifierTwoStage(BaseClassifier):
             Dataset used for validation.
         testset : EEGData
             Dataset used to evaluate the model.
-        log_dir : str
-            The path to save the training log.
+        %(log_dir)s
 
         Returns
         -------
@@ -759,11 +696,6 @@ class ClassifierTwoStage(BaseClassifier):
                 }
             }
         )
-        self.train_details["fit"] = {
-            "type": "fit_with_val",
-            "var_check": self.var_check,
-            "stopcri_1": str(stopcri),
-        }
         monitors = {
             "epoch": 0,
             "valid_loss": float("inf"),
@@ -776,13 +708,10 @@ class ClassifierTwoStage(BaseClassifier):
         early_stop_reached, do_stop = False, False
 
         while not do_stop:
-
             # train one epoch
             self.fit_epoch(train_loader)
             monitors["epoch"] += 1
             monitors["global_epoch"] += 1
-
-            # evaluate the training and validation accuracy
             train_preds, train_target, train_loss = self.predict(train_loader)
             train_acc = self.get_acc(train_preds, train_target, train_ncls)
             valid_preds, valid_target, valid_loss = self.predict(valid_loader)
@@ -801,14 +730,13 @@ class ClassifierTwoStage(BaseClassifier):
                 {"loss": valid_loss, "acc": valid_acc},
                 monitors["global_epoch"],
             )
-            # print the epoch info
             self.logger.info(f'-->Epoch : {monitors["epoch"]}')
             self.logger.info(
                 f"  \u21b3train Loss/Acc = {train_loss:.4f}/{train_acc:.4f}"
                 f" | valid Loss/Acc = {valid_loss:.4f}/{valid_acc:.4f}"
             )
 
-            # select best model on Stage 1
+            # select best model on first stage
             if load_best_state and monitors[self.var_check] <= best_var:
                 best_var = monitors[self.var_check]
                 best_model_param = deepcopy(self.model.state_dict())
@@ -857,9 +785,9 @@ class ClassifierTwoStage(BaseClassifier):
                             }
                         }
                     )
-                    self.train_details["fit"]["stopcri_2"] = str(stopcri)
                     monitors["epoch"] = 0
                     load_best_state = False
+                # second stage completed
                 elif self.second_stage and early_stop_reached:
                     do_stop = True
                     best_model_param = deepcopy(self.model.state_dict())
@@ -870,35 +798,32 @@ class ClassifierTwoStage(BaseClassifier):
                         best_model_param = deepcopy(self.model.state_dict())
 
         writer.close()
-
-        # report the checkpoint time of end and compute cost time
         h, m, s = self.timer.stop()
         self.logger.info(f"[Train Finish] - [Cost Time = {h}H:{m}M:{s:.2f}S]")
 
-        # load the best model and evaulate this model in testset
         self.model.load_state_dict(best_model_param)
 
         results = {}
         train_preds, train_target, train_loss = self.predict(train_loader)
         train_acc = self.get_acc(train_preds, train_target, train_ncls)
         results["train"] = {
-            "preds": train_preds,
-            "target": train_target,
-            "acc": train_acc,
+            "preds": train_preds.numpy(),
+            "target": train_target.numpy(),
+            "acc": train_acc.item(),
         }
         valid_preds, valid_target, valid_loss = self.predict(valid_loader)
         valid_acc = self.get_acc(valid_preds, valid_target, valid_ncls)
         results["valid"] = {
-            "preds": valid_preds,
-            "target": valid_target,
-            "acc": valid_acc,
+            "preds": valid_preds.numpy(),
+            "target": valid_target.numpy(),
+            "acc": valid_acc.item(),
         }
         test_preds, test_target, test_loss = self.predict(test_loader)
         test_acc = self.get_acc(test_preds, test_target, test_ncls)
         results["test"] = {
-            "preds": test_preds,
-            "target": test_target,
-            "acc": test_acc,
+            "preds": test_preds.numpy(),
+            "target": test_target.numpy(),
+            "acc": test_acc.item(),
         }
 
         self.logger.info(
@@ -909,16 +834,6 @@ class ClassifierTwoStage(BaseClassifier):
             f"Acc:  Train={train_acc:.4f} | Valid={valid_acc:.4f} | "
             f"Test={test_acc:.4f}"
         )
-
-        self.train_details["results"] = results
-        self.train_details["best_model_param"] = best_model_param
-
-        # store the training details
-        train_details_path = os.path.join(log_dir, f"train_details.pt")
-        torch.save(self.train_details, train_details_path)
-
-        # store the best model
-        best_checkpoiont_path = os.path.join(log_dir, f"best_checkpoint.pth")
-        torch.save(best_model_param, best_checkpoiont_path)
+        torch.save(best_model_param, os.path.join(log_dir, f"best_model_param.pth"))
 
         return results

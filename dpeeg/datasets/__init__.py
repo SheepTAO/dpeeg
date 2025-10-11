@@ -17,3 +17,4 @@ from .physionet import PhysioNet_MI
 from .ukds import MODMA_128_Resting
 from .zenodo import Ofner2017
 from .harvard import MI_2
+from .figshare import Mumtaz2016

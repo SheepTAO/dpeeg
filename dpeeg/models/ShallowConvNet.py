@@ -20,7 +20,7 @@ class Lambda(nn.Module):
 @fill_doc
 class ShallowConvNet(nn.Module):
     """Deep Learning With Convolutional Neural Networks for EEG Decoding and
-    Visualization (ShallowConvNet).
+    Visualization
 
     Shallow ConvNet [1]_, inspired by the FBCSP pipeline, is specifically
     tailored to decode band power features. The transformations performed by
@@ -96,6 +96,7 @@ class ShallowConvNet(nn.Module):
             nn.LogSoftmax(dim=1),
         )
 
+    @torch.no_grad()
     def forward_flatten(self):
         x = torch.rand(1, 1, self.nCh, self.nTime)
         x = self.conv(x)

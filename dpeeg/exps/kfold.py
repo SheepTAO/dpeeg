@@ -3,8 +3,8 @@
 # License: MIT
 # Copyright the dpeeg contributors.
 
+import numpy as np
 from sklearn.model_selection import StratifiedKFold
-from torchmetrics.aggregation import MeanMetric, CatMetric
 
 from .base import ClsExp
 from ..trainer.classifier import BaseClassifier
@@ -101,11 +101,8 @@ class KFold(ClsExp):
         eegdata = ToEEGData()(eegdata, verbose=False)
 
         result = {}
+        train_acc_metric, test_acc_metric = [], []
         filer = Filer(sub_folder / "summary.txt")
-        train_acc_metric = MeanMetric()
-        test_acc_metric = MeanMetric()
-        preds_metric = CatMetric()
-        target_metric = CatMetric()
 
         for exp_idx, (train_idx, test_idx) in enumerate(
             self.skf.split(eegdata["edata"], eegdata["label"]), start=1
@@ -126,10 +123,8 @@ class KFold(ClsExp):
             )
 
             result[f"exp{exp_idx}"] = exp_result
-            train_acc_metric.update(exp_result["train"]["acc"])
-            test_acc_metric.update(exp_result["test"]["acc"])
-            preds_metric.update(exp_result["test"]["preds"])
-            target_metric.update(exp_result["test"]["target"])
+            test_acc_metric.append(exp_result["test"]["acc"])
+            train_acc_metric.append(exp_result["train"]["acc"])
 
             filer.write(
                 f"Exp_{str(exp_idx).zfill(len(self.k))} Acc: "
@@ -137,20 +132,18 @@ class KFold(ClsExp):
                 f"Test={exp_result['test']['acc']:.4f}\n"
             )
 
-        train_acc = train_acc_metric.compute()
-        test_acc = test_acc_metric.compute()
-        filer.write(f"Avg Acc = {test_acc*100:.2f}%\n")
-        self.logger.info("-" * 30)
-        self.logger.info(f"Avg Acc: Train={train_acc:.4f} | Test={test_acc:.4f}")
+        train_acc = np.mean(train_acc_metric)
+        test_acc = np.mean(test_acc_metric)
+        test_std = np.std(test_acc_metric)
 
-        result.update(
-            {
-                "acc": test_acc,
-                "preds": preds_metric.compute(),
-                "target": target_metric.compute(),
-            }
+        filer.write(f"AvgAcc\u00b1Std = {test_acc*100:.2f}\u00b1{test_std*100:.2f}%\n")
+        self.logger.info("-" * 30)
+        self.logger.info(
+            f"AvgAcc\u00b1Std: Train={train_acc:.4f} | "
+            f"Test={test_acc:.4f}\u00b1{test_std:.4f}"
         )
-        return result
+
+        return test_acc, result
 
     def _run_sub_classifier_two_stage(self, eegdata, sub_folder):
         if self.isolate_testset:
@@ -164,11 +157,7 @@ class KFold(ClsExp):
 
         result = {}
         filer = Filer(sub_folder / "summary.txt")
-        train_acc_metric = MeanMetric()
-        valid_acc_metric = MeanMetric()
-        test_acc_metric = MeanMetric()
-        preds_metric = CatMetric()
-        target_metric = CatMetric()
+        train_acc_metric, valid_acc_metric, test_acc_metric = [], [], []
 
         for exp_idx, (train_idx, test_idx) in enumerate(self.skf.split(X, y), start=1):
             self.logger.info(f"\n# ---- {sub_folder.name}_exp{exp_idx} ---- #")
@@ -197,11 +186,9 @@ class KFold(ClsExp):
             )
 
             result[f"exp{exp_idx}"] = exp_result
-            train_acc_metric.update(exp_result["train"]["acc"])
-            valid_acc_metric.update(exp_result["valid"]["acc"])
-            test_acc_metric.update(exp_result["test"]["acc"])
-            preds_metric.update(exp_result["test"]["preds"])
-            target_metric.update(exp_result["test"]["target"])
+            train_acc_metric.append(exp_result["train"]["acc"])
+            valid_acc_metric.append(exp_result["valid"]["acc"])
+            test_acc_metric.append(exp_result["test"]["acc"])
 
             filer.write(
                 f"Exp_{str(exp_idx).zfill(len(self.k))} Acc: "
@@ -210,24 +197,18 @@ class KFold(ClsExp):
                 f"Test={exp_result['test']['acc']:.4f}\n"
             )
 
-        train_acc = train_acc_metric.compute()
-        valid_acc = valid_acc_metric.compute()
-        test_acc = test_acc_metric.compute()
-        filer.write(f"Avg Acc = {test_acc*100:.2f}%\n")
+        train_acc = np.mean(train_acc_metric)
+        valid_acc = np.mean(valid_acc_metric)
+        test_acc = np.mean(test_acc_metric)
+        test_std = np.std(test_acc_metric)
+        filer.write(f"AvgAcc\u00b1Std = {test_acc*100:.2f}\u00b1{test_std*100:.2f}%\n")
         self.logger.info("-" * 30)
         self.logger.info(
-            f"Avg Acc: Train={train_acc:.4f} | Valid={valid_acc:.4f} | "
-            f"Test={test_acc:.4f}"
+            f"AvgAcc\u00b1Std: Train={train_acc:.4f} | Valid={valid_acc:.4f} | "
+            f"Test={test_acc:.4f}\u00b1{test_std:.4f}"
         )
 
-        result.update(
-            {
-                "acc": test_acc,
-                "preds": preds_metric.compute(),
-                "target": target_metric.compute(),
-            }
-        )
-        return result
+        return test_acc, result
 
     def _run_sub(self, eegdata, sub_folder):
         """Basic K-Fold cross validation function.
@@ -244,10 +225,10 @@ class KFold(ClsExp):
         """
         self.timer.start("kfold")
         self.logger.info(f"\n# ---------- {sub_folder.name} ---------- #")
-        result = self._run_sub_func(eegdata, sub_folder)
+        acc, result = self._run_sub_func(eegdata, sub_folder)
         h, m, s = self.timer.stop("kfold")
         self.logger.info(
             f"\n[{self.k}Fold CV Finish] - [Cost Time = {h}H:{m}M:{s:.2f}S]"
         )
 
-        return result["acc"], result["preds"], result["target"], result
+        return acc, result

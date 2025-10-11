@@ -11,7 +11,7 @@ __all__ = ["EEGNet"]
 @fill_doc
 class EEGNet(nn.Module):
     """EEGNet: A Compact Convolutional Neural Network for EEG-based
-    Brain-Computer Interfaces (EEGNet).
+    Brain-Computer Interfaces
 
     EEGNet [1]_ is a compact convolutional neural network for EEG-based BCIs.
     EEGNet starts with a temporal convolution to learn frequency filters, then
@@ -47,7 +47,7 @@ class EEGNet(nn.Module):
     ----------
     .. [1] V. J. Lawhern, A. J. Solon, N. R. Waytowich, S. M. Gordon,
         C. P. Hung, and B. J. Lance, “EEGNet: a compact convolutional neural
-        network for EEG-based brain–computer interfaces,” J. Neural Eng.,
+        network for EEG-based brain-computer interfaces,” J. Neural Eng.,
         vol. 15, no. 5, p. 056013, Jul. 2018, doi: 10.1088/1741-2552/aace8c.
     """
 
@@ -100,6 +100,7 @@ class EEGNet(nn.Module):
             nn.LogSoftmax(dim=1),
         )
 
+    @torch.no_grad()
     def get_size(self, nCh, nTime):
         x = torch.randn(1, 1, nCh, nTime)
         out = self.filter(x)

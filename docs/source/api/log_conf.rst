@@ -10,7 +10,6 @@ Logging and Configuration
 
    set_log_level
    set_seed
-   unpacked
    mapping_to_str
    iterable_to_str
    align_text

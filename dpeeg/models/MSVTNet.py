@@ -6,7 +6,7 @@ from einops.layers.torch import Rearrange
 from ..tools.docs import fill_doc
 
 
-__all__ = ["MSVTNet", "JointCrossEntoryLoss"]
+__all__ = ["MSVTNet", "ABLoss"]
 
 
 class TSConv(nn.Sequential):
@@ -79,7 +79,7 @@ class ClsHead(nn.Sequential):
 @fill_doc
 class MSVTNet(nn.Module):
     """MSVTNet: Multi-Scale Vision Transformer Neural Network for EEG-Based
-    Motor Imagery Decoding (MSVTNet).
+    Motor Imagery Decoding
 
     MSVTNet [1]_ effectively integrates the strengths of convolutional neural
     networks (CNNs) in extracting local features with the global feature
@@ -171,6 +171,7 @@ class MSVTNet(nn.Module):
         linear_in = self._forward_flatten().shape[1]  # type: ignore
         self.last_head = ClsHead(linear_in, nCls)
 
+    @torch.no_grad()
     def _forward_mstsconv(self, cat=True):
         x = torch.randn(1, 1, self.nCh, self.nTime)
         x = [tsconv(x) for tsconv in self.mstsconv]
@@ -178,6 +179,7 @@ class MSVTNet(nn.Module):
             x = torch.cat(x, dim=2)
         return x
 
+    @torch.no_grad()
     def _forward_flatten(self, cat=True):
         x = self._forward_mstsconv(cat)
         if cat:
@@ -194,7 +196,7 @@ class MSVTNet(nn.Module):
         Parameters
         ----------
         x : Tensor
-            Input EEG data, shape `(batch_size, bands, nCh, nTime)`.
+            Input EEG data, shape `(batch_size, 1, nCh, nTime)`.
 
         Returns
         -------
@@ -215,8 +217,9 @@ class MSVTNet(nn.Module):
             return x
 
 
-class JointCrossEntoryLoss(nn.Module):
-    r"""Auxiliary branch loss.
+class ABLoss(nn.Module):
+    r"""MSVTNet: Multi-Scale Vision Transformer Neural Network for EEG-Based
+    Motor Imagery Decoding (Auxiliary Branch Loss)
 
     The parameters of MSVTNet are learned under the supervision of the
     auxiliary branch loss and model prediction loss:
@@ -240,15 +243,16 @@ class JointCrossEntoryLoss(nn.Module):
         super().__init__()
         self.lamd = lamd
 
-    def forward(self, out, label):
+    def forward(self, out, target):
         """Forward pass function that processes the model and branch prediction
         probabilities.
 
         Parameters
         ----------
         out : tuple of Tensor
-            Models and branch prediction probabilities.
-        label : Tensor
+            Tuple of cls_prob (predicted class probability) and branch_cls_prob
+            (class probabilities for branch prediction).
+        target : Tensor
             True label.
 
         Returns
@@ -256,10 +260,9 @@ class JointCrossEntoryLoss(nn.Module):
         loss : Tensor
             Loss with gradient.
         """
-        end_out = out[0]
-        branch_out = out[1]
-        end_loss = F.nll_loss(end_out, label)
-        branch_loss = [F.nll_loss(out, label).unsqueeze(0) for out in branch_out]
+        cls_prob, branch_cls_prob = out
+        end_loss = F.nll_loss(cls_prob, target)
+        branch_loss = [F.nll_loss(out, target).unsqueeze(0) for out in branch_cls_prob]
         branch_loss = torch.cat(branch_loss)
         loss = self.lamd * end_loss + (1 - self.lamd) * torch.sum(branch_loss)
         return loss

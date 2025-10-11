@@ -11,7 +11,7 @@ __all__ = ["DeepConvNet"]
 @fill_doc
 class DeepConvNet(nn.Module):
     """Deep Learning With Convolutional Neural Networks for EEG Decoding and
-    Visualization (Deep ConvNet).
+    Visualization
 
     Deep ConvNet [1]_ had four convolution-max-pooling blocks, with a special
     first block designed to handle EEG input, followed by three standard
@@ -78,6 +78,7 @@ class DeepConvNet(nn.Module):
             nn.LogSoftmax(dim=1),
         )
 
+    @torch.no_grad()
     def _forward_flatten(self):
         x = torch.rand(1, 1, self.nCh, self.nTime)
         x = self.conv_layer(x)

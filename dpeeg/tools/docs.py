@@ -46,6 +46,12 @@ baseline : tuple of int, optional
 """
 
 # %%
+# C
+
+# %%
+# D
+
+# %%
 # E
 
 docdict["eegdata_set"] = """
@@ -53,14 +59,26 @@ eegdata : :ref:`eeg_data`, :ref:`eeg_dataset`
     The basic types are eegdata and eegdataset.
 """
 
-docdict["trans_ret"] = """
-
-"""
-
 docdict["executed"] = """
 executed: bool
     if True, return runs corresponding to motor execution.
 """
+
+docdict["epochs_tmin_tmax"] = """
+tmin-tmax : float
+    Start and end time of the epochs in seconds, relative to the time locked 
+    event. The closest or matching samples corresponding to the start and end 
+    time are included. Default is start and end time of epochs, respectively.
+"""
+
+# %%
+# F
+
+# %%
+# G
+
+# %%
+# H
 
 # %%
 # I
@@ -69,6 +87,23 @@ docdict["imagined"] = """
 imagined: bool
     if True, return runs corresponding to motor imagination.
 """
+
+# %%
+# J
+
+# %%
+# K
+
+# %%
+# L
+
+docdict["log_dir"] = """
+log_dir : str
+    The path to save the training log.
+"""
+
+# %%
+# M
 
 # %%
 # N
@@ -93,9 +128,9 @@ nCls : int
 # O
 
 docdict["out_folder"] = """
-out_folder : str, optional
+out_folder : str
     Store all experimental results in a folder named with the model class name 
-    in the specified folder ('~/dpeeg/out/model/exp/dataset/timestamp').
+    in the specified folder ('out_folder/model/exp/dataset/timestamp').
 """
 
 # %%
@@ -105,6 +140,9 @@ docdict["picks"] = """
 picks : list of str, optional
     Channels to include. If ``None``, pick all channels.
 """
+
+# %%
+# Q
 
 # %%
 # R
@@ -119,6 +157,11 @@ rename : str, optional
     Rename the dataset.
 """
 
+docdict["raw_tmin_tmax"] = """
+tmin-tmax : float
+    Start and end time of the raw in seconds. Default to use all data.
+"""
+
 # %%
 # S
 
@@ -127,15 +170,13 @@ subjects : list of int, optional
     List of subject number. If ``None``, all subjects will be loaded.
 """
 
+docdict["save"] = """
+save : bool
+    Save detailed results locally.
+"""
+
 # %%
 # T
-
-docdict["epochs_tmin_tmax"] = """
-tmin-tmax : float
-    Start and end time of the epochs in seconds, relative to the time locked 
-    event. The closest or matching samples corresponding to the start and end 
-    time are included. Default is start and end time of epochs, respectively.
-"""
 
 docdict["trainer"] = """
 trainer : Trainer
@@ -152,10 +193,23 @@ train_for_test : bool
     If True, normalize the test set using the values in the training set.
 """
 
-docdict["raw_tmin_tmax"] = """
-tmin-tmax : float
-    Start and end time of the raw in seconds. Default to use all data.
-"""
+# %%
+# U
+
+# %%
+# V
+
+# %%
+# W
+
+# %%
+# X
+
+# %%
+# Y
+
+# %%
+# Z
 
 # fmt: on
 

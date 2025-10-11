@@ -3,19 +3,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from ..tools.docs import fill_doc
+from .utils import LogVarLayer
 
 
 __all__ = ["LightConvNet"]
-
-
-class LogVarLayer(nn.Module):
-    def __init__(self, dim):
-        super().__init__()
-        self.dim = dim
-
-    def forward(self, x):
-        out = torch.clamp(x.var(dim=self.dim), 1e-6, 1e6)
-        return torch.log(out)
 
 
 class LightweightConv1d(nn.Module):
@@ -85,7 +76,7 @@ class LightweightConv1d(nn.Module):
 @fill_doc
 class LightConvNet(nn.Module):
     """A Temporal Dependency Learning CNN With Attention Mechanism for MI-EEG
-    Decoding (LightConvNet).
+    Decoding
 
     LightConvNet [1]_ first implements the spatial convolution to learn spatial
     and spectral information from multi-view EEG data, which is preprocessed

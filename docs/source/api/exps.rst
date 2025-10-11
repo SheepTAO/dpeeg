@@ -10,7 +10,7 @@ the ``run`` function.
 .. currentmodule:: dpeeg.exps
 
 Classification Experiments
-------------------------------------
+------------------------------------------------------------------------------
 
 .. autosummary::
    :toctree: ../generated
